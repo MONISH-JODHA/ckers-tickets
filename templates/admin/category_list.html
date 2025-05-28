@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>{{ title }}</h1>
+        <a href="{{ url_for('admin_create_edit_category') }}" class="btn btn-success">Create New Category</a>
+    </div>
+
+    <table class="table table-hover table-striped">
+        <thead class="thead-dark">
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Tickets</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for category_item in categories %}
+            <tr>
+                <td>{{ category_item.id }}</td>
+                <td>{{ category_item.name }}</td>
+                <td>{{ category_item.description|default('N/A', True) }}</td>
+                <td>{{ category_item.tickets.count() }}</td>
+                <td>
+                    <a href="{{ url_for('admin_create_edit_category', category_id=category_item.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                    <form action="{{ url_for('admin_delete_category', category_id=category_item.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this category? This cannot be undone if tickets are not associated.');">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="text-center">No categories found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

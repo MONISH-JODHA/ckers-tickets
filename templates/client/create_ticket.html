@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-7">
+        <div class="card mt-4 shadow-sm">
+            <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('create_ticket') }}" novalidate enctype="multipart/form-data"> {# Added enctype #}
+                    {{ form.hidden_tag() }}
+                    {# ... (title, category, cloud_provider, severity, aws_service, aws_account_id, environment fields as in previous response for create_ticket.html) ... #}
+                    {# Example for one of the new fields: #}
+                    <div class="form-group">
+                        {{ form.title.label(class="form-control-label") }}
+                        {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="A brief summary of your issue") }}
+                        {% for error in form.title.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="form-group">
+                        {{ form.category.label(class="form-control-label") }}
+                        {{ form.category(class="form-control custom-select" + (" is-invalid" if form.category.errors else "")) }}
+                        {% for error in form.category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <hr>
+                    <h5 class="mt-4 mb-3">Additional Details</h5>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.cloud_provider.label(class="form-control-label") }}
+                            {{ form.cloud_provider(class="form-control custom-select" + (" is-invalid" if form.cloud_provider.errors else ""), id="cloudProviderSelectCreate") }}
+                            {% for error in form.cloud_provider.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {{ form.severity.label(class="form-control-label") }}
+                            {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else "")) }}
+                            {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group" id="awsServiceGroupCreate" style="display:none;">
+                        {{ form.aws_service.label(class="form-control-label") }}
+                        {{ form.aws_service(class="form-control custom-select" + (" is-invalid" if form.aws_service.errors else "")) }}
+                        {% for error in form.aws_service.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        {{ form.aws_account_id.label(class="form-control-label") }}
+                        {{ form.aws_account_id(class="form-control" + (" is-invalid" if form.aws_account_id.errors else ""), placeholder="e.g., 123456789012") }}
+                        {% for error in form.aws_account_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        {{ form.environment.label(class="form-control-label") }}
+                        {{ form.environment(class="form-control custom-select" + (" is-invalid" if form.environment.errors else "")) }}
+                        {% for error in form.environment.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <hr>
+
+                    <div class="form-group">
+                        {{ form.additional_recipients.label(class="form-control-label") }}
+                        {{ form.additional_recipients(class="form-control" + (" is-invalid" if form.additional_recipients.errors else ""), rows="2", placeholder="john.doe@example.com, jane.doe@example.com") }}
+                        {% for error in form.additional_recipients.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <hr>
+                    <div class="form-group">
+                        {{ form.description.label(class="form-control-label") }}
+                        {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows="8", placeholder="Please describe your issue in detail...") }}
+                        {% for error in form.description.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        {{ form.attachments.label(class="form-control-label") }}
+                        {{ form.attachments(class="form-control-file" + (" is-invalid" if form.attachments.errors else "")) }}
+                        <small class="form-text text-muted">Max file size: 16MB. Allowed types: txt, pdf, png, jpg, doc(x), xls(x), ppt(x)</small>
+                        {% for error in form.attachments.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group mt-4">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-lg">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var cloudProviderSelect = document.getElementById('cloudProviderSelectCreate');
+    var awsServiceGroup = document.getElementById('awsServiceGroupCreate');
+    function toggleAwsService() {
+        if (cloudProviderSelect && awsServiceGroup) {
+            awsServiceGroup.style.display = (cloudProviderSelect.value === 'AWS') ? 'block' : 'none';
+            if (cloudProviderSelect.value !== 'AWS') {
+                var awsServiceSelect = awsServiceGroup.querySelector('select');
+                if (awsServiceSelect) awsServiceSelect.value = '';
+            }
+        }
+    }
+    if (cloudProviderSelect) { cloudProviderSelect.addEventListener('change', toggleAwsService); toggleAwsService(); }
+});
+</script>
+{% endblock %}

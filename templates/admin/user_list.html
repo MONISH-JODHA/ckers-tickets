@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>{{ title }}</h1>
+        <a href="{{ url_for('admin_create_edit_user') }}" class="btn btn-success">
+            <i class="fas fa-user-plus mr-1"></i>Create New User
+        </a>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-striped table-bordered">
+            <thead class="thead-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Created At</th>
+                    <th style="width: 220px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user_item in users %}
+                <tr>
+                    <td>{{ user_item.id }}</td>
+                    <td>{{ user_item.username }}</td>
+                    <td>{{ user_item.email }}</td>
+                    <td>
+                        {% if user_item.role == 'admin' %}
+                            <span class="badge badge-danger p-2">{{ user_item.role|capitalize }}</span>
+                        {% elif user_item.role == 'agent' %}
+                            <span class="badge badge-info p-2">{{ user_item.role|capitalize }}</span>
+                        {% else %}
+                            <span class="badge badge-success p-2">{{ user_item.role|capitalize }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user_item.created_at.strftime('%Y-%m-%d %H:%M') if user_item.created_at else 'N/A' }}</td>
+                    <td>
+                        <a href="{{ url_for('admin_create_edit_user', user_id=user_item.id) }}" class="btn btn-sm btn-primary mr-1" title="Edit User">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        
+                        <button type="button" class="btn btn-sm btn-warning mr-1" data-toggle="modal" data-target="#shareCredentialsModal" 
+                                data-userid="{{ user_item.id }}" data-username="{{ user_item.username }}" title="Share Credentials Info">
+                            <i class="fas fa-share-square"></i> Share
+                        </button>
+
+                        {% if user_item.id != current_user.id and not (user_item.is_admin and users|selectattr('is_admin')|list|length <= 1) %}
+                        <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="POST" style="display:inline;" 
+                              onsubmit="return confirm('Are you absolutely sure you want to delete user {{ user_item.username }}? This action cannot be undone.');">
+                            
+                            {# === CSRF TOKEN ADDED FOR MANUAL FORM === #}
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            <button type="submit" class="btn btn-sm btn-danger" title="Delete User">
+                                <i class="fas fa-trash-alt"></i> Delete
+                            </button>
+                        </form>
+                        {% else %}
+                            <button type="button" class="btn btn-sm btn-danger" disabled title="Cannot delete this user">
+                                <i class="fas fa-trash-alt"></i> Delete
+                            </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center">No users found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Share Credentials Modal -->
+    <div class="modal fade" id="shareCredentialsModal" tabindex="-1" role="dialog" aria-labelledby="shareCredentialsModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form id="shareCredentialsForm" method="POST" action=""> 
+                    {{ share_form.hidden_tag() }} {# This includes CSRF token from WTForms #}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="shareCredentialsModalLabel">Share Credentials Info for <strong id="modalUsername"></strong></h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <p>This will send an email with the username and instructions for password management.</p>
+                        <div class="form-group">
+                            {{ share_form.recipient_email.label(for="modal_recipient_email", class="form-control-label") }}
+                            {{ share_form.recipient_email(class="form-control", id="modal_recipient_email", placeholder="Enter recipient's email") }}
+                            {% if share_form.recipient_email.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in share_form.recipient_email.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                         <div class="alert alert-warning small">
+                            <strong>Note:</strong> The user's actual password will NOT be sent.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Send Email</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function() {
+    $('#shareCredentialsModal').on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget); 
+        var userId = button.data('userid'); 
+        var username = button.data('username');
+        
+        var modal = $(this);
+        modal.find('.modal-title #modalUsername').text(username);
+        
+        var formAction = "{{ url_for('admin_share_credentials', user_id=0) }}".replace('0', userId);
+        modal.find('#shareCredentialsForm').attr('action', formAction);
+        modal.find('#modal_recipient_email').val(''); 
+        modal.find('.invalid-feedback').empty().removeClass('d-block');
+        modal.find('.is-invalid').removeClass('is-invalid');
+    });
+});
+</script>
+{% endblock %}

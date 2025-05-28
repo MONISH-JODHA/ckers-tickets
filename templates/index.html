@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome - Ticket Management System{% endblock %}
+
+{% block content %}
+<div class="jumbotron mt-4 text-center shadow-lg p-5 bg-light rounded">
+    <h1 class="display-4">Welcome to TicketSys!</h1>
+    <p class="lead">Your efficient solution for managing support tickets and customer interactions.</p>
+    <hr class="my-4">
+    {% if current_user.is_anonymous %}
+        <p>Please log in to access the system or register for a new account using your @cloudkeeper.com email.</p>
+        <a class="btn btn-primary btn-lg mr-2" href="{{ url_for('login') }}" role="button">
+            <i class="fas fa-sign-in-alt mr-1"></i>Login
+        </a>
+        <a class="btn btn-success btn-lg mr-2" href="{{ url_for('register_client') }}" role="button">
+            <i class="fas fa-user-plus mr-1"></i>Register as Client
+        </a>
+        <a class="btn btn-info btn-lg" href="{{ url_for('register_agent') }}" role="button">
+            <i class="fas fa-headset mr-1"></i>Register as Agent
+        </a>
+    {% else %}
+        <p>You are logged in, {{ current_user.username }}. Go to your dashboard to get started.</p>
+        <a class="btn btn-primary btn-lg" href="{{ url_for('dashboard') }}" role="button">
+            <i class="fas fa-tachometer-alt mr-1"></i>Go to Dashboard
+        </a>
+    {% endif %}
+</div>
+
+<div class="row mt-5 text-center">
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <i class="fas fa-tasks fa-3x text-primary mb-3"></i>
+                <h4 class="card-title">Track Your Issues</h4>
+                <p class="card-text">Easily create and monitor the status of your support requests. Get timely updates and resolutions from our dedicated team.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <i class="fas fa-headset fa-3x text-success mb-3"></i>
+                <h4 class="card-title">Efficient Support</h4>
+                <p class="card-text">Our support agents are equipped to help. Tickets are categorized and prioritized for quick and effective assistance.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <i class="fas fa-sitemap fa-3x text-info mb-3"></i>
+                <h4 class="card-title">Organized Workflow</h4>
+                <p class="card-text">A streamlined system for agents and administrators to manage tickets, assign tasks, and collaborate efficiently.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

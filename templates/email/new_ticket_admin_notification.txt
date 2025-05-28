@@ -1,0 +1,20 @@
+A new support ticket has been created:
+
+Ticket ID: #{{ ticket.id }}
+Title: {{ ticket.title }}
+Submitted by: {{ user.username }} ({{ user.email }})
+Category: {{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}
+Severity: {{ ticket.severity or 'N/A' }}
+Cloud Provider: {{ ticket.cloud_provider or 'N/A' }}
+{% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}AWS Service: {{ ticket.aws_service }}{% endif %}
+{% if ticket.aws_account_id %}AWS Account ID: {{ ticket.aws_account_id }}{% endif %}
+{% if ticket.environment %}Environment: {{ ticket.environment }}{% endif %}
+
+Description:
+{{ ticket.description }}
+
+You can view the ticket details here:
+{{ url_for('view_ticket', ticket_id=ticket.id, _external=True) }}
+
+Thank you,
+TicketSys

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card mt-4 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0">{{ legend }}</h2>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ form.name.label(class="form-control-label") }}
+                        {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), placeholder="e.g., Production, Staging, Development") }}
+                        {% for error in form.name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group form-check">
+                        {{ form.is_active(class="form-check-input") }}
+                        {{ form.is_active.label(class="form-check-label") }}
+                    </div>
+                    <hr>
+                    <div class="form-group mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('admin_environment_list') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

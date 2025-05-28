@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        {# Ticket Details Card #}
+        <div class="card mb-3 shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Ticket #{{ ticket.id }}: {{ ticket.title }}</h4>
+                <div><span class="badge badge-light p-2">{{ ticket.status }}</span></div>
+            </div>
+            <div class="card-body">
+                <p><strong>Description:</strong></p>
+                <div class="p-3 bg-light border rounded mb-3 ticket-description-area" style="white-space: pre-wrap;">
+                    {{ ticket.description|nl2br }}
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Created by:</strong> {{ ticket.creator.username }}</p>
+                        <p><strong>Created at:</strong> {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        <p><strong>Category:</strong> <span class="badge badge-secondary">{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</span></p>
+                        <p><strong>Severity:</strong> <span class="badge badge-pill 
+                            {% if ticket.severity == 'Severity 1 (Critical)' %}badge-danger
+                            {% elif ticket.severity == 'Severity 2 (High)' %}badge-warning
+                            {% elif ticket.severity == 'Severity 3 (Medium)' %}badge-info
+                            {% elif ticket.severity == 'Severity 4 (Low)' %}badge-secondary
+                            {% else %}badge-light text-dark border{% endif %}">{{ ticket.severity or 'N/A' }}</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Priority:</strong> <span class="badge p-1 
+                            {% if ticket.priority == 'Urgent' %}badge-danger
+                            {% elif ticket.priority == 'High' %}badge-warning
+                            {% elif ticket.priority == 'Medium' %}badge-info
+                            {% else %}badge-secondary{% endif %}">{{ ticket.priority }}</span></p>
+                        <p><strong>Assigned to:</strong> 
+                            {% if ticket.assignee %}
+                                {{ ticket.assignee.username }}
+                                {% if ticket.assignee.role == 'agent' %}<span class="badge badge-pill badge-info ml-1">Agent</span>{% endif %}
+                                {% if ticket.assignee.role == 'admin' %}<span class="badge badge-pill badge-danger ml-1">Admin</span>{% endif %}
+                            {% else %}
+                                <span class="text-muted">Unassigned</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Last Updated:</strong> {{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        <p><strong>Cloud Provider:</strong> <span class="badge badge-light text-dark border">{{ ticket.cloud_provider or 'N/A' }}</span></p>
+                    </div>
+                </div>
+                {% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}
+                <p><strong>AWS Service:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_service }}</span></p>
+                {% endif %}
+                {% if ticket.aws_account_id %}
+                <p><strong>AWS Account ID:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_account_id }}</span></p>
+                {% endif %}
+                 {% if ticket.environment %}
+                <p><strong>Environment:</strong> <span class="badge badge-light text-dark border">{{ ticket.environment }}</span></p>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Attachments Section - ADDED HERE #}
+        {% if attachments %}
+        <div class="card mb-3 shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-paperclip mr-2"></i>Attachments ({{ attachments|length }})</h5>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for attachment in attachments %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-file-alt mr-2 text-secondary"></i> {# Generic file icon #}
+                        <a href="{{ url_for('uploaded_file', filename=attachment.stored_filename) }}" target="_blank" title="Download {{ attachment.filename }}">
+                            {{ attachment.filename }}
+                        </a>
+                        <small class="text-muted ml-2"> (Uploaded by: {{ attachment.uploader.username }} on {{ attachment.uploaded_at.strftime('%b %d, %Y %H:%M') }})</small>
+                    </div>
+                    <a href="{{ url_for('uploaded_file', filename=attachment.stored_filename) }}" class="btn btn-sm btn-outline-primary" download="{{ attachment.filename }}">
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+
+        {# Comments Section (uses _comment_item.html) #}
+        <div class="card mb-3 shadow-sm">
+            <div class="card-header bg-light"><h5 class="mb-0"><i class="fas fa-comments mr-2"></i>Discussion ({{ comments|length }})</h5></div>
+            <div class="card-body" id="comments-section">
+                {% if comments %}{% for comment in comments %}{% include '_comment_item.html' %}{% endfor %}
+                {% else %}<p class="text-muted">No comments yet.</p>{% endif %}
+            </div>
+        </div>
+
+        {# Add Comment Form #}
+        {% if current_user.is_authenticated %}
+        <div class="card mb-3 shadow-sm" id="add-comment-form">
+            <div class="card-header bg-light"><h5 class="mb-0"><i class="fas fa-comment-dots mr-2"></i>Add Your Comment</h5></div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}">
+                    {{ comment_form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ comment_form.content.label(class="sr-only") }}
+                        {{ comment_form.content(class="form-control", rows="4", placeholder="Type your comment...") }}
+                        {% for error in comment_form.content.errors %}<span class="text-danger d-block mt-1">{{ error }}</span>{% endfor %}
+                    </div>
+                    {% if comment_form.is_internal and (current_user.is_agent or current_user.is_admin) %}
+                    <div class="form-group form-check">
+                        {{ comment_form.is_internal(class="form-check-input") }}
+                        {{ comment_form.is_internal.label(class="form-check-label") }}
+                    </div>
+                    {% endif %}
+                    <button type="submit" name="submit_comment" class="btn btn-success"><i class="fas fa-paper-plane mr-1"></i> Post Comment</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        {# Agent Actions Card #}
+        {% if (current_user.is_agent or current_user.is_admin) and agent_update_form %}
+        <div class="card mb-3 shadow-sm">
+            <div class="card-header bg-info text-white"><h5 class="mb-0"><i class="fas fa-cogs mr-2"></i>Ticket Properties & Actions</h5></div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}" id="agentUpdateForm">
+                    {{ agent_update_form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ agent_update_form.status.label(class="font-weight-bold") }}
+                        {{ agent_update_form.status(class="form-control custom-select") }}
+                    </div>
+                    <div class="form-group">
+                        {{ agent_update_form.priority.label(class="font-weight-bold") }}
+                        {{ agent_update_form.priority(class="form-control custom-select") }}
+                    </div>
+                    <div class="form-group">
+                        {{ agent_update_form.assigned_to_id.label(class="font-weight-bold") }}
+                        {{ agent_update_form.assigned_to_id(class="form-control custom-select") }}
+                    </div>
+                    <div class="form-group">
+                        {{ agent_update_form.category_id.label(class="font-weight-bold") }}
+                        {{ agent_update_form.category_id(class="form-control custom-select") }}
+                    </div>
+                    <hr>
+                    <h6 class="font-weight-bold">Additional Details:</h6>
+                     <div class="form-group">
+                        {{ agent_update_form.cloud_provider.label(class="form-control-label") }}
+                        {{ agent_update_form.cloud_provider(class="form-control custom-select", id="cloudProviderSelectAgent") }}
+                    </div>
+                    <div class="form-group">
+                        {{ agent_update_form.severity.label(class="form-control-label") }}
+                        {{ agent_update_form.severity(class="form-control custom-select") }}
+                    </div>
+                    <div class="form-group" id="awsServiceGroupAgent" {% if not ticket.cloud_provider or ticket.cloud_provider != 'AWS' %}style="display:none;"{% endif %}>
+                        {{ agent_update_form.aws_service.label(class="form-control-label") }}
+                        {{ agent_update_form.aws_service(class="form-control custom-select") }}
+                    </div>
+                    <div class="form-group">
+                        {{ agent_update_form.aws_account_id.label(class="form-control-label") }}
+                        {{ agent_update_form.aws_account_id(class="form-control", placeholder="12-digit AWS Account ID") }}
+                    </div>
+                    <div class="form-group">
+                        {{ agent_update_form.environment.label(class="form-control-label") }}
+                        {{ agent_update_form.environment(class="form-control custom-select", placeholder="e.g., Production") }}
+                    </div>
+
+                    <button type="submit" name="submit_update" class="btn btn-primary btn-block"><i class="fas fa-save mr-1"></i> Update Ticket</button>
+                </form>
+                {% if not ticket.assignee and ticket.status == 'Open' and current_user.is_agent %}
+                    <hr>
+                    <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-success btn-block"><i class="fas fa-user-check mr-1"></i> Assign to Me</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# Ticket Creator Info Card #}
+         <div class="card mb-3 shadow-sm">
+            <div class="card-header bg-light"><h5 class="mb-0"><i class="fas fa-user-tag mr-2"></i>Requester</h5></div>
+            <div class="card-body">
+                <p><strong>User:</strong> {{ ticket.creator.username }}</p>
+                <p><strong>Email:</strong> {{ ticket.creator.email }}</p>
+                <p><strong>Role:</strong> {{ ticket.creator.role|capitalize }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // For Agent Update Form - Conditional AWS Service Field
+    var cloudProviderSelectAgent = document.getElementById('cloudProviderSelectAgent');
+    var awsServiceGroupAgent = document.getElementById('awsServiceGroupAgent');
+
+    function toggleAwsServiceAgent() {
+        if (cloudProviderSelectAgent && awsServiceGroupAgent) {
+            if (cloudProviderSelectAgent.value === 'AWS') {
+                awsServiceGroupAgent.style.display = 'block';
+            } else {
+                awsServiceGroupAgent.style.display = 'none';
+                var awsServiceSelect = awsServiceGroupAgent.querySelector('select');
+                if (awsServiceSelect) awsServiceSelect.value = ''; // Clear if not AWS
+            }
+        }
+    }
+
+    if (cloudProviderSelectAgent) {
+        cloudProviderSelectAgent.addEventListener('change', toggleAwsServiceAgent);
+        toggleAwsServiceAgent(); // Initial check on page load/prefill
+    }
+
+    // For comment form anchor scrolling (if needed)
+    if(window.location.hash === '#add-comment-form') {
+        const element = document.getElementById('add-comment-form');
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+});
+</script>
+{% endblock %}

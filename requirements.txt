@@ -1,0 +1,13 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-WTF
+Werkzeug
+PyMySQL
+cryptography
+email-validator
+Flask-Mail
+twilio
+imap-tools
+html2text
+python-dotenv

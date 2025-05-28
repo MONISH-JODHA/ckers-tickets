@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header text-center">
+                <h2>{{ title }}</h2>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('register') }}" novalidate>
+                    {{ form.hidden_tag() }}
+                    <fieldset>
+                        <legend class="border-bottom mb-4 pb-2">Create Your Client Account</legend>
+
+                        <div class="form-group mb-3">
+                            {{ form.username.label(class="form-control-label") }}
+                            {% if form.username.errors %}
+                                {{ form.username(class="form-control form-control-lg is-invalid") }}
+                                <div class="invalid-feedback">{% for e in form.username.errors %}<span>{{e}}</span>{% endfor %}</div>
+                            {% else %}
+                                {{ form.username(class="form-control form-control-lg") }}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.email.label(class="form-control-label") }}
+                            {% if form.email.errors %}
+                                {{ form.email(class="form-control form-control-lg is-invalid") }}
+                                <div class="invalid-feedback">{% for e in form.email.errors %}<span>{{e}}</span>{% endfor %}</div>
+                            {% else %}
+                                {{ form.email(class="form-control form-control-lg") }}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.password.label(class="form-control-label") }}
+                            {% if form.password.errors %}
+                                {{ form.password(class="form-control form-control-lg is-invalid") }}
+                                <div class="invalid-feedback">{% for e in form.password.errors %}<span>{{e}}</span>{% endfor %}</div>
+                            {% else %}
+                                {{ form.password(class="form-control form-control-lg") }}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group mb-4">
+                            {{ form.password2.label(class="form-control-label") }}
+                            {% if form.password2.errors %}
+                                {{ form.password2(class="form-control form-control-lg is-invalid") }}
+                                <div class="invalid-feedback">{% for e in form.password2.errors %}<span>{{e}}</span>{% endfor %}</div>
+                            {% else %}
+                                {{ form.password2(class="form-control form-control-lg") }}
+                            {% endif %}
+                        </div>
+                    </fieldset>
+                    <div class="form-group mt-4">
+                        {{ form.submit(class="btn btn-lg btn-success btn-block w-100") }}
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-muted text-center py-3">
+                Already have an account? <a href="{{ url_for('login') }}">Sign In</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

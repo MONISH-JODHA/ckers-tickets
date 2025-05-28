@@ -1,0 +1,30 @@
+<div class="card mb-3 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}"><strong>Ticket #{{ ticket.id }}: {{ ticket.title }}</strong></a>
+        <span class="badge badge-info p-2">{{ ticket.status }}</span>
+    </div>
+    <div class="card-body">
+        <p class="card-text">{{ ticket.description|truncate(150, True) }}</p>
+        <div class="row">
+            <div class="col-md-6">
+                <small class="text-muted">Priority: <span class="badge 
+                    {% if ticket.priority == 'Urgent' %}badge-danger
+                    {% elif ticket.priority == 'High' %}badge-warning
+                    {% elif ticket.priority == 'Medium' %}badge-primary
+                    {% else %}badge-secondary{% endif %} p-1">{{ ticket.priority }}</span>
+                </small><br>
+                <small class="text-muted">Category: {{ ticket.category.name if ticket.category else 'N/A' }}</small>
+            </div>
+            <div class="col-md-6 text-md-right">
+                 <small class="text-muted">Created by: {{ ticket.creator.username }} on {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</small><br>
+                <small class="text-muted">Assigned to: {{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</small><br>
+                <small class="text-muted">Last updated: {{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            </div>
+        </div>
+    </div>
+    {% if current_user.is_agent and not ticket.assignee and ticket.status == 'Open' %}
+    <div class="card-footer text-right">
+        <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-sm btn-success">Assign to Me</a>
+    </div>
+    {% endif %}
+</div>

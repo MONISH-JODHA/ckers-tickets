@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-success text-white">
+                <h2 class="mb-0">{{ title }}</h2>
+            </div>
+            <div class="card-body p-4">
+                {% if info_text %}
+                    <p class="text-muted text-center mb-4">{{ info_text }}</p>
+                {% endif %}
+                <form method="POST" novalidate> {# Action URL is the current route, handled by Flask #}
+                    {{ form.hidden_tag() }}
+                    <fieldset>
+                        <legend class="border-bottom mb-4 pb-2 h5">Create Your {{ registration_type }} Account</legend>
+
+                        <div class="form-group mb-3">
+                            {{ form.username.label(class="form-control-label") }}
+                            {% if form.username.errors %}
+                                {{ form.username(class="form-control form-control-lg is-invalid", placeholder="Choose a unique username") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.username.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.username(class="form-control form-control-lg", placeholder="Choose a unique username") }}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.email.label(class="form-control-label") }}
+                            {% if form.email.errors %}
+                                {{ form.email(class="form-control form-control-lg is-invalid", placeholder="yourname@cloudkeeper.com") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.email.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.email(class="form-control form-control-lg", placeholder="yourname@cloudkeeper.com") }}
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% if registration_type == 'Client' or registration_type == 'Agent' %}
+                                    Must be a <strong>@cloudkeeper.com</strong> email address.
+                                {% else %}
+                                    Enter a valid email address.
+                                {% endif %}
+                            </small>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.password.label(class="form-control-label") }}
+                            {% if form.password.errors %}
+                                {{ form.password(class="form-control form-control-lg is-invalid", placeholder="Create a strong password") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.password(class="form-control form-control-lg", placeholder="Create a strong password") }}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group mb-4">
+                            {{ form.password2.label(class="form-control-label") }}
+                            {% if form.password2.errors %}
+                                {{ form.password2(class="form-control form-control-lg is-invalid", placeholder="Confirm your password") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.password2.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.password2(class="form-control form-control-lg", placeholder="Confirm your password") }}
+                            {% endif %}
+                        </div>
+                    </fieldset>
+                    <div class="form-group mt-4">
+                        {{ form.submit(class="btn btn-lg btn-success btn-block w-100") }}
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-muted text-center py-3">
+                Already have an account? <a href="{{ url_for('login') }}">Sign In</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

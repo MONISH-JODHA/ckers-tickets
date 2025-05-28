@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-primary text-white">
+                <h2 class="mb-0">{{ title }}</h2>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('login') }}" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="form-group mb-3">
+                        {{ form.username.label(class="form-control-label") }}
+                        {% if form.username.errors %}
+                            {{ form.username(class="form-control form-control-lg is-invalid", placeholder="Enter your username") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.username.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.username(class="form-control form-control-lg", placeholder="Enter your username") }}
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group mb-3">
+                        {{ form.password.label(class="form-control-label") }}
+                        {% if form.password.errors %}
+                            {{ form.password(class="form-control form-control-lg is-invalid", placeholder="Enter your password") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.password(class="form-control form-control-lg", placeholder="Enter your password") }}
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group form-check mb-3">
+                        {{ form.remember_me(class="form-check-input") }}
+                        {{ form.remember_me.label(class="form-check-label") }}
+                    </div>
+
+                    <div class="form-group mt-4">
+                        {{ form.submit(class="btn btn-lg btn-primary btn-block w-100") }}
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-muted text-center py-3">
+                <small>
+                    Need an account?
+                    <a href="{{ url_for('register_client') }}" class="ml-2">Register as Client</a> |
+                    <a href="{{ url_for('register_agent') }}" class="ml-1">Register as Agent</a>
+                </small>
+                {# <br>
+                <small class="mt-2 d-block">
+                    <a href="#">Forgot Password?</a>
+                </small> #}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

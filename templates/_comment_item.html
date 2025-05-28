@@ -1,0 +1,16 @@
+<div class="media mb-3 p-3 border rounded shadow-sm {% if comment.is_internal %}bg-light border-warning{% else %}bg-white{% endif %}">
+    <img src="https://ui-avatars.com/api/?name={{ comment.author.username[0]|upper if comment.author.username else 'U' }}&background={{ 'FFC107' if comment.author.is_agent or comment.author.is_admin else '0D6EFD' }}&color=fff&size=50&rounded=true&font-size=0.5"
+         class="mr-3" alt="{{ comment.author.username }} avatar">
+    <div class="media-body">
+        <h6 class="mt-0 mb-1">
+            <strong>{{ comment.author.username }}</strong>
+            {% if comment.author.role == 'agent' %}<span class="badge badge-pill badge-info ml-1">Agent</span>{% endif %}
+            {% if comment.author.role == 'admin' %}<span class="badge badge-pill badge-danger ml-1">Admin</span>{% endif %}
+            {% if comment.is_internal %}<span class="badge badge-warning ml-1">Internal Note</span>{% endif %}
+            <small class="text-muted float-right">{{ comment.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+        </h6>
+        <div class="comment-content">
+            {{ comment.content|nl2br }} {# <--- nl2br filter used here #}
+        </div>
+    </div>
+</div>

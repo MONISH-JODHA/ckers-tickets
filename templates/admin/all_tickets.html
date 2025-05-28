@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>{{ title }}</h1>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">Filter Tickets</div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('admin_all_tickets') }}">
+                <div class="row">
+                    <div class="col-md-3 form-group">
+                        <label for="status">Status</label>
+                        <select name="status" id="status" class="form-control">
+                            <option value="">All Statuses</option>
+                            {% for value, display in statuses %}
+                            <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ display }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="priority">Priority</label>
+                        <select name="priority" id="priority" class="form-control">
+                            <option value="">All Priorities</option>
+                             {% for value, display in priorities %}
+                            <option value="{{ value }}" {% if current_filters.priority == value %}selected{% endif %}>{{ display }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="category_id">Category</label>
+                        <select name="category_id" id="category_id" class="form-control">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if current_filters.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="assigned_to_id">Assigned To</label>
+                        <select name="assigned_to_id" id="assigned_to_id" class="form-control">
+                            <option value="">Any Agent</option>
+                            <option value="0" {% if current_filters.assigned_to_id == 0 %}selected{% endif %}>Unassigned</option>
+                            {% for agent in agents %}
+                            <option value="{{ agent.id }}" {% if current_filters.assigned_to_id == agent.id %}selected{% endif %}>{{ agent.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Apply Filters</button>
+                <a href="{{ url_for('admin_all_tickets') }}" class="btn btn-secondary">Clear Filters</a>
+            </form>
+        </div>
+    </div>
+
+
+    {% if tickets_pagination and tickets_pagination.items %}
+        {% for ticket in tickets_pagination.items %}
+            {% include '_ticket_item.html' %}
+        {% endfor %}
+
+        <nav aria-label="Ticket navigation">
+            <ul class="pagination justify-content-center">
+                {% set query_params = request.args.to_dict() %}
+                {% if tickets_pagination.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.prev_num, **query_params) }}">Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                {% endif %}
+
+                {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if tickets_pagination.page == page_num %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for(request.endpoint, page=page_num, **query_params) }}">{{ page_num }}</a>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if tickets_pagination.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.next_num, **query_params) }}">Next</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">Next</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% else %}
+        <div class="alert alert-info mt-3">No tickets found matching your criteria.</div>
+    {% endif %}
+{% endblock %}

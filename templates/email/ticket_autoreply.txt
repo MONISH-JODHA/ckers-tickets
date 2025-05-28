@@ -1,0 +1,33 @@
+Hello {{ user.username if user else "Valued Submitter" }},
+
+Thank you for contacting our support team.
+
+Your ticket has been successfully received and logged with the following details:
+
+Ticket ID: #{{ ticket.id }}
+Subject: {{ ticket.title }}
+Severity: {{ ticket.severity or "Not specified" }}
+Category: {{ ticket.category_ref.name if ticket.category_ref else (ticket.category_id or "Not specified") }}
+Status: {{ ticket.status }}
+Submitted: {{ ticket.created_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+
+Description:
+--------------------------------------------------
+{{ ticket.description }}
+--------------------------------------------------
+
+You can view the status of your ticket and add further comments by visiting the following link:
+{{ ticket_url }}
+
+If you are not already logged in, you may need to log in first here:
+{{ login_url }}
+
+Our team will review your request and get back to you as soon as possible.
+Typical response times vary based on the severity and volume of requests.
+
+Please quote your Ticket ID #{{ ticket.id }} in any further communication regarding this issue.
+
+Sincerely,
+
+The Support Team
+{{ config.get('MAIL_DEFAULT_SENDER', ('Ticket System', ''))[0] }}

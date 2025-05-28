@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>{{ title }}</h1>
+        <a href="{{ url_for('create_ticket') }}" class="btn btn-success">Create New Ticket</a>
+    </div>
+
+    {% if tickets %}
+        {% for ticket in tickets %}
+            {% include '_ticket_item.html' %}
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">You have not created any tickets yet.</div>
+    {% endif %}
+{% endblock %}
