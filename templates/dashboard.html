@@ -32,8 +32,7 @@
         </div>
     </div>
     <p><a href="{{ url_for('admin_all_tickets')}}" class="btn btn-info">View All Tickets</a></p>
-    <p><a href="{{ url_for('admin_user_list')}}" class="btn btn-secondary">Manage Users</a></p>
-    <p><a href="{{ url_for('admin_category_list')}}" class="btn btn-secondary">Manage Categories</a></p>
+
 
 {% elif current_user.is_agent %}
     <h2>My Assigned Tickets (Active)</h2>

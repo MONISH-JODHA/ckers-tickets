@@ -2,104 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>{% block title %}{{ title }} - Ticket CMS{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ticket CMS{% endblock %}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Optional: Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 sticky-top shadow-sm">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-ticket-alt"></i> TicketSys
-            </a>
+            <a class="navbar-brand" href="{{ url_for('index') }}">Ticket CMS</a>
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
                     {% if current_user.is_authenticated %}
-                        <li class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
-                            <a class="nav-link" href="{{ url_for('dashboard') }}"><i class="fas fa-tachometer-alt mr-1"></i>Dashboard</a>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('create_ticket') }}">New Ticket</a>
                         </li>
-                        {% if current_user.is_client or current_user.is_agent or current_user.is_admin %}
-                            <li class="nav-item {% if request.endpoint == 'create_ticket' %}active{% endif %}">
-                                <a class="nav-link" href="{{ url_for('create_ticket') }}"><i class="fas fa-plus-circle mr-1"></i>New Ticket</a>
-                            </li>
-                        {% endif %}
                         {% if current_user.is_client %}
-                             <li class="nav-item {% if request.endpoint == 'my_tickets' %}active{% endif %}">
-                                 <a class="nav-link" href="{{ url_for('my_tickets') }}"><i class="fas fa-list-ul mr-1"></i>My Tickets</a>
-                             </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('my_tickets') }}">My Tickets</a>
+                        </li>
                         {% endif %}
                         {% if current_user.is_agent or current_user.is_admin %}
-                            <li class="nav-item dropdown {% if request.endpoint == 'agent_ticket_list' %}active{% endif %}">
-                                <a class="nav-link dropdown-toggle" href="#" id="agentMenu" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    <i class="fas fa-headset mr-1"></i>Agent Tools & Views
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="agentMenu">
-                                    <h6 class="dropdown-header">Ticket Views</h6>
-                                    <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='my_unsolved') }}">Your Unsolved Tickets</a>
-                                    <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='unassigned') }}">Unassigned Tickets</a>
-                                    <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='all_unsolved') }}">All Unsolved Tickets</a>
-                                    <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='recently_updated') }}">Recently Updated</a>
-                                    <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='pending') }}">Pending Tickets</a>
-                                    <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='recently_solved') }}">Recently Solved</a>
-                                    <div class="dropdown-divider"></div>
-                                    <h6 class="dropdown-header">Task-like Views</h6>
-                                    <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='current_tasks') }}">Current Tasks (In Progress)</a>
-                                    {# <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='overdue_tasks') }}">Overdue Tasks (Placeholder)</a> #}
-                                    {# You can add more agent-specific tools here later #}
-                                </div>
-                            </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="agentViewsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                Agent Views
+                            </a>
+                            <div class="dropdown-menu" aria-labelledby="agentViewsDropdown">
+                                <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='my_unsolved') }}">My Unsolved</a>
+                                <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='unassigned') }}">Unassigned</a>
+                                <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='all_unsolved') }}">All Unsolved</a>
+                                <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='recently_updated') }}">Recently Updated</a>
+                                <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='pending') }}">Pending Tickets</a>
+                                <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='recently_solved') }}">Recently Solved</a>
+                                <a class="dropdown-item" href="{{ url_for('agent_ticket_list', view_name='current_tasks') }}">My Current Tasks</a>
+                            </div>
+                        </li>
                         {% endif %}
-                        {% if current_user.is_admin %}
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" id="adminMenu" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    <i class="fas fa-user-shield mr-1"></i>Admin
-                                </a>
-                                {# In templates/base.html, inside the Admin dropdown #}
-                                {# In templates/base.html, inside the Admin dropdown #}
-                                <div class="dropdown-menu" aria-labelledby="adminMenu">
-                                    <a class="dropdown-item" href="{{ url_for('admin_user_list') }}">Manage Users</a>
-                                    <a class="dropdown-item" href="{{ url_for('admin_category_list') }}">Manage Categories</a>
-                                    <a class="dropdown-item" href="{{ url_for('admin_cloud_provider_list') }}">Manage Cloud Providers</a>
-                                    <a class="dropdown-item" href="{{ url_for('admin_severity_list') }}">Manage Severities</a>     {# <-- ADD THIS #}
-                                    <a class="dropdown-item" href="{{ url_for('admin_environment_list') }}">Manage Environments</a> {# <-- ADD THIS #}
-                                    <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" href="{{ url_for('admin_all_tickets') }}">View All Tickets</a>
-                                </div>
-                            </li>
+                         {% if current_user.is_admin %}
+                         <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                Admin
+                            </a>
+                            <div class="dropdown-menu" aria-labelledby="adminDropdown">
+                                <a class="dropdown-item" href="{{ url_for('admin_user_list') }}">Manage Users</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_category_list') }}">Manage Categories</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_cloud_provider_list') }}">Manage Cloud Providers</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_severity_list') }}">Manage Severities</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_environment_list') }}">Manage Environments</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_all_tickets') }}">All Tickets</a>
+                            </div>
+                        </li>
                         {% endif %}
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav">
-                    {% if current_user.is_anonymous %}
-                        <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
-                            <a class="nav-link" href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt mr-1"></i>Login</a>
+                <ul class="navbar-nav ml-auto">
+                     {% if current_user.is_authenticated %}
+                        <li class="nav-item">
+                            <span class="navbar-text mr-3">Logged in as {{ current_user.username }} ({{ current_user.role }})</span>
                         </li>
-                        <li class="nav-item dropdown {% if request.endpoint.startswith('register_') %}active{% endif %}">
-                            <a class="nav-link dropdown-toggle" href="#" id="registerDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fas fa-user-plus mr-1"></i>Register
-                            </a>
-                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="registerDropdown">
-                                <a class="dropdown-item" href="{{ url_for('register_client') }}">As Client</a>
-                                <a class="dropdown-item" href="{{ url_for('register_agent') }}">As Support Agent</a>
-                            </div>
+                        <li class="nav-item">
+                            <a class="nav-link btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Logout</a>
                         </li>
                     {% else %}
-                        <li class="nav-item dropdown">
-                             <a class="nav-link dropdown-toggle" href="#" id="userAccountDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fas fa-user-circle mr-1"></i>{{ current_user.username }} ({{ current_user.role|capitalize }})
-                            </a>
-                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="userAccountDropdown">
-                                <!-- <a class="dropdown-item" href="#">My Profile</a> -->
-                                <!-- <div class="dropdown-divider"></div> -->
-                                <a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt mr-1"></i>Logout</a>
-                            </div>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('register_client') }}">Register</a>
                         </li>
                     {% endif %}
                 </ul>
@@ -107,28 +83,28 @@
         </div>
     </nav>
 
-    <main class="container mt-4 mb-5">
+    <div class="container mt-3"> {# Reduced top margin since navbar is fixed #}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>
-                </div>
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                        </button>
+                    </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
         {% block content %}{% endblock %}
-    </main>
+    </div>
 
-    <footer class="footer mt-auto py-3 bg-light text-center border-top">
-        <div class="container">
-            <span class="text-muted">© {{ current_year if current_year else '2024' }} Ticket Management System. All rights reserved.</span>
-        </div>
+    <footer class="mt-5 mb-3">
+        <p>© {{ current_year }} Ticket CMS. All rights reserved.</p>
     </footer>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     {% block scripts %}{% endblock %}
 </body>

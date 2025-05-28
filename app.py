@@ -1,4 +1,3 @@
-
 import os
 from datetime import datetime, timedelta # Added timedelta
 from flask import Flask, render_template, redirect, url_for, flash, request, current_app, send_from_directory
@@ -12,10 +11,10 @@ from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField, IntegerField, MultipleFileField
 from wtforms.widgets import TextArea as TextAreaWidget
-from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, Length, Optional, NumberRange
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, Length, Optional, NumberRange, InputRequired
 import logging
 from markupsafe import escape, Markup
-import re
+import re # Ensure re is imported
 import uuid
 from flask_mail import Mail, Message
 
@@ -35,9 +34,20 @@ AWS_SERVICE_CHOICES = [
 TICKET_STATUS_CHOICES = [('Open', 'Open'), ('In Progress', 'In Progress'), ('On Hold', 'On Hold'), ('Resolved', 'Resolved'), ('Closed', 'Closed')]
 TICKET_PRIORITY_CHOICES = [('Low', 'Low'), ('Medium', 'Medium'), ('High', 'High'), ('Urgent', 'Urgent')]
 
+# --- Helper function to convert CamelCase to snake_case ---
+def to_snake_case(name):
+    name = re.sub(r'(.)([A-Z][a-z]+)', r'\1_\2', name)
+    name = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+    # Specific replacements for this application's model naming convention
+    if name.endswith("_option"): # e.g. cloud_provider_option -> cloud_provider
+        name = name[:-7]
+    elif name.endswith("option"): # Should be caught by above, but as fallback
+        name = name[:-6]
+    return name
+
 # --- Configuration ---
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'ticket-cms-agent-views-final-key-secure' # MUST BE SET IN .ENV FOR PRODUCTION
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'ticket-cms-agent-views-final-key-secure'
     MYSQL_USER = os.environ.get('MYSQL_USER_TICKET_CMS') or 'ticket_user'
     _raw_mysql_password = os.environ.get('MYSQL_PASSWORD_TICKET_CMS') or 'Jodha@123'
     MYSQL_PASSWORD_ENCODED = quote_plus(_raw_mysql_password) if _raw_mysql_password else ''
@@ -61,34 +71,31 @@ class Config:
     MAIL_PORT = int(os.environ.get('MAIL_PORT_TICKET_CMS') or 587)
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS_TICKET_CMS', 'true').lower() in ['true', '1', 't']
     MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL_TICKET_CMS', 'false').lower() in ['true', '1', 't']
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME_TICKET_CMS') # Set in .env
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD_TICKET_CMS') # Set in .env (16 char app pass, no spaces)
-    MAIL_DEFAULT_SENDER_EMAIL = os.environ.get('MAIL_DEFAULT_SENDER_EMAIL_TICKET_CMS') # Set in .env
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME_TICKET_CMS')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD_TICKET_CMS')
+    MAIL_DEFAULT_SENDER_EMAIL = os.environ.get('MAIL_DEFAULT_SENDER_EMAIL_TICKET_CMS')
     MAIL_DEFAULT_SENDER = ('TicketSys Admin', MAIL_DEFAULT_SENDER_EMAIL or 'noreply@example.com')
-    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL_TICKET_CMS') # Set in .env
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL_TICKET_CMS')
     
-    # --- Email Fetching Configuration (IMAP for email_processor.py) ---
     IMAP_SERVER = os.environ.get('IMAP_SERVER_TICKET_CMS_FETCH') or 'imap.gmail.com'
-    IMAP_USERNAME = os.environ.get('IMAP_USERNAME_TICKET_CMS_FETCH') # Set in .env
-    IMAP_PASSWORD = os.environ.get('IMAP_PASSWORD_TICKET_CMS_FETCH') or 'placeholder16apppass' # Set in .env (16 char app pass, no spaces). Default is a placeholder.
+    IMAP_USERNAME = os.environ.get('IMAP_USERNAME_TICKET_CMS_FETCH')
+    IMAP_PASSWORD = os.environ.get('IMAP_PASSWORD_TICKET_CMS_FETCH') or 'placeholder16apppass' # Corrected Placeholder
     IMAP_MAILBOX_FOLDER = os.environ.get('IMAP_MAILBOX_FOLDER_TICKET_CMS_FETCH') or 'INBOX'
     EMAIL_TICKET_DEFAULT_CATEGORY_NAME = os.environ.get('EMAIL_TICKET_DEFAULT_CATEGORY_NAME') or 'General Inquiry'
     EMAIL_TICKET_DEFAULT_SEVERITY_NAME = os.environ.get('EMAIL_TICKET_DEFAULT_SEVERITY_NAME') or 'Severity 3 (Medium)'
     
-    # BASE_URL must be a clean URL like 'http://localhost:5000' in .env or here
     BASE_URL = os.environ.get('BASE_URL') or 'http://localhost:5000'
     
-    # These are derived from BASE_URL if not set directly. url_for(_external=True) relies on them.
     _parsed_base = urlparse(BASE_URL)
     SERVER_NAME = os.environ.get('SERVER_NAME') or _parsed_base.netloc
-    APPLICATION_ROOT = os.environ.get('APPLICATION_ROOT') or _parsed_base.path.rstrip('/') or '/'
+    _app_root_path = _parsed_base.path.rstrip('/')
+    APPLICATION_ROOT = os.environ.get('APPLICATION_ROOT') or (_app_root_path if _app_root_path else '/')
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME') or _parsed_base.scheme or 'http'
 
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(os.path.abspath(os.path.dirname(__file__)), 'uploads')
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'log', 'csv'}
-    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH') or 16 * 1000 * 1000) # 16MB
+    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH') or 16 * 1000 * 1000)
 
-    # --- Twilio Configuration for Voice Calls ---
     TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID_TICKET_CMS')
     TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN_TICKET_CMS')
     TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER_TICKET_CMS')
@@ -98,12 +105,14 @@ class Config:
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Critical check after config load
+# Post-config adjustments for MAIL_DEFAULT_SENDER
 if not app.config['MAIL_DEFAULT_SENDER_EMAIL']:
-    app.logger.warning("MAIL_DEFAULT_SENDER_EMAIL is not set. Email sending might fail or use a generic sender.")
-    app.config['MAIL_DEFAULT_SENDER'] = ('TicketSys Admin', 'noreply@example.com') # Fallback tuple
-elif isinstance(app.config['MAIL_DEFAULT_SENDER'], tuple) and app.config['MAIL_DEFAULT_SENDER'][1] != app.config['MAIL_DEFAULT_SENDER_EMAIL']:
-    # Ensure tuple uses the email from env var if MAIL_DEFAULT_SENDER_EMAIL is set
+    app.logger.warning("MAIL_DEFAULT_SENDER_EMAIL is not set in environment. Defaulting sender email to 'noreply@example.com'.")
+    # This reassignment ensures the tuple structure if it was somehow modified, though unlikely with current Config.
+    app.config['MAIL_DEFAULT_SENDER'] = ('TicketSys Admin', 'noreply@example.com')
+elif isinstance(app.config['MAIL_DEFAULT_SENDER'], tuple) and \
+     app.config['MAIL_DEFAULT_SENDER'][1] != app.config['MAIL_DEFAULT_SENDER_EMAIL'] and \
+     app.config['MAIL_DEFAULT_SENDER_EMAIL'] is not None:
     app.config['MAIL_DEFAULT_SENDER'] = ('TicketSys Admin', app.config['MAIL_DEFAULT_SENDER_EMAIL'])
 
 
@@ -112,8 +121,8 @@ if not app.config['SQLALCHEMY_DATABASE_URI']:
 
 csrf = CSRFProtect(app)
 mail = Mail(app)
-logging.basicConfig(level=logging.INFO) # Default logging
-app.logger.setLevel(logging.INFO) # Flask app logger
+logging.basicConfig(level=logging.INFO)
+app.logger.setLevel(logging.INFO)
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     try:
@@ -121,7 +130,6 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
         app.logger.info(f"Created upload folder: {app.config['UPLOAD_FOLDER']}")
     except OSError as e:
         app.logger.error(f"Could not create upload folder {app.config['UPLOAD_FOLDER']}: {e}")
-        # Depending on requirements, you might want to raise an error here if uploads are critical
 
 def nl2br_filter(value):
     if not isinstance(value, str): value = str(value)
@@ -181,7 +189,7 @@ class SeverityOption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False, index=True)
     description = db.Column(db.String(100), nullable=True)
-    order = db.Column(db.Integer, default=0) # For sorting severity levels
+    order = db.Column(db.Integer, default=0) 
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     def __repr__(self): return f'<SeverityOption {self.name}>'
 
@@ -252,7 +260,7 @@ class AdminUserForm(FlaskForm):
 
 class UserSelfRegistrationForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=3, max=64)])
-    email = StringField('Email Address (@cloudkeeper.com domain for example)', validators=[DataRequired(), Email(), Length(max=120)]) # Adjust domain validation as needed
+    email = StringField('Email Address', validators=[DataRequired(), Email(), Length(max=120)])
     password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
     password2 = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Create Account')
@@ -264,16 +272,14 @@ class UserSelfRegistrationForm(FlaskForm):
         email_data = email_field.data.lower()
         if User.query.filter_by(email=email_data).first():
             raise ValidationError('That email address is already registered.')
-        # Example domain validation, adjust or remove as needed
-        # if not email_data.endswith('@cloudkeeper.com'):
-        #     raise ValidationError('Please use your company email address (e.g., @cloudkeeper.com).')
 
 class CreateTicketForm(FlaskForm):
     title = StringField('Subject*', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('Description*', validators=[DataRequired()])
-    category = SelectField('Issue Category*', coerce=int, validators=[DataRequired(message="Category is required.")])
+    # InputRequired is better for select fields with a "placeholder" option like 0 or ''
+    category = SelectField('Issue Category*', coerce=int, validators=[InputRequired(message="Category is required.")])
     cloud_provider = SelectField('Cloud Provider', coerce=str, validators=[Optional()])
-    severity = SelectField('Severity Level*', coerce=str, validators=[DataRequired(message="Severity is required.")])
+    severity = SelectField('Severity Level*', coerce=str, validators=[InputRequired(message="Severity is required.")])
     aws_service = SelectField('AWS Service (if AWS selected)', choices=AWS_SERVICE_CHOICES, validators=[Optional()])
     aws_account_id = StringField('AWS Account ID', validators=[Optional(), Length(max=12)])
     environment = SelectField('Environment', coerce=str, validators=[Optional()])
@@ -287,6 +293,15 @@ class CreateTicketForm(FlaskForm):
             for email_str in emails:
                 if '@' not in email_str or '.' not in email_str.split('@')[1]:
                     raise ValidationError(f"Invalid email address format: {email_str}")
+    
+    # Redundant if InputRequired is used correctly with placeholder choice values (0 for int, '' for str)
+    # def validate_category(self, field):
+    #     if field.data == 0 and any(isinstance(v, (DataRequired, InputRequired)) for v in field.validators): 
+    #         raise ValidationError("Category is a required field.")
+
+    # def validate_severity(self, field):
+    #     if not field.data and any(isinstance(v, (DataRequired, InputRequired)) for v in field.validators): 
+    #         raise ValidationError("Severity is a required field.")
 
 class CommentForm(FlaskForm):
     content = TextAreaField('Your Comment', validators=[DataRequired()])
@@ -340,7 +355,7 @@ login_manager.login_message = "Please log in to access this page."
 def load_user(user_id): return User.query.get(int(user_id))
 
 @app.context_processor
-def inject_global_vars(): return {'current_year': datetime.utcnow().year}
+def inject_global_vars(): return {'current_year': datetime.utcnow().year, 'app': app}
 
 def admin_required(f):
     @wraps(f)
@@ -371,35 +386,54 @@ def get_active_environment_choices():
     return [('', '--- Select Environment ---')] + [(opt.name, opt.name) for opt in EnvironmentOption.query.filter_by(is_active=True).order_by(EnvironmentOption.name).all()]
 
 # --- Twilio Helper Function ---
-def trigger_priority_call_alert(ticket):
+def trigger_priority_call_alert(ticket, old_severity=None):
     account_sid = app.config.get('TWILIO_ACCOUNT_SID')
     auth_token = app.config.get('TWILIO_AUTH_TOKEN')
     twilio_phone_number = app.config.get('TWILIO_PHONE_NUMBER')
     recipient_phone_number = app.config.get('EMERGENCY_CALL_RECIPIENT_PHONE_NUMBER')
+    alert_severities = app.config.get('SEVERITIES_FOR_CALL_ALERT', [])
+    new_severity = ticket.severity
 
     if not all([account_sid, auth_token, twilio_phone_number, recipient_phone_number]):
         app.logger.warning(f"Twilio credentials or recipient number not fully configured. Skipping call alert for ticket #{ticket.id}.")
         return
 
+    if new_severity not in alert_severities:
+        app.logger.info(f"Ticket #{ticket.id} new severity '{new_severity}' does not trigger call alert. Skipping.")
+        return
+
+    # If severity was already high and remains high (even if different high, e.g. High -> Urgent), still alert if old_severity != new_severity
+    # If old_severity == new_severity AND it's an alertable severity, then skip (no change)
+    if old_severity is not None and old_severity == new_severity and new_severity in alert_severities:
+        app.logger.info(f"Ticket #{ticket.id} severity '{new_severity}' remains unchanged and high. No new call alert needed.")
+        return
+    
+    app.logger.info(f"Ticket #{ticket.id} severity change triggers call alert. Old: '{old_severity}', New: '{new_severity}'.")
+    
     try:
         client = TwilioClient(account_sid, auth_token)
-        sanitized_title = re.sub(r'[^\w\s,.-]', '', ticket.title) # Basic sanitization
+        sanitized_title = re.sub(r'[^\w\s,.-]', '', ticket.title)
+        
+        if old_severity is None or old_severity not in alert_severities:
+            alert_reason = "created"
+        else: # It was already an alertable severity, or changed from one to another
+            alert_reason = f"updated from {old_severity} to {new_severity}"
+
         message_to_say = (
             f"Hello. This is an urgent alert from the Ticket System. "
-            f"A new high priority ticket, number {ticket.id}, has been created. "
-            f"Severity is {ticket.severity}. "
+            f"A high priority ticket, number {ticket.id}, has been {alert_reason}. "
+            f"Severity is now {new_severity}. "
             f"Subject: {sanitized_title}. "
             f"Please check the system immediately."
         )
-        twiml_instruction = f'<Response><Say>{escape(message_to_say)}</Say></Response>' # Ensure message is XML-safe
+        twiml_instruction = f'<Response><Say>{escape(message_to_say)}</Say></Response>'
         call = client.calls.create(
             twiml=twiml_instruction,
             to=recipient_phone_number,
             from_=twilio_phone_number
         )
         app.logger.info(f"Twilio call initiated for ticket #{ticket.id} to {recipient_phone_number}. Call SID: {call.sid}")
-        # Flash message is okay here as it's tied to user action (ticket creation)
-        flash(f'High priority ticket #{ticket.id} alert: Call initiated to {recipient_phone_number}.', 'info')
+        flash(f'High priority ticket #{ticket.id} alert ({alert_reason}): Call initiated to {recipient_phone_number}.', 'info')
     except TwilioRestException as e:
         app.logger.error(f"Twilio API error for ticket #{ticket.id}: {e}")
         flash(f'Error initiating Twilio call for ticket #{ticket.id}: {e.message}', 'danger')
@@ -423,7 +457,7 @@ def login():
         if user and user.check_password(form.password.data):
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get('next')
-            if not next_page or urlparse(next_page).netloc != '': # Security: prevent open redirect
+            if not next_page or urlparse(next_page).netloc != '' or not next_page.startswith('/'):
                 next_page = url_for('dashboard')
             flash(f'Logged in successfully as {user.username}.', 'success')
             app.logger.info(f"User '{user.username}' logged in.")
@@ -461,28 +495,27 @@ def register_client():
     return render_template('register_user.html', title='Register as Client', form=form, registration_type='Client', info_text='Submit and track your support tickets.')
 
 @app.route('/register/agent', methods=['GET', 'POST'])
-@admin_required # Agent registration should ideally be admin controlled.
+@admin_required
 def register_agent():
-    form = UserSelfRegistrationForm()
-    # Remove specific email domain validation for admin creating agents, or adjust as needed
-    if hasattr(form, 'validate_email'):
-        # Simple example: remove the domain check validator if it exists
-        form.email.validators = [v for v in form.email.validators if getattr(v, '__name__', '') != 'validate_email_domain'] # pseudo-code, adjust to actual validator removal
-
+    # Using UserSelfRegistrationForm means the 'role' field is not on the form.
+    # The role is hardcoded to 'agent' upon successful submission.
+    # This route renders 'admin/create_edit_user.html', which might expect AdminUserForm.
+    # For simplicity, if 'admin/create_edit_user.html' can render generic form fields, this can work.
+    form = UserSelfRegistrationForm() 
     if form.validate_on_submit():
-        user = User(username=form.username.data, email=form.email.data.lower(), role='agent')
+        user = User(username=form.username.data, email=form.email.data.lower(), role='agent') # Role hardcoded
         user.set_password(form.password.data)
         db.session.add(user)
         try:
             db.session.commit()
             flash('Agent account created successfully!', 'success')
             app.logger.info(f"New agent '{user.username}' registered by admin '{current_user.username}'.")
-            return redirect(url_for('admin_user_list')) # Redirect admin to user list
+            return redirect(url_for('admin_user_list'))
         except Exception as e:
             db.session.rollback()
             flash('Error during agent registration. Please try again.', 'danger')
             app.logger.error(f"Admin agent registration error: {e}")
-    return render_template('admin/create_edit_user.html', title='Register New Agent', form=form, legend='Register New Agent', user=None, registration_type='Agent')
+    return render_template('admin/create_edit_user.html', title='Register New Agent', form=form, legend='Register New Agent', user=None)
 
 
 @app.route('/dashboard')
@@ -511,24 +544,18 @@ def dashboard():
 @login_required
 def create_ticket():
     form = CreateTicketForm()
+    # Placeholder values (0 for int, '' for str) must match what InputRequired expects for "empty"
     form.category.choices = [(0, '--- Select Issue Category* ---')] + [(c.id, c.name) for c in Category.query.order_by('name').all()]
-    form.cloud_provider.choices = get_active_cloud_provider_choices()
-    form.severity.choices = get_active_severity_choices()
-    form.environment.choices = get_active_environment_choices()
+    form.cloud_provider.choices = get_active_cloud_provider_choices() # First choice is ('', '--- Select Cloud Provider ---')
+    form.severity.choices = get_active_severity_choices() # First choice is ('', '--- Select Severity* ---')
+    form.environment.choices = get_active_environment_choices() # First choice is ('', '--- Select Environment ---')
 
-    if not form.category.choices[1:] and any(isinstance(v, DataRequired) for v in form.category.validators):
-        flash("Critical: No categories defined. Contact admin.", "danger")
-    if not form.severity.choices[1:] and any(isinstance(v, DataRequired) for v in form.severity.validators):
-        flash("Critical: No severity levels defined. Contact admin.", "danger")
+    if not form.category.choices[1:]: # No actual categories beyond placeholder
+        flash("Critical: No categories defined in the system. Please contact an administrator.", "danger")
+    if not form.severity.choices[1:]: # No actual severities beyond placeholder
+        flash("Critical: No severity levels defined in the system. Please contact an administrator.", "danger")
 
     if form.validate_on_submit():
-        category_id_val = form.category.data if form.category.data and form.category.data != 0 else None
-        # Re-validate required selects if default chosen, as coerce=int might pass 0
-        if not category_id_val and any(isinstance(v, DataRequired) for v in form.category.validators):
-             form.category.errors.append("Category is a required field.")
-        if not form.severity.data and any(isinstance(v, DataRequired) for v in form.severity.validators): # Severity is string based ''
-             form.severity.errors.append("Severity is a required field.")
-        
         uploaded_files_info = []
         if form.attachments.data:
             for file_storage in form.attachments.data:
@@ -548,21 +575,26 @@ def create_ticket():
                         except Exception as e:
                             app.logger.error(f"Failed to save attachment {filename}: {e}")
                             form.attachments.errors.append(f"Could not save file: {filename}")
+                            flash(f"Error saving attachment {filename}. Please try again.", "danger")
                     else:
                         form.attachments.errors.append(f"File type not allowed: {file_storage.filename}")
+                        flash(f"File type not allowed for {file_storage.filename}.", "danger")
         
-        if not form.errors: # Check form errors again
+        if form.attachments.errors: # If attachment errors, stop and re-render
+            pass # Form will re-render with errors shown in the template due to POST method check below
+        else:
+            # category_id=form.category.data (will be int ID due to coerce=int)
+            # severity=form.severity.data (will be string name due to coerce=str)
             ticket = Ticket(
                 title=form.title.data,
                 description=form.description.data,
                 created_by_id=current_user.id,
-                category_id=category_id_val,
-                cloud_provider=form.cloud_provider.data or None,
-                severity=form.severity.data or None,
+                category_id=form.category.data, # Make sure 0 is not a valid category ID
+                cloud_provider=form.cloud_provider.data or None, # Empty string from select becomes None
+                severity=form.severity.data, # Empty string from select should not happen due to InputRequired
                 aws_service=form.aws_service.data if form.cloud_provider.data == 'AWS' and form.aws_service.data else None,
                 aws_account_id=form.aws_account_id.data or None,
                 environment=form.environment.data or None,
-                # Default status and priority are set in model
             )
             db.session.add(ticket)
             try:
@@ -578,27 +610,24 @@ def create_ticket():
                     db.session.add(attachment)
                 db.session.commit()
                 flash('Ticket created successfully!', 'success')
-                app.logger.info(f"Ticket #{ticket.id} created by {current_user.username}")
-
-                # --- Email Notifications ---
+                app.logger.info(f"Ticket #{ticket.id} created by {current_user.username} with severity '{ticket.severity}'")
+                
                 try:
                     recipients_admin_agent = list(set(
-                        [app.config['ADMIN_EMAIL']] + 
+                        ([app.config['ADMIN_EMAIL']] if app.config['ADMIN_EMAIL'] else []) + 
                         [user.email for user in User.query.filter(User.role.in_(['admin', 'agent'])).all() if user.email]
                     ))
                     if recipients_admin_agent:
                         msg_admin = Message(
                             f"New Ticket Submitted: #{ticket.id} - {ticket.title}",
-                            recipients=[r for r in recipients_admin_agent if r], # Filter out None emails
+                            recipients=[r for r in recipients_admin_agent if r], 
                             body=render_template('email/new_ticket_admin_notification.txt', ticket=ticket, user=current_user,
                                                  ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))
                         )
                         mail.send(msg_admin)
-                    
-                    additional_emails = [email.strip() for email in (form.additional_recipients.data or "").split(',') if email.strip()]
-                    # Also notify the ticket creator
-                    creator_and_additional_emails = list(set(additional_emails + ([current_user.email] if current_user.email else [])))
 
+                    additional_emails = [email.strip() for email in (form.additional_recipients.data or "").split(',') if email.strip()]
+                    creator_and_additional_emails = list(set(additional_emails + ([current_user.email] if current_user.email else [])))
                     if creator_and_additional_emails:
                         msg_additional = Message(
                             f"Confirmation: Your Ticket #{ticket.id} - {ticket.title}",
@@ -610,19 +639,21 @@ def create_ticket():
                 except Exception as e:
                     app.logger.error(f"Failed to send email notifications for ticket #{ticket.id}: {e}")
                 
-                if ticket.severity in app.config.get('SEVERITIES_FOR_CALL_ALERT', []):
-                    trigger_priority_call_alert(ticket)
-
+                trigger_priority_call_alert(ticket, old_severity=None) 
                 return redirect(url_for('view_ticket', ticket_id=ticket.id))
             except Exception as e:
                 db.session.rollback()
                 flash(f'Database error: Could not save ticket. {str(e)[:150]}', 'danger')
                 app.logger.error(f"Ticket save DB error: {e}")
-                for file_info in uploaded_files_info: # Cleanup
+                for file_info in uploaded_files_info:
                     try:
-                        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], file_info['stored_filename']))
-                    except OSError: pass 
-    elif request.method == 'POST':
+                        file_path_to_remove = os.path.join(app.config['UPLOAD_FOLDER'], file_info['stored_filename'])
+                        if os.path.exists(file_path_to_remove):
+                           os.remove(file_path_to_remove)
+                           app.logger.info(f"Cleaned up orphaned attachment on error: {file_info['stored_filename']}")
+                    except OSError as oe: 
+                        app.logger.error(f"Error cleaning up orphaned attachment {file_info['stored_filename']}: {oe}")
+    elif request.method == 'POST': # Catches validation failures from form.validate_on_submit()
         flash('Please correct the errors in the form.', 'danger')
     return render_template('client/create_ticket.html', title='Submit New Support Request', form=form)
 
@@ -647,28 +678,26 @@ def view_ticket(ticket_id):
     attachments = ticket.ticket_attachments.order_by(Attachment.uploaded_at.desc()).all()
 
     if current_user.is_agent or current_user.is_admin:
-        agent_update_form = AgentUpdateTicketForm(obj=ticket if request.method == 'GET' else None)
+        agent_update_form = AgentUpdateTicketForm(obj=None) # Don't pass obj on POST, it gets data from request.form
         agent_choices = [(u.id, u.username) for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()]
         cat_choices = [(c.id, c.name) for c in Category.query.order_by('name').all()]
         
         agent_update_form.assigned_to_id.choices = [(0, '--- Unassign/Select Agent ---')] + agent_choices
-        agent_update_form.category_id.choices = [(0, '--- No Category ---')] + cat_choices
+        agent_update_form.category_id.choices = [(0, '--- No Category ---')] + cat_choices # Assuming 0 is not a valid ID
         agent_update_form.cloud_provider.choices = get_active_cloud_provider_choices()
         agent_update_form.severity.choices = get_active_severity_choices()
         agent_update_form.environment.choices = get_active_environment_choices()
 
-        if request.method == 'GET':
-             # Pre-populate form fields directly from ticket object
+        if request.method == 'GET': 
             agent_update_form.status.data = ticket.status
             agent_update_form.priority.data = ticket.priority
-            agent_update_form.assigned_to_id.data = ticket.assigned_to_id or 0
-            agent_update_form.category_id.data = ticket.category_id or 0
-            agent_update_form.cloud_provider.data = ticket.cloud_provider or ''
-            agent_update_form.severity.data = ticket.severity or ''
+            agent_update_form.assigned_to_id.data = ticket.assigned_to_id or 0 # 0 for placeholder
+            agent_update_form.category_id.data = ticket.category_id or 0 # 0 for placeholder
+            agent_update_form.cloud_provider.data = ticket.cloud_provider or '' # '' for placeholder
+            agent_update_form.severity.data = ticket.severity or '' # '' for placeholder
             agent_update_form.aws_service.data = ticket.aws_service or ''
             agent_update_form.aws_account_id.data = ticket.aws_account_id or ''
             agent_update_form.environment.data = ticket.environment or ''
-
 
     if request.method == 'POST':
         if 'submit_comment' in request.form and comment_form.validate_on_submit():
@@ -684,29 +713,38 @@ def view_ticket(ticket_id):
             return redirect(url_for('view_ticket', ticket_id=ticket.id, _anchor='comments_section'))
         
         elif 'submit_update' in request.form and agent_update_form and agent_update_form.validate_on_submit():
+            old_severity_on_update = ticket.severity 
             ticket.status = agent_update_form.status.data
             ticket.priority = agent_update_form.priority.data
             ticket.assigned_to_id = agent_update_form.assigned_to_id.data if agent_update_form.assigned_to_id.data != 0 else None
             ticket.category_id = agent_update_form.category_id.data if agent_update_form.category_id.data != 0 else None
             ticket.cloud_provider = agent_update_form.cloud_provider.data or None
-            ticket.severity = agent_update_form.severity.data or None
+            ticket.severity = agent_update_form.severity.data or None 
             ticket.aws_service = agent_update_form.aws_service.data if agent_update_form.cloud_provider.data == 'AWS' and agent_update_form.aws_service.data else None
             ticket.aws_account_id = agent_update_form.aws_account_id.data or None
             ticket.environment = agent_update_form.environment.data or None
             ticket.updated_at = datetime.utcnow()
-            db.session.commit()
-            flash('Ticket details updated successfully.', 'success')
-            app.logger.info(f"Ticket #{ticket.id} updated by {current_user.username}")
-            return redirect(url_for('view_ticket', ticket_id=ticket.id))
-        
-        elif request.method == 'POST':
-             flash('There was an error with your submission. Please check the form.', 'danger')
+            try:
+                db.session.commit()
+                flash('Ticket details updated successfully.', 'success')
+                app.logger.info(f"Ticket #{ticket.id} updated by {current_user.username}. Old severity: '{old_severity_on_update}', New severity: '{ticket.severity}'.")
+                trigger_priority_call_alert(ticket, old_severity=old_severity_on_update)
+                return redirect(url_for('view_ticket', ticket_id=ticket.id))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Database error during ticket update: {str(e)[:150]}', 'danger')
+                app.logger.error(f"Ticket update DB error for #{ticket.id}: {e}")
+        elif 'submit_update' in request.form and agent_update_form and not agent_update_form.validate_on_submit():
+             flash('Error updating ticket. Please check agent form fields.', 'danger')
+        elif 'submit_comment' in request.form and not comment_form.validate_on_submit():
+            flash('Error adding comment. Please check comment field.', 'danger')
+
 
     comments_query = ticket.comments
-    if not (current_user.is_agent or current_user.is_admin): # Clients don't see internal comments
+    if not (current_user.is_agent or current_user.is_admin): # Client view
         comments_query = comments_query.filter_by(is_internal=False)
-        if hasattr(comment_form, 'is_internal'):
-            del comment_form.is_internal # Remove toggle for clients
+        if hasattr(comment_form, 'is_internal'): 
+            delattr(comment_form, 'is_internal') # Remove internal toggle for clients
             
     comments = comments_query.order_by(Comment.created_at.asc()).all()
     
@@ -724,24 +762,20 @@ def uploaded_file(filename):
             (ticket.assigned_to_id and current_user.id == ticket.assigned_to_id)):
         flash("You do not have permission to download this file.", "danger")
         return redirect(request.referrer or url_for('dashboard'))
-    
     try:
-        # Ensure UPLOAD_FOLDER path is absolute for send_from_directory
         upload_dir = app.config['UPLOAD_FOLDER']
+        # Ensure upload_dir is absolute for send_from_directory robustness
         if not os.path.isabs(upload_dir):
-            upload_dir = os.path.join(app.root_path, upload_dir)
+            upload_dir = os.path.join(current_app.root_path, upload_dir)
 
         return send_from_directory(
-            upload_dir,
-            attachment.stored_filename,
-            as_attachment=True,
-            download_name=attachment.filename
+            upload_dir, attachment.stored_filename,
+            as_attachment=True, download_name=attachment.filename
         )
     except FileNotFoundError:
-        app.logger.error(f"Physical file not found: {attachment.stored_filename} for ticket {ticket.id}")
+        app.logger.error(f"Physical file not found: {attachment.stored_filename} (orig: {attachment.filename}) for ticket {ticket.id} in dir {upload_dir if 'upload_dir' in locals() else app.config['UPLOAD_FOLDER']}")
         flash("File not found on server. Please contact support.", "danger")
         return redirect(request.referrer or url_for('dashboard'))
-
 
 @app.route('/agent/tickets/')
 @app.route('/agent/tickets/view/<view_name>')
@@ -750,8 +784,9 @@ def agent_ticket_list(view_name=None):
     page = request.args.get('page', 1, type=int)
     query = Ticket.query 
     list_title = "Agent Tickets"
-
     if view_name is None: view_name = 'my_unsolved'
+
+    app.logger.debug(f"Agent ticket list for view: {view_name} by {current_user.username}")
 
     if view_name == 'my_unsolved':
         query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed']))
@@ -759,22 +794,21 @@ def agent_ticket_list(view_name=None):
     elif view_name == 'unassigned':
         query = query.filter(Ticket.assigned_to_id.is_(None), Ticket.status == 'Open')
         list_title = "Unassigned Open Tickets"
-    # Add other views as in original
     elif view_name == 'all_unsolved':
         query = query.filter(Ticket.status.notin_(['Resolved', 'Closed']))
         list_title = "All Unsolved Tickets"
     elif view_name == 'recently_updated':
-        list_title = "Recently Updated Tickets" # Ordering applied below
+        list_title = "Recently Updated Tickets" # Order applied below
     elif view_name == 'pending':
         query = query.filter(Ticket.status == 'On Hold')
         list_title = "Pending (On Hold) Tickets"
     elif view_name == 'recently_solved':
         query = query.filter(Ticket.status == 'Resolved')
-        list_title = "Recently Solved Tickets" # Ordering applied below
+        list_title = "Recently Solved Tickets" # Order applied below
     elif view_name == 'current_tasks':
         query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status == 'In Progress')
         list_title = "Your Current In-Progress Tickets"
-    else: # Default fallback
+    else: 
         flash(f"Unknown ticket view: '{view_name}'. Defaulting to your unsolved tickets.", "warning")
         query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed']))
         list_title = "Your Unsolved Tickets"
@@ -782,10 +816,10 @@ def agent_ticket_list(view_name=None):
     
     if view_name in ['recently_updated', 'recently_solved', 'all_unsolved', 'unassigned', 'pending']:
         ordered_query = query.order_by(Ticket.updated_at.desc())
-    else:
+    else: # my_unsolved, current_tasks, and default
         priority_order = db.case(
             {'Urgent': 1, 'High': 2, 'Medium': 3, 'Low': 4},
-            value=Ticket.priority, else_=5
+            value=Ticket.priority, else_=5 # Default for any other priority string
         )
         ordered_query = query.order_by(priority_order.asc(), Ticket.updated_at.desc())
         
@@ -805,10 +839,11 @@ def assign_ticket_to_me(ticket_id):
         db.session.commit()
         flash(f'Ticket #{ticket.id} has been assigned to you.', 'success')
         app.logger.info(f"Ticket #{ticket.id} self-assigned to agent: {current_user.username}")
-    else:
-        flash(f'Ticket #{ticket.id} is already assigned.', 'warning')
+    elif ticket.assigned_to_id == current_user.id:
+         flash(f'Ticket #{ticket.id} is already assigned to you.', 'info')
+    else: # ticket.assigned_to_id is not None and ticket.assigned_to_id != current_user.id
+        flash(f'Ticket #{ticket.id} is already assigned to another agent ({ticket.assignee.username if ticket.assignee else "Unknown"}).', 'warning')
     return redirect(request.referrer or url_for('agent_ticket_list', view_name='unassigned'))
-
 
 # --- Admin Routes ---
 @app.route('/admin/users')
@@ -818,7 +853,7 @@ def admin_user_list():
     share_form = ShareCredentialsForm()
     return render_template('admin/user_list.html', title='Manage Users', users=users, share_form=share_form)
 
-@app.route('/admin/user/new', methods=['GET', 'POST'])
+@app.route('/admin/user/new', methods=['GET', 'POST']) # For creating any type of user by admin
 @app.route('/admin/user/<int:user_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def admin_create_edit_user(user_id=None):
@@ -826,144 +861,187 @@ def admin_create_edit_user(user_id=None):
     form = AdminUserForm(obj=user_to_edit if request.method == 'GET' and user_to_edit else None)
     legend = 'Create New User' if not user_to_edit else f'Edit User: {user_to_edit.username}'
 
-    # Adjust password validators
+    # Adjust password validators: required for new user, optional for edit
+    original_password_validators = list(form.password.validators) # Make copies
+    original_password2_validators = list(form.password2.validators)
+
     if not user_to_edit: # New user
-        form.password.validators.insert(0, DataRequired(message="Password is required for new users."))
-        form.password2.validators.insert(0, DataRequired(message="Please confirm the password."))
-    else: # Editing existing user
-        # For edit, password is optional. If not DataRequired, it's already Optional or similar.
-        # Ensure password2 matches if password is provided
-        pass
+        form.password.validators = [DataRequired(message="Password is required for new users.")] + [v for v in original_password_validators if not isinstance(v, Optional)]
+        form.password2.validators = [DataRequired(message="Please confirm the password.")] + [v for v in original_password2_validators if not isinstance(v, Optional)]
+    else: # Editing existing user - ensure Optional is there, DataRequired is not
+        form.password.validators = [Optional()] + [v for v in original_password_validators if not isinstance(v, (DataRequired, Optional))]
+        form.password2.validators = [EqualTo('password', message='Passwords must match if new password provided.')] + [Optional()] + [v for v in original_password2_validators if not isinstance(v, (DataRequired, Optional, EqualTo))]
+
 
     if form.validate_on_submit():
         is_new_user = (user_to_edit is None)
         user = user_to_edit or User()
-
-        # Uniqueness checks
-        if (is_new_user or user.username != form.username.data) and \
-           User.query.filter(User.username == form.username.data, User.id != (user.id if user.id else -1)).first():
+        
+        # Check for username uniqueness (if changed or new)
+        potential_username_conflict = User.query.filter(User.username == form.username.data, User.id != (user.id if user.id else -1)).first()
+        if potential_username_conflict:
             form.username.errors.append('This username is already taken.')
-        if (is_new_user or user.email != form.email.data.lower()) and \
-           User.query.filter(User.email == form.email.data.lower(), User.id != (user.id if user.id else -1)).first():
+        
+        # Check for email uniqueness (if changed or new)
+        potential_email_conflict = User.query.filter(User.email == form.email.data.lower(), User.id != (user.id if user.id else -1)).first()
+        if potential_email_conflict:
             form.email.errors.append('This email address is already registered.')
         
+        # If new password provided for edit, but not confirmed
         if not is_new_user and form.password.data and not form.password2.data:
-             form.password2.errors.append("Please confirm the new password.")
+             form.password2.errors.append("Please confirm the new password if you are changing it.")
 
-        if not form.errors:
+        if not form.errors: # If no errors after custom checks
             user.username = form.username.data
             user.email = form.email.data.lower()
             user.role = form.role.data
-            if form.password.data:
+            if form.password.data: # Only set password if a new one is provided
                 user.set_password(form.password.data)
             
             if is_new_user: db.session.add(user)
             
             try:
                 db.session.commit()
-                flash(f'User "{user.username}" {"created" if is_new_user else "updated"}.', 'success')
+                flash(f'User "{user.username}" has been {"created" if is_new_user else "updated"} successfully.', 'success')
+                app.logger.info(f"User '{user.username}' {'created' if is_new_user else 'updated'} by admin {current_user.username}")
                 return redirect(url_for('admin_user_list'))
             except Exception as e:
                 db.session.rollback()
-                flash('Database error: Could not save user.', 'danger')
+                flash(f'Database error: Could not save user. {str(e)}', 'danger')
                 app.logger.error(f"Admin user save error for '{form.username.data}': {e}")
     
     return render_template('admin/create_edit_user.html', title=legend, form=form, legend=legend, user=user_to_edit)
 
-
 @app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
 @admin_required
 def admin_delete_user(user_id):
-    user = User.query.get_or_404(user_id)
-    if user.id == current_user.id: flash('Cannot delete self.', 'danger')
-    elif user.is_admin and User.query.filter_by(role='admin').count() <= 1:
-        flash('Cannot delete the only admin.', 'danger')
+    user_to_delete = User.query.get_or_404(user_id)
+    if user_to_delete.id == current_user.id: flash('You cannot delete your own account.', 'danger')
+    elif user_to_delete.is_admin and User.query.filter_by(role='admin').count() <= 1:
+        flash('Cannot delete the only remaining administrator account.', 'danger')
     else:
+        deleted_username = user_to_delete.username
         try:
-            # Handle related items before deleting user
+            # Reassign or nullify tickets assigned to the user being deleted
             Ticket.query.filter_by(assigned_to_id=user_id).update({'assigned_to_id': None})
-            # Decide on created_by_id tickets (usually keep, or set to a generic deleted user ID)
+            # Delete associated attachments and comments by this user
             Attachment.query.filter_by(uploaded_by_id=user_id).delete(synchronize_session='fetch')
             Comment.query.filter_by(user_id=user_id).delete(synchronize_session='fetch')
             
-            db.session.delete(user)
+            db.session.delete(user_to_delete)
             db.session.commit()
-            flash(f'User "{user.username}" deleted.', 'success')
+            flash(f'User "{deleted_username}" and their associated non-ticket data (comments, assignments) have been deleted. Tickets created by this user remain but are unassigned if they were assigned this user.', 'success')
+            app.logger.info(f"User '{deleted_username}' (ID:{user_id}) deleted by admin {current_user.username}")
         except Exception as e:
-            db.session.rollback(); flash(f'Error deleting user: {e}', 'danger')
+            db.session.rollback(); flash(f'Error deleting user "{deleted_username}": {e}', 'danger')
+            app.logger.error(f"Error deleting user ID {user_id} ('{deleted_username}'): {e}")
     return redirect(url_for('admin_user_list'))
 
 @app.route('/admin/user/<int:user_id>/share_credentials', methods=['POST'])
 @admin_required
 def admin_share_credentials(user_id):
     user = User.query.get_or_404(user_id)
-    form = ShareCredentialsForm(request.form)
-    if form.validate():
-        # SECURITY WARNING: Sending passwords in email is highly discouraged.
-        # Implement a password reset link flow instead for production.
-        subject = f"Account Info: {user.username}"
-        body = f"Username: {user.username}\nThis is a system-generated message. Password sharing is not secure."
-        # For demo, actual password sending is omitted.
-        msg = Message(subject, recipients=[form.recipient_email.data], body=body)
+    form = ShareCredentialsForm(request.form) # Bind data from request.form
+    if form.validate(): # Validates recipient_email
+        recipient_email = form.recipient_email.data
+        subject = f"Account Information: {user.username} for Ticket System"
+        # Emphasize password security - do not send password.
+        body_text = (f"Hello,\n\nHere is the account information for user '{user.username}':\n"
+                     f"Username: {user.username}\n"
+                     f"IMPORTANT: For security reasons, the password cannot be directly shared. "
+                     f"If a password reset is needed, please use the system's password reset functionality "
+                     f"or have an administrator set a temporary password for the user.\n\n"
+                     f"Regards,\nThe Ticket System Admin")
+        msg = Message(subject, recipients=[recipient_email], body=body_text)
         try:
-            # mail.send(msg) # Uncomment if you implement a secure way or accept risk for demo
-            flash(f'Credentials info for "{user.username}" (simulated) sent to {form.recipient_email.data}.', 'info')
-        except Exception as e: flash(f'Email send failed: {e}', 'danger')
+            mail.send(msg)
+            flash(f'Account details (excluding password) for "{user.username}" have been sent to {recipient_email}.', 'success')
+            app.logger.info(f"Credentials info (no password) for '{user.username}' shared with '{recipient_email}' by admin {current_user.username}")
+        except Exception as e: 
+            flash(f'Failed to send email: {e}', 'danger')
+            app.logger.error(f"Email send failure for sharing credentials of '{user.username}': {e}")
     else:
-        for field, errors in form.errors.items(): flash(f"Error ({field}): {', '.join(errors)}", 'danger')
+        for field_name, errors in form.errors.items(): 
+            field_label = getattr(getattr(form, field_name), 'label', None)
+            label_text = field_label.text if field_label else field_name.replace("_", " ").title()
+            flash(f"Error in sharing form ({label_text}): {', '.join(errors)}", 'danger')
     return redirect(url_for('admin_user_list'))
 
-# Generic CRUD for Options
+# --- Admin Option Management Helper Functions ---
 def _admin_list_options(model_class, template_name, title, order_by_attr='name'):
     items = model_class.query.order_by(getattr(model_class, order_by_attr)).all()
-    return render_template(template_name, title=title, items=items, model_name=model_class.__name__.lower().replace("option",""))
+    model_name_slug = to_snake_case(model_class.__name__) # Corrected slug generation
+    return render_template(template_name, title=title, items=items, model_name=model_name_slug)
+
 def _admin_create_edit_option(model_class, form_class, list_url_func_name, item_id=None):
     item = model_class.query.get_or_404(item_id) if item_id else None
     form = form_class(obj=item if request.method == 'GET' and item else None)
-    type_name = model_class.__name__.replace("Option","")
-    legend = f'New {type_name}' if not item else f'Edit: {getattr(item, "name", "Item")}'
+    
+    type_name_raw = model_class.__name__.replace("Option","")
+    type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw]) # Converts CamelCase to "Spaced Words"
+    
+    legend = f'New {type_name_display}' if not item else f'Edit {type_name_display}: {getattr(item, "name", "Item")}'
     
     if form.validate_on_submit():
         is_new = (item is None)
-        option = item or model_class()
+        option_instance = item or model_class()
         
-        if (is_new or option.name != form.name.data) and \
-           model_class.query.filter(model_class.name == form.name.data, model_class.id != (option.id if option.id else -1)).first():
-            form.name.errors.append('This name already exists.')
-        else:
-            form.populate_obj(option)
-            if is_new: db.session.add(option)
+        # Check for name uniqueness (if changed or new)
+        existing_item_with_name = model_class.query.filter(
+            model_class.name == form.name.data, 
+            model_class.id != (option_instance.id if option_instance.id else -1) # Exclude self if editing
+        ).first()
+
+        if existing_item_with_name:
+            form.name.errors.append('This name already exists. Please choose a different one.')
+        
+        if not form.errors:
+            form.populate_obj(option_instance)
+            if is_new: db.session.add(option_instance)
             try:
                 db.session.commit()
-                flash(f'{type_name} "{option.name}" saved.', 'success')
+                flash(f'{type_name_display} "{option_instance.name}" has been saved successfully.', 'success')
+                app.logger.info(f"{type_name_display} '{option_instance.name}' {'created' if is_new else 'updated'} by {current_user.username}")
                 return redirect(url_for(list_url_func_name))
             except Exception as e:
-                db.session.rollback(); flash(f'DB error saving {type_name.lower()}.', 'danger')
+                db.session.rollback(); flash(f'Database error: Could not save {type_name_display.lower()}. Error: {str(e)}', 'danger')
+                app.logger.error(f"{type_name_display} save error: {e}")
                 
-    template_path = 'admin/create_edit_option.html'
+    template_path = 'admin/create_edit_option.html' 
     return render_template(template_path, title=legend, form=form, legend=legend,
-                           item_type_name=type_name.capitalize(), list_url=url_for(list_url_func_name))
+                           item_type_name=type_name_display, list_url=url_for(list_url_func_name))
+
 def _admin_delete_option(model_class, item_id, list_url_func_name, related_ticket_attr=None):
     item = model_class.query.get_or_404(item_id)
     item_name = getattr(item, "name", "Item")
+    type_name_raw = model_class.__name__.replace("Option","")
+    type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw])
+
     can_delete = True
     if related_ticket_attr:
-        # Check if used in tickets (example for string-based FKs, adjust for ID FKs)
-        if hasattr(Ticket, related_ticket_attr):
-            if related_ticket_attr == 'category_id' and Ticket.query.filter_by(category_id=item.id).first():
-                can_delete = False
-            elif Ticket.query.filter(getattr(Ticket, related_ticket_attr) == item.name).first(): # For string name fields
-                can_delete = False
+        query_filter = None
+        if related_ticket_attr == 'category_id' and hasattr(Ticket, 'category_id'): # Direct ID FK
+            query_filter = (Ticket.category_id == item.id)
+        elif hasattr(Ticket, related_ticket_attr): # String-based FKs like Ticket.severity == SeverityOption.name
+            query_filter = (getattr(Ticket, related_ticket_attr) == item.name)
+        
+        if query_filter is not None and Ticket.query.filter(query_filter).first():
+            can_delete = False
+        
         if not can_delete:
-             flash(f'Cannot delete "{item_name}" as it is used by tickets. Deactivate instead.', 'danger')
+             flash(f'Cannot delete "{item_name}" as it is currently associated with existing tickets. Consider deactivating it instead (if applicable).', 'danger')
 
     if can_delete:
         try:
             db.session.delete(item); db.session.commit()
-            flash(f'{model_class.__name__.replace("Option","")} "{item_name}" deleted.', 'success')
+            flash(f'{type_name_display} "{item_name}" has been deleted.', 'success')
+            app.logger.info(f"{type_name_display} '{item_name}' (ID:{item_id}) deleted by {current_user.username}")
         except Exception as e:
-            db.session.rollback(); flash(f'Error deleting: {e}', 'danger')
+            db.session.rollback(); flash(f'Error deleting {type_name_display.lower()}: {e}', 'danger')
+            app.logger.error(f"Error deleting {type_name_display} ID {item_id}: {e}")
     return redirect(url_for(list_url_func_name))
+
+# --- Specific Admin Option Routes ---
 
 # Category Routes
 @app.route('/admin/categories')
@@ -971,7 +1049,6 @@ def _admin_delete_option(model_class, item_id, list_url_func_name, related_ticke
 def admin_category_list():
     return _admin_list_options(Category, 'admin/list_options.html', 'Manage Categories')
 
-# Corrected: All @app.route decorators first, then other decorators
 @app.route('/admin/category/new', methods=['GET', 'POST'])
 @app.route('/admin/category/<int:item_id>/edit', methods=['GET', 'POST'])
 @admin_required
@@ -1037,30 +1114,40 @@ def admin_delete_environment(item_id):
 @app.route('/admin/tickets')
 @admin_required
 def admin_all_tickets():
-    # ... (rest of the function is fine)
     page = request.args.get('page', 1, type=int)
-    filters = {k: v for k, v in request.args.items() if k != 'page' and v}
+    filters = {k: v for k, v in request.args.items() if k != 'page' and v} # Store active filters
     query = Ticket.query
-    # Apply filters (simplified example)
+
     if filters.get('status'): query = query.filter(Ticket.status == filters['status'])
-    # ... add more filters ...
+    if filters.get('priority'): query = query.filter(Ticket.priority == filters['priority'])
+    if filters.get('category_id') and filters['category_id'] != '0': # Assuming '0' is for 'All Categories'
+        query = query.filter(Ticket.category_id == int(filters['category_id']))
+    
+    assignee_id_filter = filters.get('assigned_to_id')
+    if assignee_id_filter:
+        if assignee_id_filter == '0' or assignee_id_filter.lower() == 'none': # For "Unassigned"
+            query = query.filter(Ticket.assigned_to_id.is_(None))
+        elif assignee_id_filter.isdigit(): # Specific agent ID
+             query = query.filter(Ticket.assigned_to_id == int(assignee_id_filter))
+
     tickets_pagination = query.order_by(Ticket.updated_at.desc()).paginate(page=page, per_page=10, error_out=False)
-    # Pass filter choices to template
+    
+    # For filter dropdowns
     categories_for_filter = Category.query.order_by('name').all()
     agents_for_filter = User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()
+    
     return render_template('admin/all_tickets.html', title='All Tickets Overview',
                            tickets_pagination=tickets_pagination,
                            statuses=TICKET_STATUS_CHOICES, priorities=TICKET_PRIORITY_CHOICES,
                            categories=categories_for_filter, agents=agents_for_filter,
-                           current_filters=filters)
-
+                           current_filters=filters) # Pass current filters back to template
 
 # --- CLI Commands ---
 @app.cli.command('init-db')
 def init_db_command():
     """Drops and recreates all database tables."""
     try:
-        with app.app_context(): # Ensure commands run within app context
+        with app.app_context():
             db.drop_all()
             db.create_all()
         print('Database tables dropped and recreated successfully.')
@@ -1074,52 +1161,80 @@ def create_initial_data_command():
     """Creates initial users, categories, severities, etc."""
     with app.app_context():
         users_data = [
-            {'username': 'admin', 'email': (os.environ.get('ADMIN_EMAIL_TICKET_CMS') or 'admin@example.com'), 'role': 'admin', 'password': 'adminpass'},
-            {'username': 'agent1', 'email': 'agent1@example.com', 'role': 'agent', 'password': 'agentpass'},
-            {'username': 'client1', 'email': 'client1@example.com', 'role': 'client', 'password': 'clientpass'}
+            {'username': 'admin', 'email': os.environ.get('ADMIN_USER_EMAIL', 'admin@example.com'), 'role': 'admin', 'password': os.environ.get('ADMIN_USER_PASSWORD', 'adminpass')},
+            {'username': 'agent', 'email': os.environ.get('AGENT_USER_EMAIL', 'agent@example.com'), 'role': 'agent', 'password': os.environ.get('AGENT_USER_PASSWORD', 'agentpass')},
+            {'username': 'client', 'email': os.environ.get('CLIENT_USER_EMAIL', 'client@example.com'), 'role': 'client', 'password': os.environ.get('CLIENT_USER_PASSWORD', 'clientpass')}
         ]
+        print("Attempting to create initial users...")
         for u_data in users_data:
-            if not User.query.filter((User.username == u_data['username']) | (User.email == u_data['email'])).first():
+            existing_user_by_username = User.query.filter_by(username=u_data['username']).first()
+            existing_user_by_email = User.query.filter_by(email=u_data['email']).first()
+            if not existing_user_by_username and not existing_user_by_email:
                 user = User(username=u_data['username'], email=u_data['email'], role=u_data['role'])
                 user.set_password(u_data['password'])
                 db.session.add(user)
+                print(f"  User '{u_data['username']}' with email '{u_data['email']}' created.")
+            else:
+                skipped_by = []
+                if existing_user_by_username: skipped_by.append(f"username '{u_data['username']}' (found as '{existing_user_by_username.username}')")
+                if existing_user_by_email: skipped_by.append(f"email '{u_data['email']}' (found as '{existing_user_by_email.email}')")
+                print(f"  Skipping user creation for '{u_data['username']}' due to existing: {', '.join(skipped_by)}.")
         
+        print("\nEnsuring default options (Categories, Cloud Providers, Environments)...")
         options_map = {
             Category: ['Technical Support', 'Billing Inquiry', 'General Question', 'Feature Request'],
             CloudProviderOption: ['AWS', 'Azure', 'GCP', 'On-Premise', 'Other'],
             EnvironmentOption: ['Production', 'Staging', 'Development', 'Test', 'QA', 'UAT']
         }
         for model_class, names in options_map.items():
+            created_count = 0
             for name_val in names:
                 if not model_class.query.filter_by(name=name_val).first():
-                    db.session.add(model_class(name=name_val, is_active=True))
+                    instance_args = {'name': name_val}
+                    if hasattr(model_class, 'is_active'): instance_args['is_active'] = True
+                    db.session.add(model_class(**instance_args))
+                    created_count +=1
+            if created_count > 0: print(f"  Added {created_count} new default {model_class.__name__}(s).")
+            else: print(f"  Default {model_class.__name__}s already exist or no new ones needed.")
 
+        print("\nEnsuring default Severity Levels...")
         severities_data = [
-            {'name': 'Severity 1 (Critical)', 'o': 1, 'd': 'Critical impact.'},
-            {'name': 'Severity 2 (High)', 'o': 2, 'd': 'Significant impact.'},
-            {'name': 'Severity 3 (Medium)', 'o': 3, 'd': 'Moderate impact.'},
-            {'name': 'Severity 4 (Low)', 'o': 4, 'd': 'Minor impact.'}
+            {'name': 'Severity 1 (Critical)', 'o': 1, 'd': 'Critical impact, system down or major functionality unusable.'},
+            {'name': 'Severity 2 (High)', 'o': 2, 'd': 'Significant impact, core functionality impaired or severely degraded.'},
+            {'name': 'Severity 3 (Medium)', 'o': 3, 'd': 'Moderate impact, non-critical functionality affected or minor issues.'},
+            {'name': 'Severity 4 (Low)', 'o': 4, 'd': 'Minor impact, cosmetic issue, question, or documentation error.'}
         ]
+        created_severity_count = 0
         for sev_data in severities_data:
             if not SeverityOption.query.filter_by(name=sev_data['name']).first():
                 db.session.add(SeverityOption(name=sev_data['name'], order=sev_data['o'], description=sev_data['d'], is_active=True))
+                created_severity_count +=1
+        if created_severity_count > 0: print(f"  Added {created_severity_count} new default Severity Levels.")
+        else: print(f"  Default Severity Levels already exist or no new ones needed.")
         
         try:
             db.session.commit()
-            print("Initial data (users, categories, severities) created successfully.")
-            app.logger.info("Initial data created via CLI.")
+            print("\nInitial data committed successfully.")
+            app.logger.info("Initial data (users, options, severities) created/verified via CLI.")
         except Exception as e:
             db.session.rollback()
-            print(f"Error committing initial data: {e}")
+            print(f"\nError committing initial data: {e}")
             app.logger.error(f"Error committing initial data via CLI: {e}")
             
 if __name__ == '__main__':
-    # Ensure UPLOAD_FOLDER exists when running directly (already handled at top for import-time)
+    # Ensure UPLOAD_FOLDER is absolute and exists
+    upload_folder_path = app.config['UPLOAD_FOLDER']
+    if not os.path.isabs(upload_folder_path):
+        # If UPLOAD_FOLDER was relative from env var or default, make it relative to app root
+        upload_folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), upload_folder_path)
+        app.config['UPLOAD_FOLDER'] = upload_folder_path # Update config with absolute path
+
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         try:
             os.makedirs(app.config['UPLOAD_FOLDER'])
+            app.logger.info(f"Upload folder created at startup: {app.config['UPLOAD_FOLDER']}")
         except OSError as e:
-            app.logger.critical(f"CRITICAL: Could not create upload folder {app.config['UPLOAD_FOLDER']}: {e}. Application may not function correctly.")
-            # sys.exit(1) # Optionally exit if upload folder is absolutely critical at startup
-
-    app.run(debug=True, host='0.0.0.0', port=5000) # debug=False for production
+            app.logger.critical(f"CRITICAL FAILURE: Could not create upload folder {app.config['UPLOAD_FOLDER']}: {e}. Application may not work correctly.")
+            # Depending on severity, you might want to sys.exit(1) here if uploads are critical.
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)

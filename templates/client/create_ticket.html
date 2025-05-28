@@ -6,10 +6,9 @@
         <div class="card mt-4 shadow-sm">
             <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
             <div class="card-body p-4">
-                <form method="POST" action="{{ url_for('create_ticket') }}" novalidate enctype="multipart/form-data"> {# Added enctype #}
+                <form method="POST" action="{{ url_for('create_ticket') }}" novalidate enctype="multipart/form-data">
                     {{ form.hidden_tag() }}
-                    {# ... (title, category, cloud_provider, severity, aws_service, aws_account_id, environment fields as in previous response for create_ticket.html) ... #}
-                    {# Example for one of the new fields: #}
+                    
                     <div class="form-group">
                         {{ form.title.label(class="form-control-label") }}
                         {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="A brief summary of your issue") }}
@@ -66,7 +65,8 @@
                     <div class="form-group">
                         {{ form.attachments.label(class="form-control-label") }}
                         {{ form.attachments(class="form-control-file" + (" is-invalid" if form.attachments.errors else "")) }}
-                        <small class="form-text text-muted">Max file size: 16MB. Allowed types: txt, pdf, png, jpg, doc(x), xls(x), ppt(x)</small>
+                        {# Accessing config via 'app' context processor #}
+                        <small class="form-text text-muted">Max file size: {{ (app.config.MAX_CONTENT_LENGTH / (1000*1000)) | int }}MB. Allowed types: {{ app.config.ALLOWED_EXTENSIONS|join(', ') }}</small>
                         {% for error in form.attachments.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="form-group mt-4">
@@ -85,16 +85,25 @@
 document.addEventListener('DOMContentLoaded', function() {
     var cloudProviderSelect = document.getElementById('cloudProviderSelectCreate');
     var awsServiceGroup = document.getElementById('awsServiceGroupCreate');
+    var awsServiceSelect = awsServiceGroup ? awsServiceGroup.querySelector('select') : null;
+
     function toggleAwsService() {
         if (cloudProviderSelect && awsServiceGroup) {
-            awsServiceGroup.style.display = (cloudProviderSelect.value === 'AWS') ? 'block' : 'none';
-            if (cloudProviderSelect.value !== 'AWS') {
-                var awsServiceSelect = awsServiceGroup.querySelector('select');
-                if (awsServiceSelect) awsServiceSelect.value = '';
+            if (cloudProviderSelect.value === 'AWS') {
+                awsServiceGroup.style.display = 'block';
+            } else {
+                awsServiceGroup.style.display = 'none';
+                if (awsServiceSelect) {
+                    awsServiceSelect.value = ''; 
+                }
             }
         }
     }
-    if (cloudProviderSelect) { cloudProviderSelect.addEventListener('change', toggleAwsService); toggleAwsService(); }
+
+    if (cloudProviderSelect) {
+        cloudProviderSelect.addEventListener('change', toggleAwsService);
+        toggleAwsService(); 
+    }
 });
 </script>
 {% endblock %}
