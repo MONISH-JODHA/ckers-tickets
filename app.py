@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta # Added timedelta
-from flask import Flask, render_template, redirect, url_for, flash, request, current_app, send_from_directory
+from flask import Flask, render_template, redirect, url_for, flash, request, current_app, send_from_directory, session
+import flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, current_user, UserMixin, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -17,6 +18,10 @@ from markupsafe import escape, Markup
 import re # Ensure re is imported
 import uuid
 from flask_mail import Mail, Message
+import sys
+import logging
+from importlib.metadata import version, PackageNotFoundError
+
 
 # Twilio Integration
 from twilio.rest import Client as TwilioClient
@@ -54,6 +59,8 @@ class Config:
     MYSQL_HOST = os.environ.get('MYSQL_HOST_TICKET_CMS') or 'localhost'
     MYSQL_DB = os.environ.get('MYSQL_DB_TICKET_CMS') or 'ticket_cms_db'
     MYSQL_CHARSET = 'utf8mb4'
+    APPLICATION_ROOT = '/'  # <--- TEMPORARILY HARDCODE THIS
+
 
     if not all([MYSQL_USER, _raw_mysql_password, MYSQL_HOST, MYSQL_DB]):
         print("FATAL ERROR: Missing critical MySQL configuration. Set environment variables or defaults in Config.")
@@ -85,12 +92,16 @@ class Config:
     EMAIL_TICKET_DEFAULT_SEVERITY_NAME = os.environ.get('EMAIL_TICKET_DEFAULT_SEVERITY_NAME') or 'Severity 3 (Medium)'
     
     BASE_URL = os.environ.get('BASE_URL') or 'http://localhost:5000'
-    
     _parsed_base = urlparse(BASE_URL)
+
     SERVER_NAME = os.environ.get('SERVER_NAME') or _parsed_base.netloc
-    _app_root_path = _parsed_base.path.rstrip('/')
-    APPLICATION_ROOT = os.environ.get('APPLICATION_ROOT') or (_app_root_path if _app_root_path else '/')
+
+    # Ensure APPLICATION_ROOT is a valid path only
+    parsed_path = _parsed_base.path.strip()
+    APPLICATION_ROOT = os.environ.get('APPLICATION_ROOT') or (parsed_path if parsed_path.startswith('/') else '/')
+
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME') or _parsed_base.scheme or 'http'
+
 
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(os.path.abspath(os.path.dirname(__file__)), 'uploads')
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'log', 'csv'}
@@ -104,6 +115,36 @@ class Config:
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+app.logger.info(f"--- App Start --- FLASK_VERSION: {flask.__version__}")
+
+#  ADD OR ENSURE THESE LOGS ARE PRESENT AND EARLY
+app.logger.info(f"--- App Start --- PYTHON_VERSION: {sys.version}") # Add sys import: import sys
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    flask_version = version("flask")
+except PackageNotFoundError:
+    flask_version = "unknown"
+
+try:
+    flask_login_version = version("flask-login")
+except PackageNotFoundError:
+    flask_login_version = "unknown"
+
+app.logger.info(f"--- App Start --- FLASK_VERSION: {flask_version}")
+app.logger.info(f"--- App Start --- FLASK_LOGIN_VERSION: {flask_login_version}")
+app.logger.info(f"--- App Start --- FLASK_LOGIN_VERSION: {LoginManager.__version__ if hasattr(LoginManager, '__version__') else 'N/A'}") # Check if LoginManager has __version__
+app.logger.info(f"--- App Start --- FLASK_ENV from app.config: '{app.config.get('ENV', app.config.get('FLASK_ENV'))}'")
+app.logger.info(f"--- App Start --- DEBUG from app.config: {app.config.get('DEBUG')}")
+app.logger.info(f"--- App Start --- SECRET_KEY set in app.config: {bool(app.config.get('SECRET_KEY'))}")
+app.logger.info(f"--- App Start --- RAW BASE_URL from app.config: '{app.config.get('BASE_URL')}'")
+app.logger.info(f"--- App Start --- RAW SERVER_NAME from app.config: '{app.config.get('SERVER_NAME')}'")
+app.logger.info(f"--- App Start --- RAW APPLICATION_ROOT from app.config: '{app.config.get('APPLICATION_ROOT')}'") # <<< THE MOST IMPORTANT ONE
+app.logger.info(f"--- App Start --- RAW PREFERRED_URL_SCHEME from app.config: '{app.config.get('PREFERRED_URL_SCHEME')}'")
+
+
+# ... rest of app initialization
 
 # Post-config adjustments for MAIL_DEFAULT_SENDER
 if not app.config['MAIL_DEFAULT_SENDER_EMAIL']:
@@ -450,30 +491,104 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated: return redirect(url_for('dashboard'))
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):
-            login_user(user, remember=form.remember_me.data)
-            next_page = request.args.get('next')
-            if not next_page or urlparse(next_page).netloc != '' or not next_page.startswith('/'):
-                next_page = url_for('dashboard')
-            flash(f'Logged in successfully as {user.username}.', 'success')
-            app.logger.info(f"User '{user.username}' logged in.")
+    # ... (initial logging as before) ...
+    app.logger.info(f"--- Login Route (Top) --- Accessed /login. current_user: {current_user}, is_authenticated: {current_user.is_authenticated}")
+    app.logger.info(f"--- Login Route (Top) --- Session contents: {dict(session)}")
+
+    if current_user.is_authenticated:
+        next_page = request.args.get('next')
+        app.logger.info(f"--- Login Route --- User '{current_user.username}' is already authenticated. 'next' page: {next_page}")
+
+        is_safe_next = False
+        # Directly get the configured APPLICATION_ROOT
+        # It SHOULD be a path like '/' or '/myapp/'
+        actual_app_root = app.config.get('APPLICATION_ROOT', '/') 
+        app.logger.info(f"--- Login Route --- Evaluating 'next_page': '{next_page}', actual_app_root_from_config: '{actual_app_root}'")
+
+        if next_page:
+            # Ensure next_page itself is a path and not a full URL for this check
+            if not ('://' in next_page or next_page.startswith('//')):
+                # A "safe" next_page should start with the application root path.
+                # Example: if app_root is '/myapp/', next_page '/myapp/tickets/new' is safe.
+                # Example: if app_root is '/', next_page '/tickets/new' is safe.
+                if next_page.startswith(actual_app_root):
+                    is_safe_next = True
+        
+        app.logger.info(f"--- Login Route --- is_safe_next determination: {is_safe_next}")
+
+        if is_safe_next:
+            app.logger.info(f"--- Login Route --- Redirecting authenticated user '{current_user.username}' to safe 'next' page: {next_page}")
             return redirect(next_page)
         else:
+            if next_page:
+                app.logger.warning(f"--- Login Route --- Unsafe or non-matching 'next' page ('{next_page}') for authenticated user '{current_user.username}' with app_root '{actual_app_root}'. Redirecting to dashboard.")
+            else:
+                app.logger.info(f"--- Login Route --- No 'next' page for authenticated user '{current_user.username}'. Redirecting to dashboard.")
+            return redirect(url_for('dashboard'))
+
+    # ... (rest of the login form processing for unauthenticated users, use similar safe next logic) ...
+    form = LoginForm()
+    if form.validate_on_submit():
+        # ... (user loading and password check) ...
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):
+            # ... (login_user call and logging) ...
+            app.logger.info(f"--- Login Route --- Attempting to log in user: {user.username} (ID: {user.id})")
+            login_user(user, remember=form.remember_me.data)
+            app.logger.info(f"--- Login Route --- User '{user.username}' successfully logged in. current_user after login: {current_user.username}")
+            app.logger.info(f"--- Login Route --- Session contents after login_user: {dict(session)}")
+
+            next_page_after_login = request.args.get('next')
+            app.logger.info(f"--- Login Route --- Login successful. 'next' page: {next_page_after_login}")
+
+            is_safe_next_after_login = False
+            actual_app_root_after_login = app.config.get('APPLICATION_ROOT', '/')
+            app.logger.info(f"--- Login Route --- Evaluating 'next_page_after_login': '{next_page_after_login}', actual_app_root_from_config: '{actual_app_root_after_login}'")
+
+            if next_page_after_login:
+                if not ('://' in next_page_after_login or next_page_after_login.startswith('//')):
+                    if next_page_after_login.startswith(actual_app_root_after_login):
+                        is_safe_next_after_login = True
+            
+            app.logger.info(f"--- Login Route --- is_safe_next_after_login determination: {is_safe_next_after_login}")
+            
+            if is_safe_next_after_login:
+                app.logger.info(f"--- Login Route --- Redirecting newly logged in user '{user.username}' to safe 'next' page: {next_page_after_login}")
+                return redirect(next_page_after_login)
+            else:
+                if next_page_after_login:
+                    app.logger.warning(f"--- Login Route --- Unsafe or non-matching 'next' page ('{next_page_after_login}') after login for '{user.username}' with app_root '{actual_app_root_after_login}'. Redirecting to dashboard.")
+                else:
+                    app.logger.info(f"--- Login Route --- No 'next' page after login for '{user.username}'. Redirecting to dashboard.")
+                return redirect(url_for('dashboard'))
+        else:
             flash('Invalid username or password.', 'danger')
-            app.logger.warning(f"Failed login attempt for username: {form.username.data}")
+            app.logger.warning(f"--- Login Route --- Failed login attempt for username: {form.username.data}")
+            
+    app.logger.info("--- Login Route --- Rendering login page for unauthenticated user.")
     return render_template('login.html', title='Login', form=form)
+
 
 @app.route('/logout')
 @login_required
 def logout():
     app.logger.info(f"User '{current_user.username}' logged out.")
-    logout_user()
+    logout_user() # This invalidates the Flask-Login session
     flash('You have been logged out.', 'info')
     return redirect(url_for('index'))
+
+
+app.after_request
+def add_header(response):
+    """
+    Add headers to both force latest IE rendering engine or Chrome Frame,
+    and also to cache-clearInspire disabling caching.
+    """
+    if '/static/' not in request.path: # Don't add to static files
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0' # Or '-1'
+    return response
 
 @app.route('/register/client', methods=['GET', 'POST'])
 def register_client():
@@ -495,15 +610,15 @@ def register_client():
     return render_template('register_user.html', title='Register as Client', form=form, registration_type='Client', info_text='Submit and track your support tickets.')
 
 @app.route('/register/agent', methods=['GET', 'POST'])
-@admin_required
 def register_agent():
-    # Using UserSelfRegistrationForm means the 'role' field is not on the form.
-    # The role is hardcoded to 'agent' upon successful submission.
-    # This route renders 'admin/create_edit_user.html', which might expect AdminUserForm.
-    # For simplicity, if 'admin/create_edit_user.html' can render generic form fields, this can work.
-    form = UserSelfRegistrationForm() 
+    form = UserSelfRegistrationForm()
+
     if form.validate_on_submit():
-        user = User(username=form.username.data, email=form.email.data.lower(), role='agent') # Role hardcoded
+        user = User(
+            username=form.username.data,
+            email=form.email.data.lower(),
+            role='agent'  # hardcoded as agent
+        )
         user.set_password(form.password.data)
         db.session.add(user)
         try:
@@ -515,12 +630,25 @@ def register_agent():
             db.session.rollback()
             flash('Error during agent registration. Please try again.', 'danger')
             app.logger.error(f"Admin agent registration error: {e}")
-    return render_template('admin/create_edit_user.html', title='Register New Agent', form=form, legend='Register New Agent', user=None)
+
+    return render_template(
+        'register_user.html',
+        title='Register New Agent',
+        form=form,
+        registration_type='Agent',
+        info_text='Register new support agents to assist clients.'
+    )
+
 
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if not current_user.is_authenticated:
+        app.logger.warning(f"Unauthenticated access to /dashboard despite @login_required. Current_user: {current_user}")
+        return redirect(url_for('login', next=request.url))
+
+    app.logger.info(f"Dashboard accessed by: {current_user.username if current_user.is_authenticated else 'Anonymous'}") 
     if current_user.is_admin:
         stats = {
             'total_tickets': Ticket.query.count(),
@@ -541,19 +669,30 @@ def dashboard():
         return render_template('dashboard.html', title='My Dashboard', my_tickets=my_tickets)
 
 @app.route('/tickets/new', methods=['GET', 'POST'])
-@login_required
+@login_required # RESTORE THIS!
 def create_ticket():
-    form = CreateTicketForm()
-    # Placeholder values (0 for int, '' for str) must match what InputRequired expects for "empty"
-    form.category.choices = [(0, '--- Select Issue Category* ---')] + [(c.id, c.name) for c in Category.query.order_by('name').all()]
-    form.cloud_provider.choices = get_active_cloud_provider_choices() # First choice is ('', '--- Select Cloud Provider ---')
-    form.severity.choices = get_active_severity_choices() # First choice is ('', '--- Select Severity* ---')
-    form.environment.choices = get_active_environment_choices() # First choice is ('', '--- Select Environment ---')
+    # DETAILED LOGGING AT THE START OF THE ROUTE
+    app.logger.info(f"--- Create Ticket Route (Top) --- Accessed /tickets/new.")
+    app.logger.info(f"--- Create Ticket Route (Top) --- current_user: {current_user}, is_authenticated: {current_user.is_authenticated}")
+    app.logger.info(f"--- Create Ticket Route (Top) --- Session contents: {dict(session)}")
 
-    if not form.category.choices[1:]: # No actual categories beyond placeholder
-        flash("Critical: No categories defined in the system. Please contact an administrator.", "danger")
-    if not form.severity.choices[1:]: # No actual severities beyond placeholder
-        flash("Critical: No severity levels defined in the system. Please contact an administrator.", "danger")
+    # # If, despite @login_required, we somehow get an AnonymousUser, this will catch it early
+    # if not current_user.is_authenticated:
+    #     app.logger.error("--- Create Ticket Route --- CRITICAL: Unauthenticated user accessed route despite @login_required. This should not happen. Redirecting to login.")
+    #     return redirect(url_for('login', next=request.url))
+
+
+    form = CreateTicketForm()
+    # ... (rest of your create_ticket function is fine)
+    form.category.choices = [(0, '--- Select Issue Category* ---')] + [(c.id, c.name) for c in Category.query.order_by('name').all()]
+    form.cloud_provider.choices = get_active_cloud_provider_choices() 
+    form.severity.choices = get_active_severity_choices() 
+    form.environment.choices = get_active_environment_choices()
+
+    if not form.category.choices[1:]:
+        flash("Critical: No categories defined. Contact admin.", "danger")
+    if not form.severity.choices[1:]:
+        flash("Critical: No severity levels defined. Contact admin.", "danger")
 
     if form.validate_on_submit():
         uploaded_files_info = []
@@ -580,18 +719,16 @@ def create_ticket():
                         form.attachments.errors.append(f"File type not allowed: {file_storage.filename}")
                         flash(f"File type not allowed for {file_storage.filename}.", "danger")
         
-        if form.attachments.errors: # If attachment errors, stop and re-render
-            pass # Form will re-render with errors shown in the template due to POST method check below
+        if form.attachments.errors:
+            pass 
         else:
-            # category_id=form.category.data (will be int ID due to coerce=int)
-            # severity=form.severity.data (will be string name due to coerce=str)
             ticket = Ticket(
                 title=form.title.data,
                 description=form.description.data,
-                created_by_id=current_user.id,
-                category_id=form.category.data, # Make sure 0 is not a valid category ID
-                cloud_provider=form.cloud_provider.data or None, # Empty string from select becomes None
-                severity=form.severity.data, # Empty string from select should not happen due to InputRequired
+                created_by_id=current_user.id, # This line would fail if current_user is Anonymous
+                category_id=form.category.data, 
+                cloud_provider=form.cloud_provider.data or None,
+                severity=form.severity.data, 
                 aws_service=form.aws_service.data if form.cloud_provider.data == 'AWS' and form.aws_service.data else None,
                 aws_account_id=form.aws_account_id.data or None,
                 environment=form.environment.data or None,
@@ -625,7 +762,6 @@ def create_ticket():
                                                  ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))
                         )
                         mail.send(msg_admin)
-
                     additional_emails = [email.strip() for email in (form.additional_recipients.data or "").split(',') if email.strip()]
                     creator_and_additional_emails = list(set(additional_emails + ([current_user.email] if current_user.email else [])))
                     if creator_and_additional_emails:
@@ -647,13 +783,9 @@ def create_ticket():
                 app.logger.error(f"Ticket save DB error: {e}")
                 for file_info in uploaded_files_info:
                     try:
-                        file_path_to_remove = os.path.join(app.config['UPLOAD_FOLDER'], file_info['stored_filename'])
-                        if os.path.exists(file_path_to_remove):
-                           os.remove(file_path_to_remove)
-                           app.logger.info(f"Cleaned up orphaned attachment on error: {file_info['stored_filename']}")
-                    except OSError as oe: 
-                        app.logger.error(f"Error cleaning up orphaned attachment {file_info['stored_filename']}: {oe}")
-    elif request.method == 'POST': # Catches validation failures from form.validate_on_submit()
+                        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], file_info['stored_filename']))
+                    except OSError: pass 
+    elif request.method == 'POST':
         flash('Please correct the errors in the form.', 'danger')
     return render_template('client/create_ticket.html', title='Submit New Support Request', form=form)
 

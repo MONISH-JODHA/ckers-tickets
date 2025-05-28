@@ -107,5 +107,39 @@
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     {% block scripts %}{% endblock %}
+    <!-- In your base.html, preferably before the closing </body> tag -->
+<script>
+    window.addEventListener('pageshow', function(event) {
+        // event.persisted is true if the page is being restored from the bfcache
+        if (event.persisted) {
+            // You could try a simple reload:
+            // window.location.reload();
+    
+            // Or, a more targeted check if you can determine auth status client-side (difficult and less secure)
+            // For now, a simple reload on bfcache restore might be a test.
+            // However, this can lead to loops if not careful.
+    
+            // A safer approach if you have a way to PING the server for auth status:
+            // fetch('/check-auth-status') // A hypothetical endpoint
+            //   .then(response => response.json())
+            //   .then(data => {
+            //     if (!data.authenticated && window.location.pathname !== "{{ url_for('login') }}" && window.location.pathname !== "{{ url_for('index') }}") {
+            //       // If server says not authenticated and we are not on login/index, force redirect
+            //       console.log('Page restored from bfcache, user not authenticated on server, redirecting to login.');
+            //       window.location.href = "{{ url_for('login') }}?next=" + encodeURIComponent(window.location.pathname + window.location.search);
+            //     } else if (data.authenticated && window.location.pathname === "{{ url_for('login') }}") {
+            //       // If server says authenticated and we are on login page, redirect to dashboard
+            //       console.log('Page restored from bfcache, user authenticated on server but on login page, redirecting to dashboard.');
+            //       window.location.href = "{{ url_for('dashboard') }}";
+            //     }
+            //   });
+            
+            // For now, just log that it happened from bfcache
+            console.log('Page was restored from bfcache (persisted: ' + event.persisted + ')');
+            // A forced reload is often too aggressive and can cause issues.
+            // The cache-control headers are the primary server-side mechanism.
+        }
+    });
+    </script>
 </body>
 </html>
