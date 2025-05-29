@@ -6,6 +6,7 @@
     <title>{% block title %}Ticket CMS{% endblock %}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUA6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -140,6 +141,16 @@
             // The cache-control headers are the primary server-side mechanism.
         }
     });
+    $(function () {
+        // Initialize Tooltips
+        $('[data-toggle="tooltip"]').tooltip();
+
+        // Initialize Popovers
+        $('[data-toggle="popover"]').popover({
+            html: true // Allow HTML content in popovers
+        });
+    });
+
     </script>
 </body>
 </html>

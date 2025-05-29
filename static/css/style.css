@@ -63,3 +63,135 @@ footer p { margin-bottom: 0; }
 .filter-form label { margin-right: 5px; }
 .text-muted-light { color: #868e96 !important; }
 .custom-select { background: #fff url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='4' height='5' viewBox='0 0 4 5'%3e%3cpath fill='%23343a40' d='M2 0L0 2h4zm0 5L0 3h4z'/%3e%3c/svg%3e") right .75rem center/8px 10px no-repeat; }
+
+
+.timeline {
+    list-style: none;
+    padding: 0;
+    position: relative;
+    font-size: 0.9rem; /* Slightly smaller base font for timeline */
+}
+.timeline:before { /* The central line */
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 18px; /* Adjust based on icon size and desired spacing */
+    width: 2px;
+    background-color: #e9ecef; /* Lighter grey for the line */
+}
+.timeline-date-group {
+    margin: 20px 0 10px 0;
+    padding-left: 0; /* Align with card body padding or specific design */
+    position: relative; /* Needed for z-index if badge overlaps line */
+}
+.timeline-date-group .badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: .35em .65em;
+    display: inline-block; /* Make it behave well */
+    margin-left: 0px; /* Nudge to align with content below */
+}
+.timeline-item {
+    margin-bottom: 15px;
+    position: relative;
+    padding-left: 45px; /* Make space for icon + line */
+}
+.timeline-icon {
+    position: absolute;
+    left: 0;
+    top: 2px; /* Align icon nicely with text */
+    width: 36px; /* Icon container width */
+    height: 36px; /* Icon container height */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    z-index: 10; /* Above the line */
+    font-size: 1rem; /* Icon size */
+    border: 2px solid white; 
+    box-shadow: 0 0 0 1px #dee2e6; /* Subtle border for light icons */
+}
+
+.timeline-icon.bg-primary, .timeline-icon.bg-success, .timeline-icon.bg-info, .timeline-icon.bg-warning, .timeline-icon.bg-danger {
+    box-shadow: none; /* No extra border if it has a strong background */
+}
+.timeline-icon.bg-light { color: #495057; } /* Darker icon for light background */
+
+.timeline-content {
+    background-color: transparent; /* Matches screenshot better than a bordered box */
+    padding: 0px 5px 5px 5px; /* Minimal padding */
+    border-radius: 0.25rem;
+    position: relative;
+    line-height: 1.4;
+}
+.timeline-content strong {
+    font-weight: 600;
+}
+.timeline-content .item-timestamp {
+    font-size: 0.8em;
+    color: #6c757d; /* Muted color for timestamp */
+}
+.timeline-content .item-title {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 2px;
+    color: #343a40;
+}
+.timeline-content .item-description {
+    font-size: 0.9em;
+    color: #495057;
+    margin-bottom: 3px;
+}
+.timeline-content .item-meta {
+    font-size: 0.75em;
+    color: #6c757d;
+}
+.timeline-content .comment-preview {
+    padding-left: 10px;
+    border-left: 2px solid #e0e0e0;
+    margin-top: 5px;
+    font-size: 0.85em;
+    color: #555;
+    max-height: 60px; /* Limit preview height */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Card header buttons to match the image */
+.card-header .btn-outline-secondary {
+    border-color: #ced4da; 
+    color: #6c757d; 
+    padding: 0.25rem 0.5rem; /* Smaller padding for compact buttons */
+    font-size: 0.8rem; /* Smaller font */
+}
+.card-header .btn-outline-secondary i {
+    line-height: 1; /* Ensure icon aligns well */
+}
+.card-header .btn-outline-secondary:hover {
+    background-color: #e9ecef;
+}
+#interactionHistoryBody {
+    max-height: 450px; 
+    overflow-y: auto;
+    padding-top: 10px; /* Add some space at the top of scrollable area */
+}
+/* Scrollbar styling (optional, webkit browsers) */
+#interactionHistoryBody::-webkit-scrollbar {
+  width: 6px;
+}
+#interactionHistoryBody::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+#interactionHistoryBody::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+#interactionHistoryBody::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+/* static/css/style.css */
+.bg-purple { background-color: #6f42c1 !important; } /* Bootstrap purple or your choice */
+.bg-cyan { background-color: #17a2b8 !important; } /* Bootstrap info/cyan or your choice */

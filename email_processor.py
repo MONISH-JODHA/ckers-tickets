@@ -4,17 +4,14 @@ from datetime import datetime
 import logging
 import re
 import uuid
-import time # For sleep on reconnect
+import time 
 from urllib.parse import urlparse
 
-# Add the project root to sys.path to allow importing app components
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from dotenv import load_dotenv, find_dotenv
-# --- .env Loading ---
-# Using find_dotenv to locate .env up the directory tree or in current dir
 dotenv_path = find_dotenv(raise_error_if_not_found=False)
 if dotenv_path:
     load_dotenv(dotenv_path, verbose=True, override=True)
@@ -33,8 +30,7 @@ from flask_mail import Message
 from flask import render_template, url_for
 
 
-# Configure logging (use a distinct logger name for the IDLE version)
-logger = logging.getLogger('email_processor_idle') # Changed logger name
+logger = logging.getLogger('email_processor_idle') 
 logger.setLevel(logging.INFO)
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stdout)
@@ -43,8 +39,6 @@ if not logger.handlers:
     logger.addHandler(handler)
 
 
-# --- Your existing helper functions (process_email_body_for_ticket, infer_details_from_email) ---
-# These should work as-is, assuming they are robust. I'm keeping them as you provided.
 def process_email_body_for_ticket(email_body_html, email_body_text):
     """Extracts relevant content from email, attempting to strip signatures/replies."""
     if email_body_text:
@@ -77,7 +71,6 @@ def process_email_body_for_ticket(email_body_html, email_body_text):
         lines = text_content.splitlines()
         content_lines = []
         for line in lines:
-            # More robust check for typical email headers in HTML-converted text
             if re.match(r'^\s*(From|Sent|To|Subject)\s*:\s*', line, re.IGNORECASE) and \
                any(kw in line.lower() for kw in ['@', 'wrote:', 'original message', 'mailto:']):
                 break 
@@ -90,7 +83,7 @@ def process_email_body_for_ticket(email_body_html, email_body_text):
 
 def infer_details_from_email(subject, body):
     """Infers ticket details like category, severity from email subject/body."""
-    with app.app_context(): # Ensure app context for config and DB queries
+    with app.app_context(): 
         details = {
             'category_name': app.config.get('EMAIL_TICKET_DEFAULT_CATEGORY_NAME', 'General Inquiry'),
             'severity_name': app.config.get('EMAIL_TICKET_DEFAULT_SEVERITY_NAME', 'Severity 3 (Medium)'),
@@ -102,12 +95,12 @@ def infer_details_from_email(subject, body):
             details['priority'] = 'Urgent'
             sev_opt = SeverityOption.query.filter(
                 (SeverityOption.name.ilike('%Critical%')) | (SeverityOption.name.ilike('%Severity 1%')),
-                SeverityOption.is_active == True # Ensure we only pick active options
+                SeverityOption.is_active == True 
             ).order_by(SeverityOption.order.asc()).first()
             if sev_opt: details['severity_name'] = sev_opt.name
 
         if 'billing' in subject_lower or 'invoice' in subject_lower or 'payment' in subject_lower:
-            cat_opt = Category.query.filter(Category.name.ilike('%Billing%')).first() # Assuming category doesn't have is_active
+            cat_opt = Category.query.filter(Category.name.ilike('%Billing%')).first() 
             if cat_opt: details['category_name'] = cat_opt.name
         
         cloud_keywords = {'aws': 'AWS', 'amazon web services': 'AWS', 'azure': 'Azure', 'microsoft azure': 'Azure', 'gcp': 'GCP', 'google cloud': 'GCP'}
@@ -123,7 +116,6 @@ def infer_details_from_email(subject, body):
                 if env_opt: details['environment'] = env_opt.name; break
                 
         return details
-# --- End of your helper functions ---
 
 
 def run_email_processing_logic(mailbox_instance):
@@ -131,19 +123,15 @@ def run_email_processing_logic(mailbox_instance):
     The core email fetching, parsing, ticket creation, and auto-reply logic.
     This is called when IDLE indicates new mail or on a periodic refresh.
     """
-    with app.app_context(): # CRITICAL for DB access, config, mail.send, url_for, render_template
+    with app.app_context(): 
         logger.info("Checking for and processing new/unseen emails...")
         
-        # It's generally safer to query for all UNSEEN messages after an IDLE trigger,
-        # as IDLE responses can sometimes be just hints (e.g., "X new messages").
         unseen_msgs_uids = []
         try:
             unseen_msgs_uids = mailbox_instance.uids('UNSEEN')
         except Exception as e_uids:
             logger.error(f"Error fetching UNSEEN UIDs: {e_uids}. Will attempt to continue if possible or reconnect.")
-            # Depending on the error, might need to break and force reconnect.
-            # For now, if it fails, the list will be empty, and it will try again later.
-            return # Exit this processing run if we can't get UIDs
+            return 
 
         if not unseen_msgs_uids:
             logger.info("No new unseen emails found during this check.")
@@ -156,8 +144,7 @@ def run_email_processing_logic(mailbox_instance):
             msg_obj = None
             log_msg_id = f"UID {uid} in folder '{mailbox_instance.folder.get()}'"
             try:
-                # Fetch by UID, don't mark seen yet
-                msg_generator = mailbox_instance.fetch(uid, mark_seen=False, bulk=False) # bulk=False for single fetch
+                msg_generator = mailbox_instance.fetch(uid, mark_seen=False, bulk=False) 
                 msg_obj = next(msg_generator, None)
 
                 if not msg_obj:
@@ -169,7 +156,7 @@ def run_email_processing_logic(mailbox_instance):
                         logger.error(f"Failed to mark unfetchable {log_msg_id} as SEEN: {e_flag_skip}")
                     continue
 
-                log_msg_id = f"UID {uid} (From: {msg_obj.from_}, Subject: '{msg_obj.subject}')" # Update log_msg_id
+                log_msg_id = f"UID {uid} (From: {msg_obj.from_}, Subject: '{msg_obj.subject}')" 
                 logger.info(f"Processing email: {log_msg_id}")
 
                 sender_email = msg_obj.from_.lower()
@@ -184,21 +171,21 @@ def run_email_processing_logic(mailbox_instance):
                 if not user:
                     base_username = re.sub(r'[^a-z0-9_]', '', sender_name.lower().replace(" ", "_")) or \
                                     sender_email.split('@')[0].split('.')[0] or "emailuser"
-                    username_candidate = base_username[:40] # Keep it reasonably short
+                    username_candidate = base_username[:40] 
                     count = 1
                     while User.query.filter_by(username=username_candidate).first():
-                        username_candidate = f"{base_username[:38]}_{count}" # Adjust length for suffix
+                        username_candidate = f"{base_username[:38]}_{count}" 
                         count += 1
-                        if count > 100: # Safety break
+                        if count > 100: 
                             logger.error(f"Could not generate unique username for {sender_email} after 100 attempts.")
-                            username_candidate = f"emailuser_{uuid.uuid4().hex[:8]}" # Fallback to more unique
+                            username_candidate = f"emailuser_{uuid.uuid4().hex[:8]}" 
                             break
                     user = User(username=username_candidate, email=sender_email, role='client')
                     db.session.add(user)
-                    db.session.flush() # Get user.id for ticket creation
+                    db.session.flush() 
                     logger.info(f"Created new user '{user.username}' (ID: {user.id}) from email {sender_email}")
 
-                inferred = infer_details_from_email(ticket_title, ticket_description) # Already uses app_context
+                inferred = infer_details_from_email(ticket_title, ticket_description) 
                 category = Category.query.filter_by(name=inferred['category_name']).first()
                 severity = SeverityOption.query.filter_by(name=inferred['severity_name'], is_active=True).first()
                 cloud = CloudProviderOption.query.filter_by(name=inferred['cloud_provider'], is_active=True).first() if inferred['cloud_provider'] else None
@@ -308,18 +295,16 @@ def imap_idle_listener():
                             run_email_processing_logic(mailbox)
 
 
-                    except MailboxLogoutError as e_logout_idle: # Server might have closed connection
+                    except MailboxLogoutError as e_logout_idle: 
                         logger.warning(f"MailboxLogoutError during IDLE: {e_logout_idle}. Will attempt to reconnect.")
-                        break # Break inner IDLE loop to trigger outer reconnect loop
+                        break
                     except MailboxFolderSelectError as e_folder_idle:
                         logger.error(f"MailboxFolderSelectError during IDLE (folder might have been deleted/renamed?): {e_folder_idle}. Reconnecting.")
-                        break # Break inner IDLE loop
+                        break 
                     except Exception as e_idle_inner:
                         logger.error(f"Unexpected error within IDLE wait/process loop: {e_idle_inner}")
                         logger.exception("Traceback for inner IDLE loop error:")
-                        # Depending on error, might want to sleep then continue inner loop, or break to reconnect
-                        time.sleep(15) # Short pause before retrying IDLE wait
-                        # For severe errors, break to force full reconnect
+                        time.sleep(15)
                         if "socket error" in str(e_idle_inner).lower() or "connection broken" in str(e_idle_inner).lower():
                             logger.error("Suspected connection loss, breaking to reconnect.")
                             break
@@ -346,21 +331,16 @@ def imap_idle_listener():
 
 if __name__ == '__main__':
     logger.info("Initializing email_processor_idle script...")
-    # This 'with app.app_context()' is primarily for the initial config checks.
-    # The functions called within the loops will establish their own app_context.
     with app.app_context():
         required_app_configs = [
             'SQLALCHEMY_DATABASE_URI', 'IMAP_SERVER', 'IMAP_USERNAME', 'IMAP_PASSWORD',
             'UPLOAD_FOLDER', 'MAIL_SERVER', 'MAIL_PORT', 'MAIL_DEFAULT_SENDER', 'BASE_URL',
-            'SERVER_NAME' # Needed for url_for(_external=True)
+            'SERVER_NAME' 
         ]
-        # Check if SERVER_NAME needs to be dynamically set for this script's context
         if not app.config.get('SERVER_NAME') and app.config.get('BASE_URL'):
             base_url = app.config['BASE_URL']
             parsed = urlparse(base_url)
-            app.config['SERVER_NAME'] = parsed.netloc or 'localhost:5000' # Default if BASE_URL is just a path
-            # APPLICATION_ROOT and PREFERRED_URL_SCHEME are usually set by Flask based on SERVER_NAME or request context
-            # For a script, setting them from BASE_URL is a good practice for url_for(_external=True)
+            app.config['SERVER_NAME'] = parsed.netloc or 'localhost:5000' 
             app.config['APPLICATION_ROOT'] = parsed.path.rstrip('/') or '/'
             app.config['PREFERRED_URL_SCHEME'] = parsed.scheme or 'http'
             logger.info(f"Dynamically configured SERVER_NAME='{app.config['SERVER_NAME']}', "

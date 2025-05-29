@@ -22,7 +22,7 @@
                         <p><strong>Created by:</strong> {{ ticket.creator.username }}</p>
                         <p><strong>Created at:</strong> {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
                         <p><strong>Category:</strong> <span class="badge badge-secondary">{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</span></p>
-                        <p><strong>Severity:</strong> <span class="badge badge-pill 
+                        <p><strong>Severity:</strong> <span class="badge badge-pill
                             {% if ticket.severity == 'Severity 1 (Critical)' %}badge-danger
                             {% elif ticket.severity == 'Severity 2 (High)' %}badge-warning
                             {% elif ticket.severity == 'Severity 3 (Medium)' %}badge-info
@@ -30,12 +30,12 @@
                             {% else %}badge-light text-dark border{% endif %}">{{ ticket.severity or 'N/A' }}</span></p>
                     </div>
                     <div class="col-md-6">
-                        <p><strong>Priority:</strong> <span class="badge p-1 
+                        <p><strong>Priority:</strong> <span class="badge p-1
                             {% if ticket.priority == 'Urgent' %}badge-danger
                             {% elif ticket.priority == 'High' %}badge-warning
                             {% elif ticket.priority == 'Medium' %}badge-info
                             {% else %}badge-secondary{% endif %}">{{ ticket.priority }}</span></p>
-                        <p><strong>Assigned to:</strong> 
+                        <p><strong>Assigned to:</strong>
                             {% if ticket.assignee %}
                                 {{ ticket.assignee.username }}
                                 {% if ticket.assignee.role == 'agent' %}<span class="badge badge-pill badge-info ml-1">Agent</span>{% endif %}
@@ -60,7 +60,7 @@
             </div>
         </div>
 
-        {# Attachments Section - ADDED HERE #}
+        {# Attachments Section #}
         {% if attachments %}
         <div class="card mb-3 shadow-sm">
             <div class="card-header bg-light">
@@ -121,6 +121,99 @@
     </div>
 
     <div class="col-lg-4">
+        {# This is your provided snippet, correctly placed #}
+        {% if is_privileged_user %} {# <<< THIS CONDITION WAS ALREADY IN YOUR SNIPPET #}
+            {# Interaction History Card - NEW #}
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                    <h5 class="mb-0"><small>Interaction history</small></h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" title="Filter (Not implemented)"><i class="fas fa-filter"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" title="Refresh" onclick="window.location.reload();"><i class="fas fa-sync-alt"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" data-toggle="collapse" href="#interactionHistoryBody" role="button" aria-expanded="true" aria-controls="interactionHistoryBody" title="Toggle visibility">
+                            <i class="fas fa-chevron-up"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="collapse show" id="interactionHistoryBody">
+                    <div class="card-body py-2 px-3">
+                        {% if sorted_interaction_dates %}
+                            <ul class="timeline">
+                                {% for display_date in sorted_interaction_dates %}
+                                    <li class="timeline-date-group">
+                                        <span class="badge {% if loop.first %}badge-primary text-white{% else %}badge-light text-dark border{% endif %}">
+                                            {% set first_event_in_group = interactions_by_date[display_date][0] %}
+                                            {% if display_date == today_date %}Today
+                                            {% elif display_date == yesterday_date %}Yesterday
+                                            {% else %}{{ display_date.strftime('%A, %b %d, %Y') }}{% endif %}
+                                            {% if interactions_by_date[display_date] %}
+                                                at {{ first_event_in_group.timestamp_obj.strftime('%H:%M:%S') }}
+                                            {% endif %}
+                                        </span>
+                                    </li>
+                                    {% for p_interaction in interactions_by_date[display_date] %}
+                                        <li class="timeline-item">
+                                            <div class="timeline-icon
+                                                {# Updated icon logic slightly #}
+                                                {% if p_interaction.obj.interaction_type == 'TICKET_CREATED' %}bg-primary
+                                                {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}bg-success
+                                                {% elif p_interaction.obj.interaction_type == 'STATUS_CHANGE' %}
+                                                    {% if p_interaction.obj.details.get('new_value') == 'New' %}bg-warning
+                                                    {% elif p_interaction.obj.details.get('new_value') == 'In Progress' %}bg-info
+                                                    {% elif p_interaction.obj.details.get('new_value') == 'Resolved' or p_interaction.obj.details.get('new_value') == 'Closed' %}bg-secondary text-white
+                                                    {% else %}bg-light border text-dark{% endif %}
+                                                {% elif p_interaction.obj.interaction_type == 'ASSIGNMENT_CHANGE' %}bg-purple text-white
+                                                {% elif p_interaction.obj.interaction_type == 'ARTICLE_VIEWED' %}bg-light border text-secondary
+                                                {% elif 'CHANGE' in p_interaction.obj.interaction_type %}bg-cyan text-white {# Generic change, e.g. PRIORITY_CHANGE #}
+                                                {% else %}bg-dark text-white{% endif %}">
+
+                                                {# Icons based on interaction type #}
+                                                {% if p_interaction.obj.interaction_type == 'TICKET_CREATED' %}<i class="fas fa-ticket-alt"></i>
+                                                {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}<i class="fas fa-comment-dots"></i>
+                                                {% elif p_interaction.obj.interaction_type == 'STATUS_CHANGE' %}<i class="fas fa-tag"></i>
+                                                {% elif p_interaction.obj.interaction_type == 'ASSIGNMENT_CHANGE' %}<i class="fas fa-user-check"></i>
+                                                {% elif p_interaction.obj.interaction_type == 'ARTICLE_VIEWED' %}<i class="far fa-circle"></i>
+                                                {% elif 'CHANGE' in p_interaction.obj.interaction_type %}<i class="fas fa-pencil-alt"></i>
+                                                {% else %}<i class="fas fa-info-circle"></i>{% endif %}
+                                            </div>
+                                            <div class="timeline-content">
+                                                <div class="item-timestamp float-right">
+                                                     {% if p_interaction.timestamp_obj.date() == today_date %}Today
+                                                     {% elif p_interaction.timestamp_obj.date() == yesterday_date %}Yesterday
+                                                     {% else %}{{ p_interaction.date_str_short }}{% endif %}
+                                                     {{ p_interaction.time_str }}
+                                                </div>
+                                                <div class="item-title">{{ p_interaction.title_for_display | truncate(30, True) }}</div>
+                                                <div class="item-description">
+                                                    {{ p_interaction.message | safe }}
+                                                </div>
+                                                {% if p_interaction.obj.interaction_type == 'COMMENT_ADDED' and p_interaction.comment_preview %}
+                                                    <div class="comment-preview">
+                                                        <small><em>{{ p_interaction.comment_preview | truncate(70, True) }}</em></small>
+                                                    </div>
+                                                {% endif %}
+                                                <div class="item-meta">
+                                                    <span title="{{ p_interaction.timestamp_obj.strftime('%A, %b %d, %Y %I:%M:%S %p') }}">
+                                                        {{ p_interaction.timestamp_obj.strftime('%b %d %H:%M') }}
+                                                    </span>
+                                                    {% if p_interaction.obj.user %} · by {{ p_interaction.actor_name }}{% elif p_interaction.obj.interaction_type != 'TICKET_CREATED' and p_interaction.obj.interaction_type != 'ARTICLE_VIEWED' %} · via System{% endif %}
+                                                    {% if p_interaction.obj.interaction_type == 'ARTICLE_VIEWED' and p_interaction.obj.details.get('source') %}
+                                                         · via {{ p_interaction.obj.details.get('source') }}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted text-center my-3">No interactions recorded for this ticket yet.</p> {# Updated message #}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %} {# <<< END THE CONDITION (already present in your snippet) #}
+
         {# Agent Actions Card #}
         {% if (current_user.is_agent or current_user.is_admin) and agent_update_form %}
         <div class="card mb-3 shadow-sm">
@@ -220,6 +313,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const element = document.getElementById('add-comment-form');
         if (element) {
             element.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    // Toggle chevron icon for interaction history collapse
+    var interactionHistoryBody = document.getElementById('interactionHistoryBody');
+    var interactionHistoryTogglerButton = document.querySelector('button[data-toggle="collapse"][href="#interactionHistoryBody"]');
+    
+    if (interactionHistoryBody && interactionHistoryTogglerButton) {
+        var interactionHistoryTogglerIcon = interactionHistoryTogglerButton.querySelector('i');
+
+        if (interactionHistoryTogglerIcon) {
+            interactionHistoryBody.addEventListener('show.bs.collapse', function () {
+                interactionHistoryTogglerIcon.classList.remove('fa-chevron-down');
+                interactionHistoryTogglerIcon.classList.add('fa-chevron-up');
+            });
+            interactionHistoryBody.addEventListener('hide.bs.collapse', function () {
+                interactionHistoryTogglerIcon.classList.remove('fa-chevron-up');
+                interactionHistoryTogglerIcon.classList.add('fa-chevron-down');
+            });
+            // Set initial state of icon
+            if (!interactionHistoryBody.classList.contains('show')) {
+                 interactionHistoryTogglerIcon.classList.remove('fa-chevron-up');
+                 interactionHistoryTogglerIcon.classList.add('fa-chevron-down');
+            }
         }
     }
 });
