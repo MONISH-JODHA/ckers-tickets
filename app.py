@@ -21,6 +21,7 @@ from flask_mail import Mail, Message
 import sys
 import logging
 from importlib.metadata import version, PackageNotFoundError
+# from app import app, db, User, Ticket, Category, Attachment, CloudProviderOption, SeverityOption, EnvironmentOption, mail, allowed_file
 
 
 # Twilio Integration
@@ -78,11 +79,14 @@ class Config:
     MAIL_PORT = int(os.environ.get('MAIL_PORT_TICKET_CMS') or 587)
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS_TICKET_CMS', 'true').lower() in ['true', '1', 't']
     MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL_TICKET_CMS', 'false').lower() in ['true', '1', 't']
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME_TICKET_CMS')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD_TICKET_CMS')
-    MAIL_DEFAULT_SENDER_EMAIL = os.environ.get('MAIL_DEFAULT_SENDER_EMAIL_TICKET_CMS')
-    MAIL_DEFAULT_SENDER = ('TicketSys Admin', MAIL_DEFAULT_SENDER_EMAIL or 'noreply@example.com')
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME_TICKET_CMS') or 'monish.jodha@cloudkeeper.com'
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD_TICKET_CMS') or 'tuvljncwusoodplx'
+    MAIL_DEFAULT_SENDER_EMAIL = os.environ.get('MAIL_DEFAULT_SENDER_EMAIL_TICKET_CMS') or MAIL_USERNAME
+    MAIL_DEFAULT_SENDER = ('TicketSys Admin', MAIL_DEFAULT_SENDER_EMAIL or 'noreply@cloudkeeper.com')
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL_TICKET_CMS')
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME_TICKET_CMS') or 'monish.jodha@cloudkeeper.com'
+    MAIL_DEFAULT_SENDER = MAIL_DEFAULT_SENDER_EMAIL 
+
     
     IMAP_SERVER = os.environ.get('IMAP_SERVER_TICKET_CMS_FETCH') or 'imap.gmail.com'
     IMAP_USERNAME = os.environ.get('IMAP_USERNAME_TICKET_CMS_FETCH')
@@ -115,6 +119,12 @@ class Config:
 
 app = Flask(__name__)
 app.config.from_object(Config)
+app.jinja_env.add_extension('jinja2.ext.do')
+
+
+app.logger.info(f"--- App Start --- PYTHON_VERSION: {sys.version.splitlines()[0]}")
+# ... (rest of your startup logs) ...
+app.logger.info(f"--- App Start --- FINAL APPLICATION_ROOT from app.config: '{app.config.get('APPLICATION_ROOT')}'")
 
 app.logger.info(f"--- App Start --- FLASK_VERSION: {flask.__version__}")
 
@@ -669,24 +679,16 @@ def dashboard():
         return render_template('dashboard.html', title='My Dashboard', my_tickets=my_tickets)
 
 @app.route('/tickets/new', methods=['GET', 'POST'])
-@login_required # RESTORE THIS!
+@login_required
 def create_ticket():
-    # DETAILED LOGGING AT THE START OF THE ROUTE
     app.logger.info(f"--- Create Ticket Route (Top) --- Accessed /tickets/new.")
     app.logger.info(f"--- Create Ticket Route (Top) --- current_user: {current_user}, is_authenticated: {current_user.is_authenticated}")
     app.logger.info(f"--- Create Ticket Route (Top) --- Session contents: {dict(session)}")
 
-    # # If, despite @login_required, we somehow get an AnonymousUser, this will catch it early
-    # if not current_user.is_authenticated:
-    #     app.logger.error("--- Create Ticket Route --- CRITICAL: Unauthenticated user accessed route despite @login_required. This should not happen. Redirecting to login.")
-    #     return redirect(url_for('login', next=request.url))
-
-
     form = CreateTicketForm()
-    # ... (rest of your create_ticket function is fine)
     form.category.choices = [(0, '--- Select Issue Category* ---')] + [(c.id, c.name) for c in Category.query.order_by('name').all()]
-    form.cloud_provider.choices = get_active_cloud_provider_choices() 
-    form.severity.choices = get_active_severity_choices() 
+    form.cloud_provider.choices = get_active_cloud_provider_choices()
+    form.severity.choices = get_active_severity_choices()
     form.environment.choices = get_active_environment_choices()
 
     if not form.category.choices[1:]:
@@ -714,80 +716,93 @@ def create_ticket():
                         except Exception as e:
                             app.logger.error(f"Failed to save attachment {filename}: {e}")
                             form.attachments.errors.append(f"Could not save file: {filename}")
-                            flash(f"Error saving attachment {filename}. Please try again.", "danger")
                     else:
                         form.attachments.errors.append(f"File type not allowed: {file_storage.filename}")
-                        flash(f"File type not allowed for {file_storage.filename}.", "danger")
-        
+
         if form.attachments.errors:
-            pass 
+            flash('Error with attachments. Please correct and try again.', 'danger')
         else:
+            ticket_creator = current_user
             ticket = Ticket(
                 title=form.title.data,
                 description=form.description.data,
-                created_by_id=current_user.id, # This line would fail if current_user is Anonymous
-                category_id=form.category.data, 
+                created_by_id=ticket_creator.id,
+                category_id=form.category.data,
                 cloud_provider=form.cloud_provider.data or None,
-                severity=form.severity.data, 
+                severity=form.severity.data,
                 aws_service=form.aws_service.data if form.cloud_provider.data == 'AWS' and form.aws_service.data else None,
                 aws_account_id=form.aws_account_id.data or None,
                 environment=form.environment.data or None,
             )
             db.session.add(ticket)
             try:
-                db.session.flush() 
+                db.session.flush()
                 for file_info in uploaded_files_info:
                     attachment = Attachment(
                         filename=file_info['original_filename'],
                         stored_filename=file_info['stored_filename'],
                         ticket_id=ticket.id,
-                        uploaded_by_id=current_user.id,
+                        uploaded_by_id=ticket_creator.id,
                         content_type=file_info['content_type']
                     )
                     db.session.add(attachment)
                 db.session.commit()
                 flash('Ticket created successfully!', 'success')
-                app.logger.info(f"Ticket #{ticket.id} created by {current_user.username} with severity '{ticket.severity}'")
-                
+                app.logger.info(f"Ticket #{ticket.id} created by {ticket_creator.username} with severity '{ticket.severity}'")
+
                 try:
-                    recipients_admin_agent = list(set(
-                        ([app.config['ADMIN_EMAIL']] if app.config['ADMIN_EMAIL'] else []) + 
+                    ticket_submitter_for_email = ticket_creator
+
+                    admin_and_agent_emails = list(set(
+                        ([app.config['ADMIN_EMAIL']] if app.config['ADMIN_EMAIL'] else []) +
                         [user.email for user in User.query.filter(User.role.in_(['admin', 'agent'])).all() if user.email]
                     ))
-                    if recipients_admin_agent:
+
+                    if admin_and_agent_emails:
+                        email_body_admin = render_template(
+                            'email/new_ticket_admin_notification.txt',
+                            ticket=ticket,
+                            submitter=ticket_submitter_for_email,
+                            ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True)
+                        )
                         msg_admin = Message(
-                            f"New Ticket Submitted: #{ticket.id} - {ticket.title}",
-                            recipients=[r for r in recipients_admin_agent if r], 
-                            body=render_template('email/new_ticket_admin_notification.txt', ticket=ticket, user=current_user,
-                                                 ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))
+                            subject=f"New Ticket Submitted: #{ticket.id} - {ticket.title}",
+                            recipients=admin_and_agent_emails,
+                            body=email_body_admin
                         )
                         mail.send(msg_admin)
+
                     additional_emails = [email.strip() for email in (form.additional_recipients.data or "").split(',') if email.strip()]
-                    creator_and_additional_emails = list(set(additional_emails + ([current_user.email] if current_user.email else [])))
+                    creator_and_additional_emails = list(set(additional_emails + ([ticket_submitter_for_email.email] if ticket_submitter_for_email.email else [])))
+
                     if creator_and_additional_emails:
+                        email_body_recipient = render_template(
+                            'email/ticket_info_recipient.txt',
+                            ticket=ticket,
+                            submitter=ticket_submitter_for_email,
+                            ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True)
+                        )
                         msg_additional = Message(
-                            f"Confirmation: Your Ticket #{ticket.id} - {ticket.title}",
-                            recipients=[r for r in creator_and_additional_emails if r],
-                            body=render_template('email/ticket_info_recipient.txt', ticket=ticket, submitter=current_user,
-                                                 ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))
+                            subject=f"Confirmation: Your Ticket #{ticket.id} - {ticket.title}",
+                            recipients=creator_and_additional_emails,
+                            body=email_body_recipient
                         )
                         mail.send(msg_additional)
+
                 except Exception as e:
                     app.logger.error(f"Failed to send email notifications for ticket #{ticket.id}: {e}")
-                
-                trigger_priority_call_alert(ticket, old_severity=None) 
+                    app.logger.exception("Email sending TRACEBACK:")
+
+                trigger_priority_call_alert(ticket, old_severity=None)
                 return redirect(url_for('view_ticket', ticket_id=ticket.id))
             except Exception as e:
                 db.session.rollback()
                 flash(f'Database error: Could not save ticket. {str(e)[:150]}', 'danger')
                 app.logger.error(f"Ticket save DB error: {e}")
-                for file_info in uploaded_files_info:
-                    try:
-                        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], file_info['stored_filename']))
-                    except OSError: pass 
     elif request.method == 'POST':
         flash('Please correct the errors in the form.', 'danger')
     return render_template('client/create_ticket.html', title='Submit New Support Request', form=form)
+
 
 @app.route('/tickets/my')
 @login_required
@@ -799,52 +814,66 @@ def my_tickets():
 @login_required
 def view_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
-    if not (current_user.is_admin or current_user.is_agent or \
-            ticket.created_by_id == current_user.id or \
-            (ticket.assigned_to_id and ticket.assigned_to_id == current_user.id) ):
+
+    # Access control: User must be creator, or admin/agent.
+    # (Assignee is covered by agent/admin role)
+    if not (current_user.is_admin or current_user.is_agent or ticket.created_by_id == current_user.id):
         flash('You do not have permission to view this ticket.', 'danger')
         return redirect(url_for('dashboard'))
 
     comment_form = CommentForm()
-    agent_update_form = None
+    agent_update_form = None # Initialize to None
     attachments = ticket.ticket_attachments.order_by(Attachment.uploaded_at.desc()).all()
 
-    if current_user.is_agent or current_user.is_admin:
-        agent_update_form = AgentUpdateTicketForm(obj=None) # Don't pass obj on POST, it gets data from request.form
+    is_privileged_user = current_user.is_agent or current_user.is_admin
+
+    if is_privileged_user: # Only create and populate for agents/admins
+        agent_update_form = AgentUpdateTicketForm(obj=None) # Initialize empty
+        # Populate choices for the agent_update_form
         agent_choices = [(u.id, u.username) for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()]
         cat_choices = [(c.id, c.name) for c in Category.query.order_by('name').all()]
         
         agent_update_form.assigned_to_id.choices = [(0, '--- Unassign/Select Agent ---')] + agent_choices
-        agent_update_form.category_id.choices = [(0, '--- No Category ---')] + cat_choices # Assuming 0 is not a valid ID
+        agent_update_form.category_id.choices = [(0, '--- No Category ---')] + cat_choices
         agent_update_form.cloud_provider.choices = get_active_cloud_provider_choices()
         agent_update_form.severity.choices = get_active_severity_choices()
         agent_update_form.environment.choices = get_active_environment_choices()
+        # AWS Service choices are static in the form definition
 
         if request.method == 'GET': 
             agent_update_form.status.data = ticket.status
             agent_update_form.priority.data = ticket.priority
-            agent_update_form.assigned_to_id.data = ticket.assigned_to_id or 0 # 0 for placeholder
-            agent_update_form.category_id.data = ticket.category_id or 0 # 0 for placeholder
-            agent_update_form.cloud_provider.data = ticket.cloud_provider or '' # '' for placeholder
-            agent_update_form.severity.data = ticket.severity or '' # '' for placeholder
+            agent_update_form.assigned_to_id.data = ticket.assigned_to_id or 0
+            agent_update_form.category_id.data = ticket.category_id or 0
+            agent_update_form.cloud_provider.data = ticket.cloud_provider or ''
+            agent_update_form.severity.data = ticket.severity or ''
             agent_update_form.aws_service.data = ticket.aws_service or ''
             agent_update_form.aws_account_id.data = ticket.aws_account_id or ''
             agent_update_form.environment.data = ticket.environment or ''
 
+    # Comment form: Remove internal note checkbox for clients
+    if not is_privileged_user and hasattr(comment_form, 'is_internal'):
+        delattr(comment_form, 'is_internal')
+
+
     if request.method == 'POST':
         if 'submit_comment' in request.form and comment_form.validate_on_submit():
-            is_internal_comment = hasattr(comment_form, 'is_internal') and \
-                                  comment_form.is_internal.data and \
-                                  (current_user.is_agent or current_user.is_admin)
-            comment = Comment(content=comment_form.content.data, user_id=current_user.id, ticket_id=ticket.id, is_internal=is_internal_comment)
+            is_internal_comment = is_privileged_user and \
+                                  hasattr(comment_form, 'is_internal') and \
+                                  comment_form.is_internal.data
+            
+            comment = Comment(content=comment_form.content.data, user_id=current_user.id, 
+                              ticket_id=ticket.id, is_internal=is_internal_comment)
             db.session.add(comment)
             ticket.updated_at = datetime.utcnow()
             db.session.commit()
             flash('Your comment has been added.', 'success')
-            app.logger.info(f"Comment added to ticket #{ticket.id} by {current_user.username}")
+            app.logger.info(f"Comment (internal: {is_internal_comment}) added to ticket #{ticket.id} by {current_user.username}")
             return redirect(url_for('view_ticket', ticket_id=ticket.id, _anchor='comments_section'))
         
-        elif 'submit_update' in request.form and agent_update_form and agent_update_form.validate_on_submit():
+        elif 'submit_update' in request.form and is_privileged_user and agent_update_form and agent_update_form.validate_on_submit():
+            # This block will only be reachable if is_privileged_user is True
+            # and agent_update_form was created and submitted.
             old_severity_on_update = ticket.severity 
             ticket.status = agent_update_form.status.data
             ticket.priority = agent_update_form.priority.data
@@ -866,22 +895,26 @@ def view_ticket(ticket_id):
                 db.session.rollback()
                 flash(f'Database error during ticket update: {str(e)[:150]}', 'danger')
                 app.logger.error(f"Ticket update DB error for #{ticket.id}: {e}")
+        
+        # Handle validation errors for either form if POST request
         elif 'submit_update' in request.form and agent_update_form and not agent_update_form.validate_on_submit():
              flash('Error updating ticket. Please check agent form fields.', 'danger')
         elif 'submit_comment' in request.form and not comment_form.validate_on_submit():
             flash('Error adding comment. Please check comment field.', 'danger')
 
 
+    # Filter comments based on user role for display
     comments_query = ticket.comments
-    if not (current_user.is_agent or current_user.is_admin): # Client view
+    if not is_privileged_user: # Client view
         comments_query = comments_query.filter_by(is_internal=False)
-        if hasattr(comment_form, 'is_internal'): 
-            delattr(comment_form, 'is_internal') # Remove internal toggle for clients
             
     comments = comments_query.order_by(Comment.created_at.asc()).all()
     
     return render_template('client/view_ticket.html', title=f'Ticket #{ticket.id}: {ticket.title}', ticket=ticket,
-                           comments=comments, comment_form=comment_form, agent_update_form=agent_update_form, attachments=attachments)
+                           comments=comments, comment_form=comment_form, 
+                           agent_update_form=agent_update_form, # Will be None for clients
+                           attachments=attachments,
+                           is_privileged_user=is_privileged_user) # Pass this flag to the template
 
 @app.route('/uploads/<filename>')
 @login_required
@@ -1072,32 +1105,37 @@ def admin_delete_user(user_id):
 @app.route('/admin/user/<int:user_id>/share_credentials', methods=['POST'])
 @admin_required
 def admin_share_credentials(user_id):
-    user = User.query.get_or_404(user_id)
-    form = ShareCredentialsForm(request.form) # Bind data from request.form
-    if form.validate(): # Validates recipient_email
+    user_to_share = User.query.get_or_404(user_id)
+    admin_user = current_user
+    form = ShareCredentialsForm(request.form)
+    if form.validate():
         recipient_email = form.recipient_email.data
-        subject = f"Account Information: {user.username} for Ticket System"
-        # Emphasize password security - do not send password.
-        body_text = (f"Hello,\n\nHere is the account information for user '{user.username}':\n"
-                     f"Username: {user.username}\n"
-                     f"IMPORTANT: For security reasons, the password cannot be directly shared. "
-                     f"If a password reset is needed, please use the system's password reset functionality "
-                     f"or have an administrator set a temporary password for the user.\n\n"
-                     f"Regards,\nThe Ticket System Admin")
+        subject = f"Account Information for Ticket System: {user_to_share.username}"
+
+        body_text = render_template(
+            'email/share_credentials_email.txt',
+            user_being_shared=user_to_share,
+            admin_user=admin_user
+        )
+
         msg = Message(subject, recipients=[recipient_email], body=body_text)
         try:
             mail.send(msg)
-            flash(f'Account details (excluding password) for "{user.username}" have been sent to {recipient_email}.', 'success')
-            app.logger.info(f"Credentials info (no password) for '{user.username}' shared with '{recipient_email}' by admin {current_user.username}")
-        except Exception as e: 
+            flash(f'Account information (excluding password) for "{user_to_share.username}" has been sent to {recipient_email}.', 'success')
+            app.logger.info(f"Credentials info for '{user_to_share.username}' shared with '{recipient_email}' by admin {admin_user.username}")
+        except Exception as e:
             flash(f'Failed to send email: {e}', 'danger')
-            app.logger.error(f"Email send failure for sharing credentials of '{user.username}': {e}")
+            app.logger.error(f"Email send failure for sharing credentials of '{user_to_share.username}': {e}")
+            app.logger.exception("Email sending TRACEBACK:")
     else:
-        for field_name, errors in form.errors.items(): 
-            field_label = getattr(getattr(form, field_name), 'label', None)
-            label_text = field_label.text if field_label else field_name.replace("_", " ").title()
+        for field_name, errors in form.errors.items():
+            label = getattr(getattr(form, field_name), 'label', None)
+            label_text = label.text if label else field_name.replace("_", " ").title()
             flash(f"Error in sharing form ({label_text}): {', '.join(errors)}", 'danger')
+
     return redirect(url_for('admin_user_list'))
+
+
 
 # --- Admin Option Management Helper Functions ---
 def _admin_list_options(model_class, template_name, title, order_by_attr='name'):

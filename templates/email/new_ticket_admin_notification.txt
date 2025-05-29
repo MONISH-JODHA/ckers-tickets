@@ -1,20 +1,23 @@
-A new support ticket has been created:
+Subject: New Ticket #{{ ticket.id }}: {{ ticket.title }}
 
-Ticket ID: #{{ ticket.id }}
+Hello Admin/Agent,
+
+A new support ticket has been submitted:
+
+ID: #{{ ticket.id }}
 Title: {{ ticket.title }}
-Submitted by: {{ user.username }} ({{ user.email }})
-Category: {{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}
+Submitted by: {{ submitter.username if submitter else 'Unknown User' }} ({{ submitter.email if submitter else 'N/A' }})
+Created at: {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
 Severity: {{ ticket.severity or 'N/A' }}
+Category: {{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}
 Cloud Provider: {{ ticket.cloud_provider or 'N/A' }}
-{% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}AWS Service: {{ ticket.aws_service }}{% endif %}
-{% if ticket.aws_account_id %}AWS Account ID: {{ ticket.aws_account_id }}{% endif %}
-{% if ticket.environment %}Environment: {{ ticket.environment }}{% endif %}
+Environment: {{ ticket.environment or 'N/A' }}
 
 Description:
 {{ ticket.description }}
 
 You can view the ticket details here:
-{{ url_for('view_ticket', ticket_id=ticket.id, _external=True) }}
+{{ ticket_url }}
 
 Thank you,
-TicketSys
+Ticket System

@@ -1,23 +1,21 @@
+Subject: Confirmation: Your Ticket #{{ ticket.id }} - {{ ticket.title }}
+
 Hello,
 
-This email is regarding a support ticket submitted by {{ submitter.username }} on TicketSys
-that you were listed as an additional recipient for.
+This email confirms that your support ticket has been successfully created (or you were listed as an additional recipient).
 
-Ticket ID: #{{ ticket.id }}
+Ticket Details:
+ID: #{{ ticket.id }}
 Title: {{ ticket.title }}
-Submitted by: {{ submitter.username }} ({{ submitter.email }})
-Category: {{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}
+Submitted by: {{ submitter.username if submitter else 'System' }}
+Status: {{ ticket.status }}
 Severity: {{ ticket.severity or 'N/A' }}
-Cloud Provider: {{ ticket.cloud_provider or 'N/A' }}
-{% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}AWS Service: {{ ticket.aws_service }}{% endif %}
-{% if ticket.aws_account_id %}AWS Account ID: {{ ticket.aws_account_id }}{% endif %}
-{% if ticket.environment %}Environment: {{ ticket.environment }}{% endif %}
+Category: {{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}
 
-Description:
-{{ ticket.description }}
+You can view and manage your ticket here:
+{{ ticket_url }}
 
-You can view the ticket details (if you have an account and permission) here:
-{{ url_for('view_ticket', ticket_id=ticket.id, _external=True) }}
+If you did not submit this ticket but received this email, it may be because the submitter included your email address.
 
 Thank you,
-TicketSys
+Ticket System Support
