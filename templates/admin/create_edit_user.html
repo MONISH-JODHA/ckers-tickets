@@ -10,7 +10,7 @@
                 <h2 class="mb-0">{{ legend }}</h2>
             </div>
             <div class="card-body p-4">
-                <form method="POST" novalidate> {# Action URL is current route, handled by Flask #}
+                <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
                     <fieldset>
                         <div class="form-group mb-3">
@@ -48,6 +48,19 @@
                             {% else %}
                                 {{ form.role(class="form-control form-control-lg custom-select") }}
                             {% endif %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.organization_id.label(class="form-control-label") }}
+                            {% if form.organization_id.errors %}
+                                {{ form.organization_id(class="form-control form-control-lg custom-select is-invalid") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.organization_id.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.organization_id(class="form-control form-control-lg custom-select") }}
+                            {% endif %}
+                            <small class="form-text text-muted">Assign this user to an organization (optional). This may affect their default organization when creating tickets if they are a client.</small>
                         </div>
                         <hr>
                         <p class="text-muted small">

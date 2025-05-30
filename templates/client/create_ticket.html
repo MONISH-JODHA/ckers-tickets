@@ -4,12 +4,22 @@
 {% block head_extra %}
 <style>
     .form-control-label { font-weight: 600; } 
+    .form-group { margin-bottom: 1.25rem; }
+    .form-row > .col, .form-row > [class*="col-"] { padding-right: 10px; padding-left: 10px; }
+    hr { margin-top: 1.5rem; margin-bottom: 1.5rem; }
+    h5.section-header {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+        color: #007bff; /* Primary color for section headers */
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-10 col-lg-8">
+    <div class="col-md-10 col-lg-9"> {# Slightly wider for better layout #}
         <div class="card mt-4 shadow-sm">
             <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
             <div class="card-body p-4">
@@ -23,11 +33,21 @@
                     </div>
 
                     <div class="form-row">
-                        <div class="form-group col-md-6">
-                            {{ form.organization_id.label(class="form-control-label") }}
-                            {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
-                            {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
+                        {% if current_user.is_client and user_organization_name %}
+                            <div class="form-group col-md-6">
+                                <label class="form-control-label">Organization</label>
+                                <input type="text" class="form-control" value="{{ user_organization_name }}" readonly
+                                       title="Your organization is automatically set based on your registration.">
+                                {# The actual organization_id will be taken from current_user on the backend #}
+                            </div>
+                        {% elif current_user.is_agent or current_user.is_admin or not user_organization_name %}
+                             {# Agents/Admins or Clients without a pre-set org see the dropdown #}
+                            <div class="form-group col-md-6">
+                                {{ form.organization_id.label(class="form-control-label") }}
+                                {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
+                                {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        {% endif %}
                         <div class="form-group col-md-6">
                             {{ form.form_type_id.label(class="form-control-label") }}
                             {{ form.form_type_id(class="form-control custom-select" + (" is-invalid" if form.form_type_id.errors else "")) }}
@@ -46,13 +66,12 @@
                         {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                      <div class="form-group">
-                        {{ form.customer_name.label(class="form-control-label") }} <!-- Now required -->
+                        {{ form.customer_name.label(class="form-control-label") }}
                         {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), placeholder="Your Company Name") }}
                         {% for error in form.customer_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
 
-                    <hr>
-                    <h5 class="mt-4 mb-3">Cloud & Environment Details (Optional)</h5>
+                    <h5 class="section-header">Cloud & Environment Details (Optional)</h5>
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             {{ form.cloud_provider.label(class="form-control-label") }}
@@ -72,12 +91,11 @@
                     </div>
                     <div class="form-group">
                         {{ form.aws_account_id.label(class="form-control-label") }}
-                        {{ form.aws_account_id(class="form-control" + (" is-invalid" if form.aws_account_id.errors else ""), placeholder="e.g., 123456789012") }}
+                        {{ form.aws_account_id(class="form-control" + (" is-invalid" if form.aws_account_id.errors else ""), placeholder="e.g., 123456789012 (12 digits)") }}
                         {% for error in form.aws_account_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
 
-                    <hr>
-                    <h5 class="mt-4 mb-3">Contact Information (Optional)</h5>
+                    <h5 class="section-header">Contact Information (Optional)</h5>
                      <div class="form-row">
                         <div class="form-group col-md-6">
                             {{ form.request_call_back.label(class="form-control-label") }}
@@ -118,9 +136,9 @@
                         <small class="form-text text-muted">Max file size: {{ (app.config.MAX_CONTENT_LENGTH / (1000*1000)) | int }}MB. Allowed types: {{ app.config.ALLOWED_EXTENSIONS|join(', ') }}</small>
                         {% for error in form.attachments.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
-                    <div class="form-group mt-4">
+                    <div class="form-group mt-4 text-right">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-lg mr-2">Cancel</a>
                         {{ form.submit(class="btn btn-primary btn-lg") }}
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-lg">Cancel</a>
                     </div>
                 </form>
             </div>
@@ -152,6 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (cloudProviderSelect) {
         cloudProviderSelect.addEventListener('change', toggleAwsService);
+        // Call it once on load to set initial state
         toggleAwsService(); 
     }
 });

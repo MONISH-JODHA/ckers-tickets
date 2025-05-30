@@ -156,6 +156,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256))
     role = db.Column(db.String(20), default='client', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization_options.id'), nullable=True)
+    organization = db.relationship('OrganizationOption', backref='users')
     tickets_created = db.relationship('Ticket', foreign_keys='Ticket.created_by_id', backref='creator', lazy='dynamic')
     tickets_assigned = db.relationship('Ticket', foreign_keys='Ticket.assigned_to_id', backref='assignee', lazy='dynamic')
     comments = db.relationship('Comment', backref='author', lazy='dynamic')
@@ -167,6 +169,7 @@ class User(UserMixin, db.Model):
     def is_agent(self): return self.role == 'agent'
     @property
     def is_client(self): return self.role == 'client'
+    def get_organization_name(self): return self.organization.name if self.organization else None
     def __repr__(self): return f'<User {self.username} ({self.role})>'
 
 class Category(db.Model):
@@ -205,7 +208,7 @@ class OrganizationOption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False, index=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    tickets = db.relationship('Ticket', backref='organization_option_ref', lazy='dynamic')
+    # tickets = db.relationship('Ticket', backref='organization_option_ref', lazy='dynamic') # Handled by Ticket.organization_option_ref
     def __repr__(self): return f'<OrganizationOption {self.name}>'
 
 class FormTypeOption(db.Model):
@@ -255,11 +258,11 @@ class Ticket(db.Model):
     additional_email_recipients = db.Column(db.Text, nullable=True)
     request_call_back = db.Column(db.String(10), nullable=True)
     contact_details = db.Column(db.String(255), nullable=True)
-    aws_support_case_id = db.Column(db.String(50), nullable=True) # Not on create form
-    effort_required_to_resolve_min = db.Column(db.Integer, nullable=True) # Not on create form
-    customer_name = db.Column(db.String(100), nullable=True) # Required on create form
-    apn_opportunity_id = db.Column(db.Integer, db.ForeignKey('apn_opportunity_options.id'), nullable=True) # Not on create form
-    apn_opportunity_description = db.Column(db.Text, nullable=True) # Not on create form
+    aws_support_case_id = db.Column(db.String(50), nullable=True)
+    effort_required_to_resolve_min = db.Column(db.Integer, nullable=True)
+    customer_name = db.Column(db.String(100), nullable=True)
+    apn_opportunity_id = db.Column(db.Integer, db.ForeignKey('apn_opportunity_options.id'), nullable=True)
+    apn_opportunity_description = db.Column(db.Text, nullable=True)
     support_modal_id = db.Column(db.Integer, db.ForeignKey('support_modal_options.id'), nullable=True)
     first_response_at = db.Column(db.DateTime, nullable=True)
     first_response_duration_minutes = db.Column(db.Integer, nullable=True)
@@ -317,6 +320,7 @@ class AdminUserForm(FlaskForm):
     password = PasswordField('Password (leave blank to keep current)', validators=[Optional(), Length(min=6)])
     password2 = PasswordField('Confirm Password', validators=[EqualTo('password', message='Passwords must match if new password provided.')])
     role = SelectField('Role', choices=[('client', 'Client'), ('agent', 'Agent'), ('admin', 'Admin')], validators=[DataRequired()])
+    organization_id = SelectField('Organization (Optional)', coerce=int, validators=[Optional()])
     submit = SubmitField('Save User')
 
 class UserSelfRegistrationForm(FlaskForm):
@@ -348,7 +352,7 @@ class CreateTicketForm(FlaskForm):
     environment = SelectField('Environment', coerce=str, validators=[Optional()])
     request_call_back = SelectField('Request Call Back?', choices=REQUEST_CALL_BACK_CHOICES, validators=[Optional()])
     contact_details = StringField('Contact Details for Callback', validators=[Optional(), Length(max=255)])
-    customer_name = StringField('Customer Company Name*', validators=[DataRequired(), Length(max=100)]) # Required
+    customer_name = StringField('Customer Company Name*', validators=[DataRequired(), Length(max=100)])
     support_modal_id = SelectField('Support Modals by Plan', coerce=int, validators=[Optional()])
     additional_recipients = StringField('Additional Email Recipients (comma-separated)', widget=TextAreaWidget(), validators=[Optional()])
     attachments = MultipleFileField('Attachments', validators=[Optional()])
@@ -478,18 +482,26 @@ def agent_required(f):
     return decorated_function
 
 # --- Helper functions for dynamic choices ---
+DOMAIN_TO_ORGANIZATION_MAP = {
+    'cloudkeeper.com': 'CloudKeeper (CK)',
+    # Add more: 'example.com': 'Example Corp'
+}
+
+def get_organization_by_email_domain(email):
+    if '@' not in email: return None
+    domain = email.split('@')[-1].lower()
+    org_name_from_map = DOMAIN_TO_ORGANIZATION_MAP.get(domain)
+    if org_name_from_map:
+        return OrganizationOption.query.filter_by(name=org_name_from_map, is_active=True).first()
+    return None
+
 def get_active_choices(model_class, placeholder_text_id_0=None, placeholder_text_str_empty=None, order_by_attr='name'):
     query = model_class.query.filter_by(is_active=True).order_by(getattr(model_class, order_by_attr))
     choices = []
-    if placeholder_text_id_0:
-        choices.append((0, placeholder_text_id_0))
-    elif placeholder_text_str_empty:
-        choices.append(('', placeholder_text_str_empty))
-    
-    if placeholder_text_id_0:
-        choices.extend([(opt.id, opt.name) for opt in query.all()])
-    else:
-        choices.extend([(opt.name, opt.name) for opt in query.all()])
+    if placeholder_text_id_0: choices.append((0, placeholder_text_id_0))
+    elif placeholder_text_str_empty: choices.append(('', placeholder_text_str_empty))
+    if placeholder_text_id_0: choices.extend([(opt.id, opt.name) for opt in query.all()])
+    else: choices.extend([(opt.name, opt.name) for opt in query.all()])
     return choices
 
 def get_active_category_choices():
@@ -504,7 +516,7 @@ def get_active_organization_choices():
     return get_active_choices(OrganizationOption, placeholder_text_id_0='--- Select Organization ---')
 def get_active_form_type_choices():
     return get_active_choices(FormTypeOption, placeholder_text_id_0='--- Select Form Type ---')
-def get_active_apn_opportunity_choices(): # Still needed for AgentUpdateForm
+def get_active_apn_opportunity_choices():
     return get_active_choices(APNOpportunityOption, placeholder_text_id_0='--- Select APN Opportunity* ---')
 def get_active_support_modal_choices():
     return get_active_choices(SupportModalOption, placeholder_text_id_0='--- Select Support Modal ---')
@@ -531,7 +543,6 @@ def trigger_priority_call_alert(ticket, old_severity=None):
     recipient_phone_number = app.config.get('EMERGENCY_CALL_RECIPIENT_PHONE_NUMBER')
     alert_severities = app.config.get('SEVERITIES_FOR_CALL_ALERT', [])
     new_severity = ticket.severity
-
     if not all([account_sid, auth_token, twilio_phone_number, recipient_phone_number]):
         app.logger.warning(f"Twilio credentials or recipient number not fully configured. Skipping call alert for ticket #{ticket.id}.")
         return
@@ -542,20 +553,13 @@ def trigger_priority_call_alert(ticket, old_severity=None):
         if old_severity in alert_severities:
             app.logger.info(f"Ticket #{ticket.id} severity '{new_severity}' remains unchanged and high. No new call alert needed.")
             return
-
     app.logger.info(f"Ticket #{ticket.id} severity change triggers call alert. Old: '{old_severity}', New: '{new_severity}'.")
     try:
         client = TwilioClient(account_sid, auth_token)
         sanitized_title = re.sub(r'[^\w\s,.-]', '', ticket.title)
-        if old_severity is None or old_severity not in alert_severities:
-            alert_reason = "created or escalated"
-        else:
-            alert_reason = f"updated from {old_severity} to {new_severity}"
-            
-        message_to_say = (f"Hello. This is an urgent alert from the Ticket System. "
-                          f"A high priority ticket, number {ticket.id}, has been {alert_reason}. "
-                          f"Severity is now {new_severity}. Subject: {sanitized_title}. "
-                          f"Please check the system immediately.")
+        if old_severity is None or old_severity not in alert_severities: alert_reason = "created or escalated"
+        else: alert_reason = f"updated from {old_severity} to {new_severity}"
+        message_to_say = (f"Hello. This is an urgent alert from the Ticket System. A high priority ticket, number {ticket.id}, has been {alert_reason}. Severity is now {new_severity}. Subject: {sanitized_title}. Please check the system immediately.")
         twiml_instruction = f'<Response><Say>{escape(message_to_say)}</Say></Response>'
         call = client.calls.create(twiml=twiml_instruction, to=recipient_phone_number, from_=twilio_phone_number)
         app.logger.info(f"Twilio call initiated for ticket #{ticket.id} to {recipient_phone_number}. Call SID: {call.sid}")
@@ -581,7 +585,6 @@ def login():
         if next_page and not (next_page.startswith('//') or '://' in next_page):
              return redirect(next_page)
         return redirect(url_for('dashboard'))
-    
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
@@ -617,6 +620,12 @@ def register_client():
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data.lower(), role='client')
         user.set_password(form.password.data)
+        organization = get_organization_by_email_domain(user.email)
+        if organization:
+            user.organization_id = organization.id
+            app.logger.info(f"User '{user.username}' auto-assigned to org '{organization.name}'.")
+        else:
+            app.logger.info(f"No org found for domain of '{user.email}'.")
         db.session.add(user)
         try:
             db.session.commit()
@@ -635,6 +644,7 @@ def register_agent():
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data.lower(), role='agent')
         user.set_password(form.password.data)
+        # Admin might assign org here if needed, or via user edit page
         db.session.add(user)
         try:
             db.session.commit()
@@ -676,9 +686,18 @@ def create_ticket():
     form.cloud_provider.choices = get_active_cloud_provider_choices()
     form.severity.choices = get_active_severity_choices()
     form.environment.choices = get_active_environment_choices()
-    form.organization_id.choices = get_active_organization_choices()
     form.form_type_id.choices = get_active_form_type_choices()
     form.support_modal_id.choices = get_active_support_modal_choices()
+
+    user_organization_object = current_user.organization
+    user_organization_name_for_template = user_organization_object.name if user_organization_object else None
+
+    if current_user.is_client and user_organization_object:
+        form.organization_id.choices = [(user_organization_object.id, user_organization_object.name)]
+        if request.method == 'GET': # Pre-fill only on GET
+            form.organization_id.data = user_organization_object.id
+    else:
+        form.organization_id.choices = get_active_organization_choices()
 
     if not form.category.choices[1:]: flash("Critical: No categories defined. Contact admin.", "danger")
     if not form.severity.choices[1:]: flash("Critical: No severity levels defined. Contact admin.", "danger")
@@ -693,24 +712,21 @@ def create_ticket():
                         unique_suffix = uuid.uuid4().hex[:8]
                         stored_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{unique_suffix}_{filename}"
                         file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
-                        try:
-                            file_storage.save(file_path)
-                            uploaded_files_info.append({'original_filename': filename, 'stored_filename': stored_filename, 'content_type': file_storage.content_type})
-                        except Exception as e:
-                            app.logger.error(f"Failed to save attachment {filename}: {e}", exc_info=True)
-                            form.attachments.errors.append(f"Could not save file: {filename}")
-                    else:
-                        form.attachments.errors.append(f"File type not allowed: {file_storage.filename}")
-        
-        if form.attachments.errors:
-            flash('Error with attachments. Please correct and try again.', 'danger')
+                        try: file_storage.save(file_path); uploaded_files_info.append({'original_filename': filename, 'stored_filename': stored_filename, 'content_type': file_storage.content_type})
+                        except Exception as e: app.logger.error(f"Failed to save attachment {filename}: {e}", exc_info=True); form.attachments.errors.append(f"Could not save file: {filename}")
+                    else: form.attachments.errors.append(f"File type not allowed: {file_storage.filename}")
+        if form.attachments.errors: flash('Error with attachments. Please correct and try again.', 'danger')
         else:
             ticket_creator = current_user
+            ticket_org_id_to_save = None
+            if current_user.is_client and current_user.organization_id:
+                ticket_org_id_to_save = current_user.organization_id
+            elif form.organization_id.data and form.organization_id.data != 0:
+                ticket_org_id_to_save = form.organization_id.data
+            
             ticket = Ticket(
-                title=form.title.data, 
-                description=form.description.data, 
-                created_by_id=ticket_creator.id,
-                organization_id=form.organization_id.data if form.organization_id.data != 0 else None,
+                title=form.title.data, description=form.description.data, created_by_id=ticket_creator.id,
+                organization_id=ticket_org_id_to_save,
                 form_type_id=form.form_type_id.data if form.form_type_id.data != 0 else None,
                 tags=form.tags.data.strip() if form.tags.data else None,
                 category_id=form.category.data if form.category.data != 0 else None,
@@ -721,51 +737,31 @@ def create_ticket():
                 environment=form.environment.data or None,
                 request_call_back=form.request_call_back.data or None,
                 contact_details=form.contact_details.data.strip() if form.contact_details.data else None,
-                customer_name=form.customer_name.data.strip(), # Required
+                customer_name=form.customer_name.data.strip(),
                 support_modal_id=form.support_modal_id.data if form.support_modal_id.data != 0 else None,
                 additional_email_recipients=form.additional_recipients.data.strip() if form.additional_recipients.data else None
             )
             db.session.add(ticket)
             try:
-                db.session.flush() 
+                db.session.flush()
                 for file_info in uploaded_files_info:
-                    attachment = Attachment(
-                        filename=file_info['original_filename'], 
-                        stored_filename=file_info['stored_filename'], 
-                        ticket_id=ticket.id, 
-                        uploaded_by_id=ticket_creator.id,
-                        content_type=file_info['content_type']
-                    )
+                    attachment = Attachment(filename=file_info['original_filename'], stored_filename=file_info['stored_filename'], ticket_id=ticket.id, uploaded_by_id=ticket_creator.id,content_type=file_info['content_type'])
                     db.session.add(attachment)
                 log_interaction(ticket.id, 'TICKET_CREATED', user_id=ticket_creator.id, details={'title': ticket.title}, timestamp_override=ticket.created_at)
                 db.session.commit()
                 flash('Ticket created successfully!', 'success')
                 try:
-                    admin_and_agent_emails = list(set(
-                        ([app.config['ADMIN_EMAIL']] if app.config['ADMIN_EMAIL'] else []) +
-                        [user.email for user in User.query.filter(User.role.in_(['admin', 'agent'])).all() if user.email]
-                    ))
-                    if admin_and_agent_emails:
-                        email_body_admin = render_template('email/new_ticket_admin_notification.txt', ticket=ticket, submitter=ticket_creator, ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))
-                        msg_admin = Message(subject=f"New Ticket Submitted: #{ticket.id} - {ticket.title}", recipients=admin_and_agent_emails, body=email_body_admin)
-                        mail.send(msg_admin)
+                    admin_and_agent_emails = list(set(([app.config['ADMIN_EMAIL']] if app.config['ADMIN_EMAIL'] else []) + [user.email for user in User.query.filter(User.role.in_(['admin', 'agent'])).all() if user.email]))
+                    if admin_and_agent_emails: mail.send(Message(subject=f"New Ticket Submitted: #{ticket.id} - {ticket.title}", recipients=admin_and_agent_emails, body=render_template('email/new_ticket_admin_notification.txt', ticket=ticket, submitter=ticket_creator, ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))))
                     additional_emails_from_ticket = [email.strip() for email in (ticket.additional_email_recipients or "").split(',') if email.strip()]
                     creator_and_additional_emails = list(set(additional_emails_from_ticket + ([ticket_creator.email] if ticket_creator.email else [])))
-                    if creator_and_additional_emails:
-                        email_body_recipient = render_template('email/ticket_info_recipient.txt', ticket=ticket, submitter=ticket_creator, ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))
-                        msg_additional = Message(subject=f"Confirmation: Your Ticket #{ticket.id} - {ticket.title}", recipients=creator_and_additional_emails, body=email_body_recipient)
-                        mail.send(msg_additional)
-                except Exception as e:
-                    app.logger.error(f"Failed to send email notifications for ticket #{ticket.id}: {e}", exc_info=True)
+                    if creator_and_additional_emails: mail.send(Message(subject=f"Confirmation: Your Ticket #{ticket.id} - {ticket.title}", recipients=creator_and_additional_emails, body=render_template('email/ticket_info_recipient.txt', ticket=ticket, submitter=ticket_creator, ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))))
+                except Exception as e: app.logger.error(f"Failed to send email notifications for ticket #{ticket.id}: {e}", exc_info=True)
                 trigger_priority_call_alert(ticket, old_severity=None)
                 return redirect(url_for('view_ticket', ticket_id=ticket.id))
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Database error: {str(e)[:150]}', 'danger')
-                app.logger.error(f"Ticket creation error: {e}", exc_info=True)
-    elif request.method == 'POST':
-        flash('Please correct the errors in the form.', 'danger')
-    return render_template('client/create_ticket.html', title='Submit New Support Request', form=form)
+            except Exception as e: db.session.rollback(); flash(f'Database error: {str(e)[:150]}', 'danger'); app.logger.error(f"Ticket creation error: {e}", exc_info=True)
+    elif request.method == 'POST': flash('Please correct the errors in the form.', 'danger')
+    return render_template('client/create_ticket.html', title='Submit New Support Request', form=form, user_organization_name=user_organization_name_for_template)
 
 @app.route('/tickets/my')
 @login_required
@@ -826,19 +822,13 @@ def view_ticket(ticket_id):
         if 'submit_comment' in request.form and comment_form.validate_on_submit():
             is_internal_comment = is_privileged_user and hasattr(comment_form, 'is_internal') and comment_form.is_internal.data
             comment = Comment(content=comment_form.content.data, user_id=current_user.id, ticket_id=ticket.id, is_internal=is_internal_comment)
-            db.session.add(comment)
-            db.session.flush() 
+            db.session.add(comment); db.session.flush() 
             log_interaction(ticket.id, 'COMMENT_ADDED', user_id=current_user.id, details={'comment_id': comment.id, 'is_internal': is_internal_comment})
-            if not is_internal_comment and (current_user.is_agent or current_user.is_admin) and not ticket.first_response_at:
+            if not is_internal_comment and is_privileged_user and not ticket.first_response_at:
                 ticket.first_response_at = comment.created_at
-                if ticket.created_at:
-                    duration_delta = ticket.first_response_at - ticket.created_at
-                    ticket.first_response_duration_minutes = int(duration_delta.total_seconds() / 60)
-                log_interaction(ticket.id, 'FIRST_RESPONSE_RECORDED', user_id=current_user.id, 
-                                details={'responded_at': ticket.first_response_at.isoformat() if ticket.first_response_at else None, 
-                                         'duration_minutes': ticket.first_response_duration_minutes})
-            db.session.commit()
-            flash('Your comment has been added.', 'success')
+                if ticket.created_at: ticket.first_response_duration_minutes = int((ticket.first_response_at - ticket.created_at).total_seconds() / 60)
+                log_interaction(ticket.id, 'FIRST_RESPONSE_RECORDED', user_id=current_user.id, details={'responded_at': ticket.first_response_at.isoformat() if ticket.first_response_at else None, 'duration_minutes': ticket.first_response_duration_minutes})
+            db.session.commit(); flash('Your comment has been added.', 'success')
             return redirect(url_for('view_ticket', ticket_id=ticket.id, _anchor='comments_section'))
         
         elif 'submit_update' in request.form and is_privileged_user and agent_update_form and agent_update_form.validate_on_submit():
@@ -863,47 +853,34 @@ def view_ticket(ticket_id):
                 'support_modal_name': ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else "None",
             }
             old_severity_for_alert_trigger = ticket.severity
-
-            ticket.status = agent_update_form.status.data
-            ticket.priority = agent_update_form.priority.data
+            ticket.status = agent_update_form.status.data; ticket.priority = agent_update_form.priority.data
             ticket.assigned_to_id = agent_update_form.assigned_to_id.data if agent_update_form.assigned_to_id.data != 0 else None
             ticket.category_id = agent_update_form.category_id.data if agent_update_form.category_id.data != 0 else None
             ticket.organization_id = agent_update_form.organization_id.data if agent_update_form.organization_id.data != 0 else None
             ticket.form_type_id = agent_update_form.form_type_id.data if agent_update_form.form_type_id.data != 0 else None
             ticket.apn_opportunity_id = agent_update_form.apn_opportunity_id.data if agent_update_form.apn_opportunity_id.data != 0 else None
             ticket.support_modal_id = agent_update_form.support_modal_id.data if agent_update_form.support_modal_id.data != 0 else None
-            
             effort_str_val = agent_update_form.effort_required_to_resolve_min.data
             if effort_str_val and effort_str_val != '':
-                try:
-                    ticket.effort_required_to_resolve_min = int(effort_str_val)
-                except ValueError:
-                    agent_update_form.effort_required_to_resolve_min.errors.append("Invalid selection for effort.")
-            else:
-                ticket.effort_required_to_resolve_min = None
-
-            ticket.cloud_provider = agent_update_form.cloud_provider.data or None
-            ticket.severity = agent_update_form.severity.data or None
+                try: ticket.effort_required_to_resolve_min = int(effort_str_val)
+                except ValueError: agent_update_form.effort_required_to_resolve_min.errors.append("Invalid selection for effort.")
+            else: ticket.effort_required_to_resolve_min = None
+            ticket.cloud_provider = agent_update_form.cloud_provider.data or None; ticket.severity = agent_update_form.severity.data or None
             ticket.aws_service = agent_update_form.aws_service.data if ticket.cloud_provider == 'AWS' and agent_update_form.aws_service.data else None
             ticket.aws_account_id = agent_update_form.aws_account_id.data.strip() if agent_update_form.aws_account_id.data else None
-            ticket.environment = agent_update_form.environment.data or None
-            ticket.tags = agent_update_form.tags.data.strip() if agent_update_form.tags.data else None
+            ticket.environment = agent_update_form.environment.data or None; ticket.tags = agent_update_form.tags.data.strip() if agent_update_form.tags.data else None
             ticket.additional_email_recipients = agent_update_form.additional_email_recipients.data.strip() if agent_update_form.additional_email_recipients.data else None
-            ticket.request_call_back = agent_update_form.request_call_back.data or None
-            ticket.contact_details = agent_update_form.contact_details.data.strip() if agent_update_form.contact_details.data else None
+            ticket.request_call_back = agent_update_form.request_call_back.data or None; ticket.contact_details = agent_update_form.contact_details.data.strip() if agent_update_form.contact_details.data else None
             ticket.aws_support_case_id = agent_update_form.aws_support_case_id.data.strip() if agent_update_form.aws_support_case_id.data else None
             ticket.customer_name = agent_update_form.customer_name.data.strip() if agent_update_form.customer_name.data else None
             ticket.apn_opportunity_description = agent_update_form.apn_opportunity_description.data.strip() if agent_update_form.apn_opportunity_description.data else None
             
             changed_fields_map_display = {
-                'Status': (old_values['status'], ticket.status),
-                'Priority': (old_values['priority'], ticket.priority),
+                'Status': (old_values['status'], ticket.status), 'Priority': (old_values['priority'], ticket.priority),
                 'Assignee': (old_values['assignee_name'], ticket.assignee.username if ticket.assignee else "Unassigned"),
                 'Category': (old_values['category_name'], ticket.category_ref.name if ticket.category_ref else "None"),
-                'Cloud Provider': (old_values['cloud_provider'], ticket.cloud_provider or "None"),
-                'Severity': (old_values['severity'], ticket.severity or "None"),
-                'AWS Service': (old_values['aws_service'], ticket.aws_service or "None"),
-                'AWS Account ID': (old_values['aws_account_id'], ticket.aws_account_id or "None"),
+                'Cloud Provider': (old_values['cloud_provider'], ticket.cloud_provider or "None"), 'Severity': (old_values['severity'], ticket.severity or "None"),
+                'AWS Service': (old_values['aws_service'], ticket.aws_service or "None"), 'AWS Account ID': (old_values['aws_account_id'], ticket.aws_account_id or "None"),
                 'Environment': (old_values['environment'], ticket.environment or "None"),
                 'Organization': (old_values['organization_name'], ticket.organization_option_ref.name if ticket.organization_option_ref else "None"),
                 'Form Type': (old_values['form_type_name'], ticket.form_type_option_ref.name if ticket.form_type_option_ref else "None"),
@@ -921,134 +898,73 @@ def view_ticket(ticket_id):
             for field_name, (old_val, new_val) in changed_fields_map_display.items():
                 if old_val != new_val:
                     interaction_type_suffix = field_name.upper().replace(" ", "_").replace("(", "").replace(")", "") + "_CHANGE"
-                    log_interaction(ticket.id, interaction_type_suffix, user_id=current_user.id,
-                                    details={'old_value': old_val, 'new_value': new_val, 'field_display_name': field_name})
-
-            if agent_update_form.errors:
-                 flash('Error updating ticket. Please check the form.', 'danger')
+                    log_interaction(ticket.id, interaction_type_suffix, user_id=current_user.id, details={'old_value': old_val, 'new_value': new_val, 'field_display_name': field_name})
+            if agent_update_form.errors: flash('Error updating ticket. Please check the form.', 'danger')
             else:
                 try:
-                    db.session.commit()
-                    flash('Ticket details updated successfully.', 'success')
-                    trigger_priority_call_alert(ticket, old_severity_for_alert_trigger)
+                    db.session.commit(); flash('Ticket details updated successfully.', 'success'); trigger_priority_call_alert(ticket, old_severity_for_alert_trigger)
                     return redirect(url_for('view_ticket', ticket_id=ticket.id))
-                except Exception as e:
-                    db.session.rollback()
-                    flash(f'Database error during ticket update: {str(e)[:150]}', 'danger')
-                    app.logger.error(f"Ticket update DB error for #{ticket.id}: {e}", exc_info=True)
-        
-        elif request.method == 'POST' and (comment_form.errors or (agent_update_form and agent_update_form.errors)):
-            flash('Please correct the errors in the form.', 'danger')
+                except Exception as e: db.session.rollback(); flash(f'Database error during ticket update: {str(e)[:150]}', 'danger'); app.logger.error(f"Ticket update DB error for #{ticket.id}: {e}", exc_info=True)
+        elif request.method == 'POST' and (comment_form.errors or (agent_update_form and agent_update_form.errors)): flash('Please correct the errors in the form.', 'danger')
 
     comments_query = ticket.comments
     if not is_privileged_user: comments_query = comments_query.filter_by(is_internal=False)
     comments = comments_query.order_by(Comment.created_at.asc()).all()
-    
-    sorted_interaction_dates = []
-    interactions_by_date = {}
-    today_date_obj = None
-    yesterday_date_obj = None
+    sorted_interaction_dates = []; interactions_by_date = {}; today_date_obj = None; yesterday_date_obj = None
     if is_privileged_user:
-        raw_interactions = ticket.interactions_rel.order_by(Interaction.timestamp.desc()).all()
-        processed_interactions = []
+        raw_interactions = ticket.interactions_rel.order_by(Interaction.timestamp.desc()).all(); processed_interactions = []
         for interaction in raw_interactions:
-            actor_name = "System"
+            actor_name = "System";
             if interaction.user: actor_name = interaction.user.username
             elif interaction.interaction_type == 'TICKET_CREATED' and ticket.creator: actor_name = ticket.creator.username
-            p_interaction = {
-                'obj': interaction, 'actor_name': actor_name,
-                'timestamp_obj': interaction.timestamp, 'time_str': interaction.timestamp.strftime('%H:%M'),
-                'date_str_short': interaction.timestamp.strftime('%b %d'),
-                'datetime_str_full': interaction.timestamp.strftime('%b %d, %Y %H:%M:%S'),
-                'message': "", 'title_for_display': actor_name
-            }
-            details = interaction.details or {}
-            field_display_name = details.get('field_display_name')
+            p_interaction = {'obj': interaction, 'actor_name': actor_name, 'timestamp_obj': interaction.timestamp, 'time_str': interaction.timestamp.strftime('%H:%M'), 'date_str_short': interaction.timestamp.strftime('%b %d'), 'datetime_str_full': interaction.timestamp.strftime('%b %d, %Y %H:%M:%S'), 'message': "", 'title_for_display': actor_name}
+            details = interaction.details or {}; field_display_name = details.get('field_display_name')
             if field_display_name: 
-                old_val_display = details.get('old_value', "not set")
-                new_val_display = details.get('new_value', "not set")
+                old_val_display = details.get('old_value', "not set"); new_val_display = details.get('new_value', "not set")
                 if old_val_display == "None" and new_val_display == "None": p_interaction['message'] = f"verified <strong>{field_display_name}</strong> (remained not set)."
                 elif old_val_display == "None" or old_val_display == "not set": p_interaction['message'] = f"set <strong>{field_display_name}</strong> to <strong>{new_val_display}</strong>."
                 elif new_val_display == "None" or new_val_display == "not set": p_interaction['message'] = f"cleared <strong>{field_display_name}</strong> (was <strong>{old_val_display}</strong>)."
                 else: p_interaction['message'] = f"changed <strong>{field_display_name}</strong> from <strong>{old_val_display}</strong> to <strong>{new_val_display}</strong>."
             if interaction.interaction_type == 'TICKET_CREATED': p_interaction['message'] = f"created this ticket."
             elif interaction.interaction_type == 'COMMENT_ADDED':
-                comment_obj = Comment.query.get(details.get('comment_id'))
-                comment_type = "internal" if details.get('is_internal') else "public"
-                p_interaction['message'] = f"added a {comment_type} comment."
-                if comment_obj and (not comment_obj.is_internal or is_privileged_user):
-                    p_interaction['comment_preview'] = comment_obj.content
-            elif interaction.interaction_type == 'FIRST_RESPONSE_RECORDED':
-                duration_min = details.get('duration_minutes', 'N/A')
-                p_interaction['message'] = f"logged the first agent response. Duration: {duration_min} minutes."
-            if not p_interaction['message'] and not field_display_name: 
-                p_interaction['message'] = f"performed action: {interaction.interaction_type}. Details: {details}"
+                comment_obj = Comment.query.get(details.get('comment_id')); comment_type = "internal" if details.get('is_internal') else "public"; p_interaction['message'] = f"added a {comment_type} comment."
+                if comment_obj and (not comment_obj.is_internal or is_privileged_user): p_interaction['comment_preview'] = comment_obj.content
+            elif interaction.interaction_type == 'FIRST_RESPONSE_RECORDED': duration_min = details.get('duration_minutes', 'N/A'); p_interaction['message'] = f"logged the first agent response. Duration: {duration_min} minutes."
+            if not p_interaction['message'] and not field_display_name: p_interaction['message'] = f"performed action: {interaction.interaction_type}. Details: {details}"
             processed_interactions.append(p_interaction)
-        interactions_by_date = {k: sorted(list(g), key=lambda i: i['timestamp_obj'], reverse=True) 
-                                for k, g in groupby(processed_interactions, key=lambda i: i['timestamp_obj'].date())}
-        sorted_interaction_dates = sorted(interactions_by_date.keys(), reverse=True)
-        today_date_obj = date.today() 
-        yesterday_date_obj = today_date_obj - timedelta(days=1)
-    
-    return render_template('client/view_ticket.html', title=f'Ticket #{ticket.id}: {ticket.title}', ticket=ticket,
-                           comments=comments, comment_form=comment_form, 
-                           agent_update_form=agent_update_form, 
-                           attachments=attachments, is_privileged_user=is_privileged_user, 
-                           sorted_interaction_dates=sorted_interaction_dates, interactions_by_date=interactions_by_date,
-                           today_date=today_date_obj, yesterday_date=yesterday_date_obj)
+        interactions_by_date = {k: sorted(list(g), key=lambda i: i['timestamp_obj'], reverse=True) for k, g in groupby(processed_interactions, key=lambda i: i['timestamp_obj'].date())}
+        sorted_interaction_dates = sorted(interactions_by_date.keys(), reverse=True); today_date_obj = date.today(); yesterday_date_obj = today_date_obj - timedelta(days=1)
+    return render_template('client/view_ticket.html', title=f'Ticket #{ticket.id}: {ticket.title}', ticket=ticket, comments=comments, comment_form=comment_form, agent_update_form=agent_update_form, attachments=attachments, is_privileged_user=is_privileged_user, sorted_interaction_dates=sorted_interaction_dates, interactions_by_date=interactions_by_date, today_date=today_date_obj, yesterday_date=yesterday_date_obj)
 
 @app.route('/uploads/<filename>')
 @login_required
 def uploaded_file(filename):
     attachment = Attachment.query.filter_by(stored_filename=filename).first_or_404()
     ticket = attachment.ticket
-    if not (current_user.is_admin or current_user.is_agent or 
-            current_user.id == attachment.uploaded_by_id or 
-            current_user.id == ticket.created_by_id or 
-            (ticket.assigned_to_id and current_user.id == ticket.assigned_to_id)):
-        flash("You do not have permission to download this file.", "danger")
-        return redirect(request.referrer or url_for('dashboard'))
+    if not (current_user.is_admin or current_user.is_agent or current_user.id == attachment.uploaded_by_id or current_user.id == ticket.created_by_id or (ticket.assigned_to_id and current_user.id == ticket.assigned_to_id)):
+        flash("You do not have permission to download this file.", "danger"); return redirect(request.referrer or url_for('dashboard'))
     try:
         upload_dir = app.config['UPLOAD_FOLDER']
-        if not os.path.isabs(upload_dir):
-            upload_dir = os.path.join(current_app.root_path, upload_dir)
+        if not os.path.isabs(upload_dir): upload_dir = os.path.join(current_app.root_path, upload_dir)
         return send_from_directory(upload_dir, attachment.stored_filename, as_attachment=True, download_name=attachment.filename)
-    except FileNotFoundError:
-        app.logger.error(f"Physical file not found: {attachment.stored_filename} in directory {upload_dir}")
-        flash("File not found on server. Please contact support.", "danger")
-        return redirect(request.referrer or url_for('dashboard'))
+    except FileNotFoundError: app.logger.error(f"Physical file not found: {attachment.stored_filename} in directory {upload_dir}"); flash("File not found on server. Please contact support.", "danger"); return redirect(request.referrer or url_for('dashboard'))
 
 @app.route('/agent/tickets/')
 @app.route('/agent/tickets/view/<view_name>')
 @agent_required
 def agent_ticket_list(view_name=None):
-    page = request.args.get('page', 1, type=int)
-    query = Ticket.query
-    list_title = "Agent Tickets"
+    page = request.args.get('page', 1, type=int); query = Ticket.query; list_title = "Agent Tickets"
     if view_name is None: view_name = 'my_unsolved'
-    if view_name == 'my_unsolved':
-        query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed']))
-        list_title = "Your Unsolved Tickets"
-    elif view_name == 'unassigned':
-        query = query.filter(Ticket.assigned_to_id.is_(None), Ticket.status == 'Open')
-        list_title = "Unassigned Open Tickets"
-    elif view_name == 'all_unsolved':
-        query = query.filter(Ticket.status.notin_(['Resolved', 'Closed']))
-        list_title = "All Unsolved Tickets"
+    if view_name == 'my_unsolved': query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed'])); list_title = "Your Unsolved Tickets"
+    elif view_name == 'unassigned': query = query.filter(Ticket.assigned_to_id.is_(None), Ticket.status == 'Open'); list_title = "Unassigned Open Tickets"
+    elif view_name == 'all_unsolved': query = query.filter(Ticket.status.notin_(['Resolved', 'Closed'])); list_title = "All Unsolved Tickets"
     elif view_name == 'recently_updated': list_title = "Recently Updated Tickets"
     elif view_name == 'pending': query = query.filter(Ticket.status == 'On Hold'); list_title = "Pending (On Hold) Tickets"
     elif view_name == 'recently_solved': query = query.filter(Ticket.status == 'Resolved'); list_title = "Recently Solved Tickets"
     elif view_name == 'current_tasks': query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status == 'In Progress'); list_title = "Your Current In-Progress Tickets"
-    else:
-        flash(f"Unknown ticket view: '{view_name}'. Defaulting to 'Your Unsolved Tickets'.", "warning")
-        query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed']))
-        list_title = "Your Unsolved Tickets"; view_name = 'my_unsolved'
-    
-    if view_name in ['recently_updated', 'recently_solved', 'all_unsolved', 'unassigned', 'pending']:
-        ordered_query = query.order_by(Ticket.updated_at.desc())
-    else:
-        priority_order = db.case({'Urgent': 1, 'High': 2, 'Medium': 3, 'Low': 4}, value=Ticket.priority, else_=5)
-        ordered_query = query.order_by(priority_order.asc(), Ticket.updated_at.desc())
+    else: flash(f"Unknown ticket view: '{view_name}'. Defaulting to 'Your Unsolved Tickets'.", "warning"); query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed'])); list_title = "Your Unsolved Tickets"; view_name = 'my_unsolved'
+    if view_name in ['recently_updated', 'recently_solved', 'all_unsolved', 'unassigned', 'pending']: ordered_query = query.order_by(Ticket.updated_at.desc())
+    else: priority_order = db.case({'Urgent': 1, 'High': 2, 'Medium': 3, 'Low': 4}, value=Ticket.priority, else_=5); ordered_query = query.order_by(priority_order.asc(), Ticket.updated_at.desc())
     tickets_pagination = ordered_query.paginate(page=page, per_page=10, error_out=False)
     return render_template('agent/ticket_list.html', title=list_title, tickets_pagination=tickets_pagination, current_view=view_name)
 
@@ -1057,61 +973,43 @@ def agent_ticket_list(view_name=None):
 def assign_ticket_to_me(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     if ticket.assigned_to_id is None or ticket.assigned_to_id != current_user.id:
-        old_assignee_name = ticket.assignee.username if ticket.assignee else "Unassigned"
-        old_status = ticket.status
-        status_changed = False
+        old_assignee_name = ticket.assignee.username if ticket.assignee else "Unassigned"; old_status = ticket.status; status_changed = False
         ticket.assigned_to_id = current_user.id
-        if ticket.status == 'Open': 
-            ticket.status = 'In Progress'; status_changed = True
-        log_interaction(ticket.id, 'ASSIGNMENT_CHANGE', user_id=current_user.id, 
-                        details={'old_value': old_assignee_name, 'new_value': current_user.username, 'field_display_name': 'Assignee'})
-        if status_changed: 
-            log_interaction(ticket.id, 'STATUS_CHANGE', user_id=current_user.id, 
-                            details={'old_value': old_status, 'new_value': ticket.status, 'field_display_name': 'Status'})
-        db.session.commit()
-        flash(f'Ticket #{ticket.id} has been assigned to you.', 'success')
-    elif ticket.assigned_to_id == current_user.id:
-        flash(f'Ticket #{ticket.id} is already assigned to you.', 'info')
-    else:
-        flash(f'Ticket #{ticket.id} is already assigned to another agent ({ticket.assignee.username if ticket.assignee else "Unknown"}).', 'warning')
+        if ticket.status == 'Open': ticket.status = 'In Progress'; status_changed = True
+        log_interaction(ticket.id, 'ASSIGNMENT_CHANGE', user_id=current_user.id, details={'old_value': old_assignee_name, 'new_value': current_user.username, 'field_display_name': 'Assignee'})
+        if status_changed: log_interaction(ticket.id, 'STATUS_CHANGE', user_id=current_user.id, details={'old_value': old_status, 'new_value': ticket.status, 'field_display_name': 'Status'})
+        db.session.commit(); flash(f'Ticket #{ticket.id} has been assigned to you.', 'success')
+    elif ticket.assigned_to_id == current_user.id: flash(f'Ticket #{ticket.id} is already assigned to you.', 'info')
+    else: flash(f'Ticket #{ticket.id} is already assigned to another agent ({ticket.assignee.username if ticket.assignee else "Unknown"}).', 'warning')
     return redirect(request.referrer or url_for('agent_ticket_list', view_name='unassigned'))
 
 # --- Admin Routes ---
 def _admin_list_options(model_class, template_name, title, order_by_attr='name'):
-    items = model_class.query.order_by(getattr(model_class, order_by_attr)).all()
-    model_name_slug = to_snake_case(model_class.__name__)
+    items = model_class.query.order_by(getattr(model_class, order_by_attr)).all(); model_name_slug = to_snake_case(model_class.__name__)
     return render_template(template_name, title=title, items=items, model_name=model_name_slug)
-
 def _admin_create_edit_option(model_class, form_class, list_url_func_name, item_id=None):
-    item = model_class.query.get_or_404(item_id) if item_id else None
-    form = form_class(obj=item if request.method == 'GET' and item else None)
-    type_name_raw = model_class.__name__.replace("Option",""); type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw])
+    item = model_class.query.get_or_404(item_id) if item_id else None; form = form_class(obj=item if request.method == 'GET' and item else None)
+    type_name_raw = model_class.__name__.replace("Option",""); type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw]);
     if not type_name_display.strip(): type_name_display = model_class.__name__ 
     legend = f'New {type_name_display}' if not item else f'Edit {type_name_display}: {getattr(item, "name", "Item")}'
     if form.validate_on_submit():
-        is_new = (item is None); option_instance = item or model_class()
-        existing_item_with_name_query = model_class.query.filter(model_class.name == form.name.data)
+        is_new = (item is None); option_instance = item or model_class(); existing_item_with_name_query = model_class.query.filter(model_class.name == form.name.data)
         if option_instance.id: existing_item_with_name_query = existing_item_with_name_query.filter(model_class.id != option_instance.id)
         existing_item_with_name = existing_item_with_name_query.first()
         if existing_item_with_name: form.name.errors.append(f'The name "{form.name.data}" already exists for {type_name_display}.')
         if not form.errors:
-            form.populate_obj(option_instance)
+            form.populate_obj(option_instance);
             if is_new: db.session.add(option_instance)
-            try: 
-                db.session.commit(); flash(f'{type_name_display} "{option_instance.name}" saved.', 'success'); return redirect(url_for(list_url_func_name))
-            except Exception as e: 
-                db.session.rollback(); flash(f'DB error saving {type_name_display}: {e}', 'danger'); app.logger.error(f"Error saving option {type_name_display} {option_instance.name}: {e}", exc_info=True)
+            try: db.session.commit(); flash(f'{type_name_display} "{option_instance.name}" saved.', 'success'); return redirect(url_for(list_url_func_name))
+            except Exception as e: db.session.rollback(); flash(f'DB error saving {type_name_display}: {e}', 'danger'); app.logger.error(f"Error saving option {type_name_display} {option_instance.name}: {e}", exc_info=True)
     return render_template('admin/create_edit_option.html', title=legend, form=form, legend=legend,item_type_name=type_name_display, list_url=url_for(list_url_func_name))
-
 def _admin_delete_option(model_class, item_id, list_url_func_name, related_ticket_attr_id=None, related_ticket_attr_name=None):
-    item = model_class.query.get_or_404(item_id); item_name = getattr(item, "name", "Item")
-    type_name_raw = model_class.__name__.replace("Option",""); type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw])
+    item = model_class.query.get_or_404(item_id); item_name = getattr(item, "name", "Item"); type_name_raw = model_class.__name__.replace("Option",""); type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw])
     if not type_name_display.strip(): type_name_display = model_class.__name__
     can_delete = True; query_filter = None
     if related_ticket_attr_id and hasattr(Ticket, related_ticket_attr_id): query_filter = (getattr(Ticket, related_ticket_attr_id) == item.id)
     elif related_ticket_attr_name and hasattr(Ticket, related_ticket_attr_name): query_filter = (getattr(Ticket, related_ticket_attr_name) == item.name)
-    if query_filter is not None and Ticket.query.filter(query_filter).first():
-        can_delete = False; flash(f'Cannot delete "{item_name}", as it is associated with one or more tickets.', 'danger')
+    if query_filter is not None and Ticket.query.filter(query_filter).first(): can_delete = False; flash(f'Cannot delete "{item_name}", as it is associated with one or more tickets.', 'danger')    
     if can_delete:
         try: db.session.delete(item); db.session.commit(); flash(f'{type_name_display} "{item_name}" deleted.', 'success')
         except Exception as e: db.session.rollback(); flash(f'Error deleting {type_name_display} "{item_name}": {e}', 'danger'); app.logger.error(f"Error deleting option {type_name_display} {item_name}: {e}", exc_info=True)
@@ -1119,39 +1017,30 @@ def _admin_delete_option(model_class, item_id, list_url_func_name, related_ticke
 
 @app.route('/admin/users')
 @admin_required
-def admin_user_list():
-    users = User.query.order_by(User.username).all()
-    share_form = ShareCredentialsForm()
-    return render_template('admin/user_list.html', title='Manage Users', users=users, share_form=share_form)
-
+def admin_user_list(): users = User.query.order_by(User.username).all(); share_form = ShareCredentialsForm(); return render_template('admin/user_list.html', title='Manage Users', users=users, share_form=share_form)
 @app.route('/admin/user/new', methods=['GET', 'POST'])
 @app.route('/admin/user/<int:user_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def admin_create_edit_user(user_id=None):
-    user_to_edit = User.query.get_or_404(user_id) if user_id else None
-    form = AdminUserForm(obj=user_to_edit if request.method == 'GET' and user_to_edit else None)
+    user_to_edit = User.query.get_or_404(user_id) if user_id else None; form = AdminUserForm(obj=user_to_edit if request.method == 'GET' and user_to_edit else None)
+    form.organization_id.choices = get_active_organization_choices() # Populate for admin form
     legend = 'Create New User' if not user_to_edit else f'Edit User: {user_to_edit.username}'
-    original_password_validators = list(form.password.validators)
-    original_password2_validators = list(form.password2.validators)
-    if not user_to_edit:
-        form.password.validators = [DataRequired(message="Password is required for new users.")] + [v for v in original_password_validators if not isinstance(v, Optional)]
-        form.password2.validators = [DataRequired(message="Please confirm the password.")] + [v for v in original_password2_validators if not isinstance(v, Optional)]
-    else:
-        form.password.validators = [Optional()] + [v for v in original_password_validators if not isinstance(v, (DataRequired, Optional))]
-        form.password2.validators = [EqualTo('password', message='Passwords must match if new password provided.')] + [Optional()] + [v for v in original_password2_validators if not isinstance(v, (DataRequired, Optional, EqualTo))]
+    original_password_validators = list(form.password.validators); original_password2_validators = list(form.password2.validators)
+    if not user_to_edit: form.password.validators = [DataRequired(message="Password is required for new users.")] + [v for v in original_password_validators if not isinstance(v, Optional)]; form.password2.validators = [DataRequired(message="Please confirm the password.")] + [v for v in original_password2_validators if not isinstance(v, Optional)]
+    else: form.password.validators = [Optional()] + [v for v in original_password_validators if not isinstance(v, (DataRequired, Optional))]; form.password2.validators = [EqualTo('password', message='Passwords must match if new password provided.')] + [Optional()] + [v for v in original_password2_validators if not isinstance(v, (DataRequired, Optional, EqualTo))]
     if form.validate_on_submit():
-        is_new_user = (user_to_edit is None); user = user_to_edit or User()
-        user_id_to_exclude = user.id if user.id else -1
+        is_new_user = (user_to_edit is None); user = user_to_edit or User(); user_id_to_exclude = user.id if user.id else -1
         if User.query.filter(User.username == form.username.data, User.id != user_id_to_exclude).first(): form.username.errors.append('This username is already taken.')
         if User.query.filter(User.email == form.email.data.lower(), User.id != user_id_to_exclude).first(): form.email.errors.append('This email address is already registered.')
         if not is_new_user and form.password.data and not form.password2.data: form.password2.errors.append("Please confirm the new password if you are changing it.")
         if not form.errors:
             user.username = form.username.data; user.email = form.email.data.lower(); user.role = form.role.data
+            user.organization_id = form.organization_id.data if form.organization_id.data != 0 else None # Set org from admin
             if form.password.data: user.set_password(form.password.data)
             if is_new_user: db.session.add(user)
-            try:
-                db.session.commit(); flash(f'User "{user.username}" has been {"created" if is_new_user else "updated"} successfully.', 'success'); return redirect(url_for('admin_user_list'))
+            try: db.session.commit(); flash(f'User "{user.username}" has been {"created" if is_new_user else "updated"} successfully.', 'success'); return redirect(url_for('admin_user_list'))
             except Exception as e: db.session.rollback(); flash(f'Database error: Could not save user. {str(e)}', 'danger'); app.logger.error(f"Admin user save error for '{form.username.data}': {e}", exc_info=True)
+    elif request.method == 'GET' and user_to_edit: form.organization_id.data = user_to_edit.organization_id or 0 # Pre-fill for edit
     return render_template('admin/create_edit_user.html', title=legend, form=form, legend=legend, user=user_to_edit)
 
 @app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
@@ -1163,31 +1052,24 @@ def admin_delete_user(user_id):
     else:
         deleted_username = user_to_delete.username
         try:
-            Ticket.query.filter_by(assigned_to_id=user_id).update({'assigned_to_id': None})
-            Attachment.query.filter_by(uploaded_by_id=user_id).delete(synchronize_session='fetch')
-            Comment.query.filter_by(user_id=user_id).delete(synchronize_session='fetch')
-            Interaction.query.filter_by(user_id=user_id).update({'user_id': None}, synchronize_session='fetch')
-            db.session.delete(user_to_delete); db.session.commit()
-            flash(f'User "{deleted_username}" and their associated comments/attachments deleted. Interactions anonymized.', 'success'); app.logger.info(f"Admin '{current_user.username}' deleted user '{deleted_username}'.")
+            Ticket.query.filter_by(assigned_to_id=user_id).update({'assigned_to_id': None}); Attachment.query.filter_by(uploaded_by_id=user_id).delete(synchronize_session='fetch')
+            Comment.query.filter_by(user_id=user_id).delete(synchronize_session='fetch'); Interaction.query.filter_by(user_id=user_id).update({'user_id': None}, synchronize_session='fetch')
+            db.session.delete(user_to_delete); db.session.commit(); flash(f'User "{deleted_username}" and their associated comments/attachments deleted. Interactions anonymized.', 'success'); app.logger.info(f"Admin '{current_user.username}' deleted user '{deleted_username}'.")
         except Exception as e: db.session.rollback(); flash(f'Error deleting user "{deleted_username}": {e}', 'danger'); app.logger.error(f"Error deleting user {user_id}: {e}", exc_info=True)
     return redirect(url_for('admin_user_list'))
 
 @app.route('/admin/user/<int:user_id>/share_credentials', methods=['POST'])
 @admin_required
 def admin_share_credentials(user_id):
-    user_to_share = User.query.get_or_404(user_id); admin_user = current_user
-    form = ShareCredentialsForm(request.form)
+    user_to_share = User.query.get_or_404(user_id); admin_user = current_user; form = ShareCredentialsForm(request.form)
     if form.validate():
-        recipient_email = form.recipient_email.data; subject = f"Account Information for Ticket System: {user_to_share.username}"
-        body_text = render_template('email/share_credentials_email.txt', user_being_shared=user_to_share, admin_user=admin_user)
+        recipient_email = form.recipient_email.data; subject = f"Account Information for Ticket System: {user_to_share.username}"; body_text = render_template('email/share_credentials_email.txt', user_being_shared=user_to_share, admin_user=admin_user)
         msg = Message(subject, recipients=[recipient_email], body=body_text)
-        try:
-            mail.send(msg); flash(f'Account info for "{user_to_share.username}" sent to {recipient_email}.', 'success'); app.logger.info(f"Admin '{admin_user.username}' shared credentials info for '{user_to_share.username}' with '{recipient_email}'.")
+        try: mail.send(msg); flash(f'Account info for "{user_to_share.username}" sent to {recipient_email}.', 'success'); app.logger.info(f"Admin '{admin_user.username}' shared credentials info for '{user_to_share.username}' with '{recipient_email}'.")
         except Exception as e: flash(f'Failed to send email: {e}', 'danger'); app.logger.error(f"Failed to send share credentials email for {user_to_share.username}: {e}", exc_info=True)
     else:
         for field_name, errors in form.errors.items():
-            label = getattr(getattr(form, field_name), 'label', None); label_text = label.text if label else field_name.replace("_", " ").title()
-            flash(f"Error in sharing form ({label_text}): {', '.join(errors)}", 'danger')
+            label = getattr(getattr(form, field_name), 'label', None); label_text = label.text if label else field_name.replace("_", " ").title(); flash(f"Error in sharing form ({label_text}): {', '.join(errors)}", 'danger')
     return redirect(url_for('admin_user_list'))
 
 @app.route('/admin/categories')
@@ -1299,34 +1181,17 @@ def init_db_command():
     try:
         with app.app_context():
             engine = db.engine 
-            if engine.name == 'mysql':
-                app.logger.info("MySQL detected. Attempting to disable FOREIGN_KEY_CHECKS.")
-                with engine.connect() as connection:
-                    connection.execute(db.text('SET FOREIGN_KEY_CHECKS = 0;'))
-                    if hasattr(connection, 'commit'): connection.commit() 
-            app.logger.info("Dropping all tables...")
-            db.drop_all()
-            app.logger.info("All tables dropped successfully.")
-            app.logger.info("Creating all tables...")
-            db.create_all()
-            app.logger.info("All tables created successfully.")
-            if engine.name == 'mysql':
-                app.logger.info("Attempting to re-enable FOREIGN_KEY_CHECKS for MySQL.")
-                with engine.connect() as connection:
-                    connection.execute(db.text('SET FOREIGN_KEY_CHECKS = 1;'))
-                    if hasattr(connection, 'commit'): connection.commit()
+            if engine.name == 'mysql': app.logger.info("MySQL detected. Attempting to disable FOREIGN_KEY_CHECKS."); connection = engine.connect(); connection.execute(db.text('SET FOREIGN_KEY_CHECKS = 0;')); connection.commit(); connection.close()
+            app.logger.info("Dropping all tables..."); db.drop_all(); app.logger.info("All tables dropped successfully.")
+            app.logger.info("Creating all tables..."); db.create_all(); app.logger.info("All tables created successfully.")
+            if engine.name == 'mysql': app.logger.info("Attempting to re-enable FOREIGN_KEY_CHECKS for MySQL."); connection = engine.connect(); connection.execute(db.text('SET FOREIGN_KEY_CHECKS = 1;')); connection.commit(); connection.close()
         print('Database tables dropped and recreated successfully.')
     except Exception as e:
-        app.logger.error(f"Error during init-db CLI command: {e}", exc_info=True)
-        print(f"Error during init-db: {e}")
+        app.logger.error(f"Error during init-db CLI command: {e}", exc_info=True); print(f"Error during init-db: {e}")
         if 'engine' in locals() and engine.name == 'mysql':
             try:
-                with app.app_context():
-                    with db.engine.connect() as connection:
-                        connection.execute(db.text('SET FOREIGN_KEY_CHECKS = 1;'))
-                        if hasattr(connection, 'commit'): connection.commit()
-            except Exception as fk_e:
-                app.logger.error(f"Failed to re-enable FOREIGN_KEY_CHECKS after error: {fk_e}")
+                with app.app_context(): connection = db.engine.connect(); connection.execute(db.text('SET FOREIGN_KEY_CHECKS = 1;')); connection.commit(); connection.close()
+            except Exception as fk_e: app.logger.error(f"Failed to re-enable FOREIGN_KEY_CHECKS after error: {fk_e}")
 
 @app.cli.command('create-initial-data')
 def create_initial_data_command():
@@ -1339,18 +1204,15 @@ def create_initial_data_command():
         print("Attempting to create initial users...")
         for u_data in users_data:
             existing_user = User.query.filter((User.username == u_data['username']) | (User.email == u_data['email'])).first()
-            if not existing_user:
-                user = User(username=u_data['username'], email=u_data['email'], role=u_data['role'])
-                user.set_password(u_data['password']); db.session.add(user)
-                print(f"  User '{u_data['username']}' created.")
+            if not existing_user: user = User(username=u_data['username'], email=u_data['email'], role=u_data['role']); user.set_password(u_data['password']); db.session.add(user); print(f"  User '{u_data['username']}' created.")
             else: print(f"  Skipping user '{u_data['username']}', already exists.")
         
         print("\nEnsuring default options...")
         options_map = {
+            OrganizationOption: ['CloudKeeper (CK)', 'Client Org A', 'Client Org B', 'Default Client Org'], # Added a default for clients if domain not mapped
             Category: ['Technical Support', 'Billing Inquiry', 'General Question', 'Feature Request'],
             CloudProviderOption: ['AWS', 'Azure', 'GCP', 'On-Premise', 'Other'],
             EnvironmentOption: ['Production', 'Staging', 'Development', 'Test', 'QA', 'UAT'],
-            OrganizationOption: ['CloudKeeper (CK)', 'Client Org A', 'Client Org B'],
             FormTypeOption: ['Technical', 'Billing', 'General Inquiry', 'Sales Query'],
             APNOpportunityOption: ['MAP', 'Well-Architected Review', 'New Service Adoption', 'Cost Optimization', 'Security Assessment', 'Test 1'],
             SupportModalOption: ['Basic Plan', 'Developer Plan', 'Business Plan', 'Enterprise Plan', 'Premium Plus']
@@ -1368,50 +1230,37 @@ def create_initial_data_command():
 
         print("\nEnsuring default Severity Levels...")
         severities_data = [
-            {'name': 'Severity 1 (Critical)', 'o': 1, 'd': 'Critical impact, system down or major functionality unusable.'},
-            {'name': 'Severity 2 (High)', 'o': 2, 'd': 'Significant impact, core functionality impaired or severely degraded.'},
-            {'name': 'Severity 3 (Medium)', 'o': 3, 'd': 'Moderate impact, non-critical functionality affected or minor issues.'},
-            {'name': 'Severity 4 (Low)', 'o': 4, 'd': 'Minor impact, cosmetic issue, question, or documentation error.'}
+            {'name': 'Severity 1 (Critical)', 'o': 1, 'd': 'Critical impact.'}, {'name': 'Severity 2 (High)', 'o': 2, 'd': 'Significant impact.'},
+            {'name': 'Severity 3 (Medium)', 'o': 3, 'd': 'Moderate impact.'}, {'name': 'Severity 4 (Low)', 'o': 4, 'd': 'Minor impact.'}
         ]
         created_severity_count = 0
         for sev_data in severities_data:
-            if not SeverityOption.query.filter_by(name=sev_data['name']).first():
-                db.session.add(SeverityOption(name=sev_data['name'], order=sev_data['o'], description=sev_data['d'], is_active=True)); created_severity_count +=1
+            if not SeverityOption.query.filter_by(name=sev_data['name']).first(): db.session.add(SeverityOption(name=sev_data['name'], order=sev_data['o'], description=sev_data['d'], is_active=True)); created_severity_count +=1
         if created_severity_count > 0: print(f"  Added {created_severity_count} new default Severity Levels.")
         else: print(f"  Default Severity Levels already exist or no new ones needed.")
         
-        try:
-            db.session.commit(); print("\nUsers, options, and severities committed successfully.")
+        try: db.session.commit(); print("\nUsers, options, and severities committed successfully.")
         except Exception as e: db.session.rollback(); print(f"\nError committing base data: {e}"); return 
 
-        client_user = User.query.filter_by(role='client').first()
-        admin_user = User.query.filter_by(role='admin').first()
+        client_user = User.query.filter_by(role='client').first(); admin_user = User.query.filter_by(role='admin').first()
         if not client_user or not admin_user: print("\nSkipping dummy ticket: Default client or admin user not found."); return
-
         first_ticket = Ticket.query.order_by(Ticket.id.asc()).first()
         if not first_ticket: 
             print("\nNo existing tickets found. Creating a dummy ticket...")
-            default_category = Category.query.filter_by(name='Technical Support').first()
-            default_severity_opt = SeverityOption.query.filter_by(name='Severity 1 (Critical)').first()
-            default_org = OrganizationOption.query.filter_by(name='CloudKeeper (CK)').first()
-            default_form_type = FormTypeOption.query.filter_by(name='Technical').first()
-            default_apn_opp = APNOpportunityOption.query.filter_by(name='Test 1').first()
-            default_cloud_provider = CloudProviderOption.query.filter_by(name='AWS').first()
-            default_env = EnvironmentOption.query.filter_by(name='Production').first()
-            if not all([default_category, default_severity_opt, default_org, default_form_type, default_apn_opp, default_cloud_provider, default_env]):
-                print("  Could not find all necessary default options for dummy ticket. Skipping."); return
+            # Fetch necessary default options by name
+            cat = Category.query.filter_by(name='Technical Support').first()
+            sev = SeverityOption.query.filter_by(name='Severity 1 (Critical)').first()
+            org = OrganizationOption.query.filter_by(name='CloudKeeper (CK)').first() or client_user.organization # Fallback to client's org
+            form_type = FormTypeOption.query.filter_by(name='Technical').first()
+            
+            if not all([cat, sev, org, form_type]): print("  Could not find all necessary default options for dummy ticket. Skipping."); return
 
             first_ticket = Ticket(
-                title="Sample Ticket for Demo", description="This is a test ticket with various fields filled.",
-                created_by_id=client_user.id, status='Open', priority='Urgent',
-                category_id=default_category.id,
-                cloud_provider=default_cloud_provider.name, severity=default_severity_opt.name,
-                aws_service='EC2 - Elastic Compute Cloud', aws_account_id='123456789012', environment=default_env.name,
-                organization_id=default_org.id, form_type_id=default_form_type.id,
-                tags='aws, ec2, critical, demo', customer_name=client_user.username, # Customer name required
-                # Fields not on create form, but can be set by admin/agent later
-                effort_required_to_resolve_min=120, apn_opportunity_id=default_apn_opp.id,
-                apn_opportunity_description="Demo APN opportunity details."
+                title="Urgent Server Down Issue", description="Production server is unresponsive after recent update.",
+                created_by_id=client_user.id, status='Open', priority='Urgent', category_id=cat.id,
+                severity=sev.name, organization_id=org.id, form_type_id=form_type.id,
+                customer_name=client_user.get_organization_name() or client_user.username, # Use org name or username
+                cloud_provider="AWS", aws_account_id="123456789012", environment="Production"
             )
             db.session.add(first_ticket)
             try:
@@ -1430,9 +1279,6 @@ if __name__ == '__main__':
         upload_folder_path_at_startup = os.path.join(app.root_path, upload_folder_path_at_startup)
         app.config['UPLOAD_FOLDER'] = upload_folder_path_at_startup 
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        try:
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            app.logger.info(f"Startup: Upload folder ensured/created at: {app.config['UPLOAD_FOLDER']}")
-        except OSError as e:
-            app.logger.critical(f"CRITICAL: Could not create upload folder {app.config['UPLOAD_FOLDER']}: {e}. Check path and permissions.", exc_info=True)
+        try: os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True); app.logger.info(f"Startup: Upload folder ensured/created at: {app.config['UPLOAD_FOLDER']}")
+        except OSError as e: app.logger.critical(f"CRITICAL: Could not create upload folder {app.config['UPLOAD_FOLDER']}: {e}. Check path and permissions.", exc_info=True)
     app.run(debug=True, host='0.0.0.0', port=5000)
