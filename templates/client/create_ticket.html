@@ -19,7 +19,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-10 col-lg-9"> {# Slightly wider for better layout #}
+    <div class="col-md-10 col-lg-9"> {# Wider for better layout of many fields #}
         <div class="card mt-4 shadow-sm">
             <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
             <div class="card-body p-4">
@@ -33,21 +33,24 @@
                     </div>
 
                     <div class="form-row">
+                        {# Organization Field Logic #}
                         {% if current_user.is_client and user_organization_name %}
                             <div class="form-group col-md-6">
                                 <label class="form-control-label">Organization</label>
                                 <input type="text" class="form-control" value="{{ user_organization_name }}" readonly
-                                       title="Your organization is automatically set based on your registration.">
-                                {# The actual organization_id will be taken from current_user on the backend #}
+                                       title="Your organization is automatically set.">
+                                {# The actual organization_id will be taken from current_user on the backend if this input is readonly/not submitted #}
+                                {# If you need to submit it anyway (e.g. if user can override in some cases not covered here): #}
+                                {# <input type="hidden" name="organization_id" value="{{ current_user.organization_id }}"> #}
                             </div>
-                        {% elif current_user.is_agent or current_user.is_admin or not user_organization_name %}
-                             {# Agents/Admins or Clients without a pre-set org see the dropdown #}
+                        {% else %} {# Agent/Admin or Client without a pre-set organization can select #}
                             <div class="form-group col-md-6">
                                 {{ form.organization_id.label(class="form-control-label") }}
                                 {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
                                 {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                             </div>
                         {% endif %}
+
                         <div class="form-group col-md-6">
                             {{ form.form_type_id.label(class="form-control-label") }}
                             {{ form.form_type_id(class="form-control custom-select" + (" is-invalid" if form.form_type_id.errors else "")) }}
@@ -65,9 +68,16 @@
                         {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else "")) }}
                         {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
-                     <div class="form-group">
+                    
+                    {# Customer Company Name - Always present, but might be pre-filled for clients with org #}
+                    <div class="form-group">
                         {{ form.customer_name.label(class="form-control-label") }}
-                        {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), placeholder="Your Company Name") }}
+                        {% if current_user.is_client and user_organization_name %}
+                            {# Pre-fill if client has an organization, but still allow edit unless you make it readonly #}
+                            {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), value=user_organization_name, placeholder="Your Company Name") }}
+                        {% else %}
+                            {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), placeholder="Your Company Name") }}
+                        {% endif %}
                         {% for error in form.customer_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
 
@@ -170,9 +180,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (cloudProviderSelect) {
         cloudProviderSelect.addEventListener('change', toggleAwsService);
-        // Call it once on load to set initial state
         toggleAwsService(); 
     }
+
+    // Pre-fill customer name for client with organization if it's not already filled by WTForms obj
+    // This is an alternative/enhancement to setting value attribute in Jinja
+    {% if current_user.is_client and user_organization_name %}
+        var customerNameField = document.getElementById('customer_name'); // Ensure your form.customer_name has id="customer_name"
+        if (customerNameField && !customerNameField.value) { // Only fill if empty
+            // customerNameField.value = "{{ user_organization_name|e }}"; // Already handled by form.customer_name(value=...)
+        }
+        // If you want to make it readonly for clients with an org:
+        // if (customerNameField) { customerNameField.readOnly = true; }
+        // If you want to hide Organization dropdown for clients with an org:
+        var orgDropdown = document.getElementById('organization_id'); // Ensure your form.organization_id has id="organization_id"
+        // if (orgDropdown) { orgDropdown.parentElement.style.display = 'none'; } // Hides the form-group
+    {% endif %}
 });
 </script>
 {% endblock %}
