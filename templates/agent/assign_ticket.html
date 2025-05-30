@@ -11,11 +11,17 @@
             </div>
             <div class="card-body">
                 <p><strong>Current Assignee:</strong> {{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</p>
-                <form method="POST"> {# Action URL would need to be defined in a new route #}
-                    {{ form.hidden_tag() }} {# Assuming a new WTForm for this specific action #}
+                
+                {# This form assumes you have a 'form' object passed for assignment.
+                   If assignment is handled differently (e.g., via AgentUpdateTicketForm on view_ticket),
+                   this template might need adjustment or a dedicated route and form.
+                #}
+                {% if form %}
+                <form method="POST"> 
+                    {{ form.hidden_tag() }}
                     <div class="form-group">
                         {{ form.assigned_to_id.label(class="form-control-label") }}
-                        {{ form.assigned_to_id(class="form-control") }}
+                        {{ form.assigned_to_id(class="form-control custom-select " + ("is-invalid" if form.assigned_to_id.errors else "")) }}
                         {% if form.assigned_to_id.errors %}
                             <div class="invalid-feedback d-block">
                                 {% for error in form.assigned_to_id.errors %}<span>{{ error }}</span>{% endfor %}
@@ -27,6 +33,10 @@
                         <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary">Cancel</a>
                     </div>
                 </form>
+                {% else %}
+                 <p class="text-muted"><em>Assignment functionality via this page is not currently configured with a form. Re-assign via the main ticket view page if available.</em></p>
+                 <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary">Back to Ticket</a>
+                {% endif %}
             </div>
         </div>
     </div>

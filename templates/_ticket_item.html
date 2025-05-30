@@ -13,7 +13,7 @@
                     {% elif ticket.priority == 'Medium' %}badge-primary
                     {% else %}badge-secondary{% endif %} p-1">{{ ticket.priority }}</span>
                 </small><br>
-                <small class="text-muted">Category: {{ ticket.category.name if ticket.category else 'N/A' }}</small>
+                <small class="text-muted">Category: {{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</small>
             </div>
             <div class="col-md-6 text-md-right">
                  <small class="text-muted">Created by: {{ ticket.creator.username }} on {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</small><br>

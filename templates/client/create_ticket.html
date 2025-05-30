@@ -1,8 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block head_extra %}
+<style>
+    .form-control-label { font-weight: 600; } 
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-7">
+    <div class="col-md-10 col-lg-8">
         <div class="card mt-4 shadow-sm">
             <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
             <div class="card-body p-4">
@@ -15,23 +22,47 @@
                         {% for error in form.title.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.organization_id.label(class="form-control-label") }}
+                            {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
+                            {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {{ form.form_type_id.label(class="form-control-label") }}
+                            {{ form.form_type_id(class="form-control custom-select" + (" is-invalid" if form.form_type_id.errors else "")) }}
+                            {% for error in form.form_type_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    
                     <div class="form-group">
                         {{ form.category.label(class="form-control-label") }}
                         {{ form.category(class="form-control custom-select" + (" is-invalid" if form.category.errors else "")) }}
                         {% for error in form.category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
+                    <div class="form-group">
+                        {{ form.severity.label(class="form-control-label") }}
+                        {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else "")) }}
+                        {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                     <div class="form-group">
+                        {{ form.customer_name.label(class="form-control-label") }} <!-- Now required -->
+                        {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), placeholder="Your Company Name") }}
+                        {% for error in form.customer_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+
                     <hr>
-                    <h5 class="mt-4 mb-3">Additional Details</h5>
+                    <h5 class="mt-4 mb-3">Cloud & Environment Details (Optional)</h5>
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             {{ form.cloud_provider.label(class="form-control-label") }}
                             {{ form.cloud_provider(class="form-control custom-select" + (" is-invalid" if form.cloud_provider.errors else ""), id="cloudProviderSelectCreate") }}
                             {% for error in form.cloud_provider.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
-                        <div class="form-group col-md-6">
-                            {{ form.severity.label(class="form-control-label") }}
-                            {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else "")) }}
-                            {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                         <div class="form-group col-md-6">
+                            {{ form.environment.label(class="form-control-label") }}
+                            {{ form.environment(class="form-control custom-select" + (" is-invalid" if form.environment.errors else "")) }}
+                            {% for error in form.environment.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
                     </div>
                     <div class="form-group" id="awsServiceGroupCreate" style="display:none;">
@@ -44,18 +75,37 @@
                         {{ form.aws_account_id(class="form-control" + (" is-invalid" if form.aws_account_id.errors else ""), placeholder="e.g., 123456789012") }}
                         {% for error in form.aws_account_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
-                    <div class="form-group">
-                        {{ form.environment.label(class="form-control-label") }}
-                        {{ form.environment(class="form-control custom-select" + (" is-invalid" if form.environment.errors else "")) }}
-                        {% for error in form.environment.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-                    <hr>
 
+                    <hr>
+                    <h5 class="mt-4 mb-3">Contact Information (Optional)</h5>
+                     <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.request_call_back.label(class="form-control-label") }}
+                            {{ form.request_call_back(class="form-control custom-select" + (" is-invalid" if form.request_call_back.errors else "")) }}
+                            {% for error in form.request_call_back.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {{ form.contact_details.label(class="form-control-label") }}
+                            {{ form.contact_details(class="form-control" + (" is-invalid" if form.contact_details.errors else ""), placeholder="Phone or Email for callback") }}
+                            {% for error in form.contact_details.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ form.support_modal_id.label(class="form-control-label") }}
+                        {{ form.support_modal_id(class="form-control custom-select" + (" is-invalid" if form.support_modal_id.errors else "")) }}
+                        {% for error in form.support_modal_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        {{ form.tags.label(class="form-control-label") }}
+                        {{ form.tags(class="form-control" + (" is-invalid" if form.tags.errors else ""), placeholder="e.g., aws, ec2, urgent (comma-separated)") }}
+                        {% for error in form.tags.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
                     <div class="form-group">
                         {{ form.additional_recipients.label(class="form-control-label") }}
                         {{ form.additional_recipients(class="form-control" + (" is-invalid" if form.additional_recipients.errors else ""), rows="2", placeholder="john.doe@example.com, jane.doe@example.com") }}
                         {% for error in form.additional_recipients.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
+
                     <hr>
                     <div class="form-group">
                         {{ form.description.label(class="form-control-label") }}
@@ -65,7 +115,6 @@
                     <div class="form-group">
                         {{ form.attachments.label(class="form-control-label") }}
                         {{ form.attachments(class="form-control-file" + (" is-invalid" if form.attachments.errors else "")) }}
-                        {# Accessing config via 'app' context processor #}
                         <small class="form-text text-muted">Max file size: {{ (app.config.MAX_CONTENT_LENGTH / (1000*1000)) | int }}MB. Allowed types: {{ app.config.ALLOWED_EXTENSIONS|join(', ') }}</small>
                         {% for error in form.attachments.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
@@ -79,6 +128,7 @@
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 {{ super() }}
 <script>

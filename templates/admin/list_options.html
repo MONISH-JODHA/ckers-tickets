@@ -5,6 +5,7 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>{{ title }}</h2>
+        {# model_name is already snake_cased by the to_snake_case function applied in the route #}
         {% set new_url_name = 'admin_create_edit_' + model_name %}
         <a href="{{ url_for(new_url_name) }}" class="btn btn-success">
             <i class="fas fa-plus mr-1"></i> New {{ model_name.replace('_', ' ').title() }}
@@ -18,13 +19,21 @@
                 <thead class="thead-light">
                     <tr>
                         <th>Name</th>
+                        {# Specific columns for certain types of options #}
                         {% if model_name == 'category' or model_name == 'severity' %}
                             <th>Description</th>
                         {% endif %}
                         {% if model_name == 'severity' %}
                             <th>Order</th>
                         {% endif %}
-                        {% if model_name in ['cloudprovider', 'severity', 'environment'] %} {# Corrected model_name for cloudprovider #}
+                        
+                        {# Generic 'Active' column for all models that have this attribute #}
+                        {# This assumes all listed models here have an 'is_active' attribute #}
+                        {% set models_with_active_flag = [
+                            'cloud_provider', 'severity', 'environment', 
+                            'organization', 'form_type', 'apn_opportunity', 'support_modal'
+                        ] %}
+                        {% if model_name in models_with_active_flag %}
                             <th>Active</th>
                         {% endif %}
                         <th style="width: 15%;">Actions</th>
@@ -43,7 +52,7 @@
                             <td>{{ item.order | default('N/A', true) }}</td>
                         {% endif %}
 
-                        {% if model_name in ['cloudprovider', 'severity', 'environment'] %} {# Corrected model_name for cloudprovider #}
+                        {% if model_name in models_with_active_flag %}
                             <td>
                                 {% if item.is_active %}
                                     <span class="badge badge-success">Yes</span>

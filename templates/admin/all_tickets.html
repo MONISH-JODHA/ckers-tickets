@@ -35,7 +35,7 @@
                         <select name="category_id" id="category_id" class="form-control">
                             <option value="">All Categories</option>
                             {% for category in categories %}
-                            <option value="{{ category.id }}" {% if current_filters.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                            <option value="{{ category.id }}" {% if current_filters.category_id == category.id|string %}selected{% endif %}>{{ category.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -43,9 +43,9 @@
                         <label for="assigned_to_id">Assigned To</label>
                         <select name="assigned_to_id" id="assigned_to_id" class="form-control">
                             <option value="">Any Agent</option>
-                            <option value="0" {% if current_filters.assigned_to_id == 0 %}selected{% endif %}>Unassigned</option>
+                            <option value="0" {% if current_filters.assigned_to_id == "0" %}selected{% endif %}>Unassigned</option>
                             {% for agent in agents %}
-                            <option value="{{ agent.id }}" {% if current_filters.assigned_to_id == agent.id %}selected{% endif %}>{{ agent.username }}</option>
+                            <option value="{{ agent.id }}" {% if current_filters.assigned_to_id == agent.id|string %}selected{% endif %}>{{ agent.username }}</option>
                             {% endfor %}
                         </select>
                     </div>

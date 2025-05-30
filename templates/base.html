@@ -53,11 +53,17 @@
                             </a>
                             <div class="dropdown-menu" aria-labelledby="adminDropdown">
                                 <a class="dropdown-item" href="{{ url_for('admin_user_list') }}">Manage Users</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_all_tickets') }}">View All Tickets</a>
+                                <div class="dropdown-divider"></div>
+                                <h6 class="dropdown-header">Ticket Options</h6>
                                 <a class="dropdown-item" href="{{ url_for('admin_category_list') }}">Manage Categories</a>
                                 <a class="dropdown-item" href="{{ url_for('admin_cloud_provider_list') }}">Manage Cloud Providers</a>
                                 <a class="dropdown-item" href="{{ url_for('admin_severity_list') }}">Manage Severities</a>
                                 <a class="dropdown-item" href="{{ url_for('admin_environment_list') }}">Manage Environments</a>
-                                <a class="dropdown-item" href="{{ url_for('admin_all_tickets') }}">All Tickets</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_organization_list') }}">Manage Organizations</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_form_type_list') }}">Manage Form Types</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_apn_opportunity_list') }}">Manage APN Opportunities</a>
+                                <a class="dropdown-item" href="{{ url_for('admin_support_modal_list') }}">Manage Support Modals</a>
                             </div>
                         </li>
                         {% endif %}
@@ -66,7 +72,7 @@
                 <ul class="navbar-nav ml-auto">
                      {% if current_user.is_authenticated %}
                         <li class="nav-item">
-                            <span class="navbar-text mr-3">Logged in as {{ current_user.username }} ({{ current_user.role }})</span>
+                            <span class="navbar-text mr-3">Logged in as {{ current_user.username }} ({{ current_user.role|capitalize }})</span>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Logout</a>
@@ -84,7 +90,7 @@
         </div>
     </nav>
 
-    <div class="container mt-3"> {# Reduced top margin since navbar is fixed #}
+    <div class="container mt-3">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -100,57 +106,30 @@
         {% block content %}{% endblock %}
     </div>
 
-    <footer class="mt-5 mb-3">
-        <p>© {{ current_year }} Ticket CMS. All rights reserved.</p>
+    <footer class="footer mt-auto py-3 bg-light text-center">
+        <div class="container">
+            <span class="text-muted">© {{ current_year }} Ticket CMS. All rights reserved.</span>
+        </div>
     </footer>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     {% block scripts %}{% endblock %}
-    <!-- In your base.html, preferably before the closing </body> tag -->
-<script>
+    
+    <script>
     window.addEventListener('pageshow', function(event) {
-        // event.persisted is true if the page is being restored from the bfcache
         if (event.persisted) {
-            // You could try a simple reload:
-            // window.location.reload();
-    
-            // Or, a more targeted check if you can determine auth status client-side (difficult and less secure)
-            // For now, a simple reload on bfcache restore might be a test.
-            // However, this can lead to loops if not careful.
-    
-            // A safer approach if you have a way to PING the server for auth status:
-            // fetch('/check-auth-status') // A hypothetical endpoint
-            //   .then(response => response.json())
-            //   .then(data => {
-            //     if (!data.authenticated && window.location.pathname !== "{{ url_for('login') }}" && window.location.pathname !== "{{ url_for('index') }}") {
-            //       // If server says not authenticated and we are not on login/index, force redirect
-            //       console.log('Page restored from bfcache, user not authenticated on server, redirecting to login.');
-            //       window.location.href = "{{ url_for('login') }}?next=" + encodeURIComponent(window.location.pathname + window.location.search);
-            //     } else if (data.authenticated && window.location.pathname === "{{ url_for('login') }}") {
-            //       // If server says authenticated and we are on login page, redirect to dashboard
-            //       console.log('Page restored from bfcache, user authenticated on server but on login page, redirecting to dashboard.');
-            //       window.location.href = "{{ url_for('dashboard') }}";
-            //     }
-            //   });
-            
-            // For now, just log that it happened from bfcache
-            console.log('Page was restored from bfcache (persisted: ' + event.persisted + ')');
-            // A forced reload is often too aggressive and can cause issues.
-            // The cache-control headers are the primary server-side mechanism.
+            console.log('Page was restored from bfcache (persisted: ' + event.persisted + '). Consider server-side cache-control headers to manage this behavior.');
         }
     });
-    $(function () {
-        // Initialize Tooltips
-        $('[data-toggle="tooltip"]').tooltip();
 
-        // Initialize Popovers
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip();
         $('[data-toggle="popover"]').popover({
-            html: true // Allow HTML content in popovers
+            html: true 
         });
     });
-
     </script>
 </body>
 </html>

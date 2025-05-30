@@ -4,105 +4,132 @@ body {
     background-color: #f8f9fa; 
     color: #343a40; 
     line-height: 1.6;
-    padding-top: 70px; 
+    padding-top: 70px; /* For fixed navbar */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
-.container { max-width: 1140px; }
+.container { 
+    max-width: 1140px;
+    flex-grow: 1; /* Allows container to grow and push footer down */
+}
 h1, h2, h3, h4, h5, h6 { font-weight: 500; color: #007bff; }
 h1.display-4 { color: #343a40; }
 a { color: #0056b3; }
 a:hover { color: #003d80; text-decoration: none; }
-.navbar { box-shadow: 0 2px 4px rgba(0,0,0,.1); position: fixed; top: 0; width: 100%; z-index: 1030; }
+
+/* Navbar */
+.navbar { 
+    box-shadow: 0 2px 4px rgba(0,0,0,.1); 
+    position: fixed; 
+    top: 0; 
+    width: 100%; 
+    z-index: 1030; 
+}
 .navbar-brand { font-weight: bold; font-size: 1.5rem; }
 .navbar-dark .navbar-nav .nav-link { color: rgba(255,255,255,.85); }
 .navbar-dark .navbar-nav .nav-link:hover, .navbar-dark .navbar-nav .nav-link.active { color: #fff; }
 .navbar-text { font-size: 0.9rem; }
+
+/* Cards */
 .card { border: 1px solid #e0e0e0; margin-bottom: 1.5rem; }
 .card-header { font-weight: 600; font-size: 1.2rem; background-color: #e9ecef; border-bottom: 1px solid #dee2e6;}
-.card-header.bg-primary { background-color: #007bff !important; color: white; }
-.card-header.bg-primary h2 { color: white; }
+.card-header.bg-primary, .card-header.bg-info { color: white; } /* Ensure text is white on dark headers */
+.card-header.bg-primary h2, .card-header.bg-info h5 { color: white; }
 .card-body { padding: 1.5rem; }
+
+/* Forms */
 .form-control-label { font-weight: 600; margin-bottom: .3rem; display: block; }
 .form-control, .custom-select { border-radius: .25rem; border: 1px solid #ced4da; }
 .form-control:focus, .custom-select:focus { border-color: #80bdff; box-shadow: 0 0 0 .2rem rgba(0,123,255,.25); }
 .form-group { margin-bottom: 1.25rem; }
-.btn-primary { background-color: #007bff; border-color: #007bff; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; }
-.btn-primary:hover { background-color: #0056b3; border-color: #0056b3; }
-.btn-secondary { transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; }
+textarea.form-control { min-height: 120px; }
 .invalid-feedback.d-block { font-size: 0.875em; margin-top: .25rem; }
 .form-control.is-invalid, .was-validated .form-control:invalid { border-color: #dc3545; }
-textarea.form-control { min-height: 120px; }
-.btn { font-weight: 500; padding: .5rem 1rem; border-radius: .25rem; }
+.form-control-file.is-invalid ~ .invalid-feedback { display: block; }
+
+
+/* Buttons */
+.btn { font-weight: 500; padding: .5rem 1rem; border-radius: .25rem; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; }
+.btn-primary { background-color: #007bff; border-color: #007bff; }
+.btn-primary:hover { background-color: #0056b3; border-color: #0056b3; }
 .btn-lg { padding: .75rem 1.5rem; font-size: 1.1rem; }
+
+/* Alerts */
 .alert { border-radius: .25rem; padding: 1rem 1.25rem; }
-footer { padding: 2rem 0; background-color: #343a40; color: #adb5bd; margin-top: 3rem; text-align: center;}
-footer p { margin-bottom: 0; }
-.ticket-list .list-group-item { padding: 1rem 1.25rem; border-left: 4px solid transparent; transition: background-color 0.15s ease-in-out; }
-.ticket-list .list-group-item:hover { background-color: #f1f1f1; }
-.ticket-priority-Urgent { border-left-color: #dc3545 !important; }
-.ticket-priority-High { border-left-color: #ffc107 !important; }
-.ticket-priority-Medium { border-left-color: #17a2b8 !important; }
-.ticket-priority-Low { border-left-color: #6c757d !important; }
-.ticket-details-card .card-header { font-size: 1.5rem; }
-.comment-box { border: 1px solid #ddd; padding: 1rem; margin-bottom: 1rem; border-radius: .25rem; background-color: #fff; }
-.comment-box .comment-author { font-weight: bold; color: #007bff; }
-.comment-box .comment-meta { font-size: 0.85em; color: #6c757d; margin-bottom: 0.5rem; }
-.comment-box .comment-content { white-space: pre-wrap; }
-.comment-box.internal-note { background-color: #fff3cd; border-left: 4px solid #ffeeba; }
-.attachment-list li { margin-bottom: 0.5rem; }
-.attachment-list li a { margin-right: 10px; }
-.admin-table th { background-color: #e9ecef; }
-.admin-table .btn-sm { margin-right: 5px; }
-.auth-card { max-width: 450px; margin: 2rem auto; }
-@media (max-width: 768px) {
-    body { padding-top: 56px; }
-    .jumbotron h1.display-4 { font-size: 2.5rem; }
-    .form-row .form-group { margin-bottom: 1rem; }
+
+/* Footer */
+.footer { 
+    padding: 1rem 0; /* Reduced padding */
+    background-color: #f8f9fa; /* Lighter footer */
+    color: #6c757d; 
+    text-align: center;
+    border-top: 1px solid #e7e7e7;
+    margin-top: 2rem; /* Ensure some space before footer */
 }
-.filter-form .form-group { margin-right: 10px; margin-bottom: 10px; }
-.filter-form .form-control, .filter-form .custom-select { display: inline-block; width: auto; vertical-align: middle; }
-.filter-form label { margin-right: 5px; }
-.text-muted-light { color: #868e96 !important; }
-.custom-select { background: #fff url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='4' height='5' viewBox='0 0 4 5'%3e%3cpath fill='%23343a40' d='M2 0L0 2h4zm0 5L0 3h4z'/%3e%3c/svg%3e") right .75rem center/8px 10px no-repeat; }
+.footer p { margin-bottom: 0; }
 
 
+/* Specific Ticket Item Styles */
+.ticket-description-area {
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: .25rem;
+    border: 1px solid #dee2e6;
+    white-space: pre-wrap;
+}
+.apn-description-area {
+    max-height: 150px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    padding: 0.5rem;
+    border-radius: .25rem;
+    border: 1px solid #dee2e6;
+    white-space: pre-wrap;
+    font-size: 0.9em;
+}
+
+/* Timeline Styles from view_ticket.html head_extra */
 .timeline {
     list-style: none;
     padding: 0;
     position: relative;
-    font-size: 0.9rem; /* Slightly smaller base font for timeline */
+    font-size: 0.9rem;
 }
-.timeline:before { /* The central line */
+.timeline:before {
     content: '';
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 18px; /* Adjust based on icon size and desired spacing */
+    left: 18px;
     width: 2px;
-    background-color: #e9ecef; /* Lighter grey for the line */
+    background-color: #e9ecef;
 }
 .timeline-date-group {
     margin: 20px 0 10px 0;
-    padding-left: 0; /* Align with card body padding or specific design */
-    position: relative; /* Needed for z-index if badge overlaps line */
+    padding-left: 0;
+    position: relative;
 }
 .timeline-date-group .badge {
     font-size: 0.8rem;
     font-weight: 600;
     padding: .35em .65em;
-    display: inline-block; /* Make it behave well */
-    margin-left: 0px; /* Nudge to align with content below */
+    display: inline-block;
 }
 .timeline-item {
     margin-bottom: 15px;
     position: relative;
-    padding-left: 45px; /* Make space for icon + line */
+    padding-left: 45px; /* Space for icon */
+    min-height: 36px; /* Ensure alignment even with short content */
 }
 .timeline-icon {
     position: absolute;
-    left: 0;
-    top: 2px; /* Align icon nicely with text */
-    width: 36px; /* Icon container width */
-    height: 36px; /* Icon container height */
+    left: 0; /* Aligns with the start of padding-left */
+    top: 0; /* Aligns icon to the top of the item */
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -113,25 +140,21 @@ footer p { margin-bottom: 0; }
     border: 2px solid white; 
     box-shadow: 0 0 0 1px #dee2e6; /* Subtle border for light icons */
 }
-
-.timeline-icon.bg-primary, .timeline-icon.bg-success, .timeline-icon.bg-info, .timeline-icon.bg-warning, .timeline-icon.bg-danger {
+.timeline-icon.bg-primary, .timeline-icon.bg-success, .timeline-icon.bg-info, 
+.timeline-icon.bg-warning, .timeline-icon.bg-danger, .timeline-icon.bg-purple,
+.timeline-icon.bg-cyan, .timeline-icon.bg-teal, .timeline-icon.bg-dark {
     box-shadow: none; /* No extra border if it has a strong background */
 }
-.timeline-icon.bg-light { color: #495057; } /* Darker icon for light background */
+.timeline-icon.bg-light { color: #495057; }
 
 .timeline-content {
-    background-color: transparent; /* Matches screenshot better than a bordered box */
-    padding: 0px 5px 5px 5px; /* Minimal padding */
-    border-radius: 0.25rem;
+    padding: 0px 5px 5px 5px; /* Minimal padding for text content */
     position: relative;
     line-height: 1.4;
 }
-.timeline-content strong {
-    font-weight: 600;
-}
 .timeline-content .item-timestamp {
     font-size: 0.8em;
-    color: #6c757d; /* Muted color for timestamp */
+    color: #6c757d;
 }
 .timeline-content .item-title {
     display: block;
@@ -144,6 +167,9 @@ footer p { margin-bottom: 0; }
     color: #495057;
     margin-bottom: 3px;
 }
+.timeline-content .item-description strong {
+    font-weight: 600;
+}
 .timeline-content .item-meta {
     font-size: 0.75em;
     color: #6c757d;
@@ -154,44 +180,50 @@ footer p { margin-bottom: 0; }
     margin-top: 5px;
     font-size: 0.85em;
     color: #555;
-    max-height: 60px; /* Limit preview height */
+    max-height: 60px;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/* Card header buttons to match the image */
+/* Card header buttons for interaction history */
 .card-header .btn-outline-secondary {
     border-color: #ced4da; 
     color: #6c757d; 
-    padding: 0.25rem 0.5rem; /* Smaller padding for compact buttons */
-    font-size: 0.8rem; /* Smaller font */
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
 }
 .card-header .btn-outline-secondary i {
-    line-height: 1; /* Ensure icon aligns well */
+    line-height: 1;
 }
 .card-header .btn-outline-secondary:hover {
     background-color: #e9ecef;
 }
-#interactionHistoryBody {
-    max-height: 450px; 
-    overflow-y: auto;
-    padding-top: 10px; /* Add some space at the top of scrollable area */
-}
-/* Scrollbar styling (optional, webkit browsers) */
-#interactionHistoryBody::-webkit-scrollbar {
-  width: 6px;
-}
-#interactionHistoryBody::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-#interactionHistoryBody::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 3px;
-}
-#interactionHistoryBody::-webkit-scrollbar-thumb:hover {
-  background: #aaa;
-}
 
-/* static/css/style.css */
-.bg-purple { background-color: #6f42c1 !important; } /* Bootstrap purple or your choice */
-.bg-cyan { background-color: #17a2b8 !important; } /* Bootstrap info/cyan or your choice */
+#interactionHistoryBody {
+    max-height: 500px; 
+    overflow-y: auto;
+    padding-top: 10px;
+}
+#interactionHistoryBody::-webkit-scrollbar { width: 6px; }
+#interactionHistoryBody::-webkit-scrollbar-track { background: #f1f1f1; }
+#interactionHistoryBody::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+#interactionHistoryBody::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+/* Custom Background Colors */
+.bg-purple { background-color: #6f42c1 !important; }
+.bg-cyan { background-color: #17a2b8 !important; }
+.bg-teal { background-color: #20c997 !important; }
+
+
+/* Admin table specific styles */
+.admin-table th { background-color: #e9ecef; }
+.admin-table .btn-sm { margin-right: 5px; }
+
+/* Auth card for login/register */
+.auth-card { max-width: 450px; margin: 2rem auto; }
+
+@media (max-width: 768px) {
+    body { padding-top: 56px; } /* Adjust for smaller navbar height */
+    .jumbotron h1.display-4 { font-size: 2.5rem; }
+    .form-row .form-group { margin-bottom: 1rem; } /* Ensure spacing on mobile */
+}
