@@ -14,12 +14,21 @@
         border-bottom: 1px solid #e9ecef;
         color: #007bff; /* Primary color for section headers */
     }
+    .readonly-org-display { /* For displaying pre-set organization for clients */
+        background-color: #e9ecef; 
+        padding: .375rem .75rem;
+        border-radius: .25rem;
+        border: 1px solid #ced4da;
+        min-height: calc(1.5em + .75rem + 2px); /* Match select height */
+        display: flex;
+        align-items: center;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-10 col-lg-9"> {# Wider for better layout of many fields #}
+    <div class="col-md-10 col-lg-9">
         <div class="card mt-4 shadow-sm">
             <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
             <div class="card-body p-4">
@@ -34,22 +43,20 @@
 
                     <div class="form-row">
                         {# Organization Field Logic #}
-                        {% if current_user.is_client and user_organization_name %}
-                            <div class="form-group col-md-6">
-                                <label class="form-control-label">Organization</label>
-                                <input type="text" class="form-control" value="{{ user_organization_name }}" readonly
-                                       title="Your organization is automatically set.">
-                                {# The actual organization_id will be taken from current_user on the backend if this input is readonly/not submitted #}
-                                {# If you need to submit it anyway (e.g. if user can override in some cases not covered here): #}
-                                {# <input type="hidden" name="organization_id" value="{{ current_user.organization_id }}"> #}
-                            </div>
-                        {% else %} {# Agent/Admin or Client without a pre-set organization can select #}
-                            <div class="form-group col-md-6">
-                                {{ form.organization_id.label(class="form-control-label") }}
+                        <div class="form-group col-md-6">
+                            {{ form.organization_id.label(class="form-control-label") }}
+                            {% if user_is_client_with_org %}
+                                <p class="form-control-static readonly-org-display" title="Your organization is automatically set based on your registration.">
+                                    {{ user_organization_name }}
+                                </p>
+                                {# The actual organization_id will be taken from current_user on the backend #}
+                                {# No need to render the form field itself for the client if it's auto-set and non-editable #}
+                            {% else %} 
+                                {# Agents/Admins or Clients without a pre-set organization see the dropdown #}
                                 {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
                                 {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        {% endif %}
+                            {% endif %}
+                        </div>
 
                         <div class="form-group col-md-6">
                             {{ form.form_type_id.label(class="form-control-label") }}
@@ -69,12 +76,12 @@
                         {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     
-                    {# Customer Company Name - Always present, but might be pre-filled for clients with org #}
                     <div class="form-group">
                         {{ form.customer_name.label(class="form-control-label") }}
-                        {% if current_user.is_client and user_organization_name %}
-                            {# Pre-fill if client has an organization, but still allow edit unless you make it readonly #}
-                            {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), value=user_organization_name, placeholder="Your Company Name") }}
+                        {% if user_is_client_with_org %}
+                            {# Pre-fill and make readonly for client with org #}
+                            {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), value=user_organization_name, readonly=True, placeholder="Your Company Name") }}
+                             <small class="form-text text-muted">Company name is set based on your organization.</small>
                         {% else %}
                             {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), placeholder="Your Company Name") }}
                         {% endif %}
@@ -182,20 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
         cloudProviderSelect.addEventListener('change', toggleAwsService);
         toggleAwsService(); 
     }
-
-    // Pre-fill customer name for client with organization if it's not already filled by WTForms obj
-    // This is an alternative/enhancement to setting value attribute in Jinja
-    {% if current_user.is_client and user_organization_name %}
-        var customerNameField = document.getElementById('customer_name'); // Ensure your form.customer_name has id="customer_name"
-        if (customerNameField && !customerNameField.value) { // Only fill if empty
-            // customerNameField.value = "{{ user_organization_name|e }}"; // Already handled by form.customer_name(value=...)
-        }
-        // If you want to make it readonly for clients with an org:
-        // if (customerNameField) { customerNameField.readOnly = true; }
-        // If you want to hide Organization dropdown for clients with an org:
-        var orgDropdown = document.getElementById('organization_id'); // Ensure your form.organization_id has id="organization_id"
-        // if (orgDropdown) { orgDropdown.parentElement.style.display = 'none'; } // Hides the form-group
-    {% endif %}
 });
 </script>
 {% endblock %}

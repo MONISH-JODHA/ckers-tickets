@@ -483,16 +483,56 @@ def agent_required(f):
 # --- Helper functions for dynamic choices ---
 DOMAIN_TO_ORGANIZATION_MAP = {
     'cloudkeeper.com': 'CloudKeeper (CK)',
-    # Add more: 'example.com': 'Example Corp', 'clientdomain.com': 'Client Org A'
+    'jietjodhpur.ac.in': 'JIET Jodhpur' # Example added
+    # Add more: 'example.com': 'Example Corp', 
 }
 
-def get_organization_by_email_domain(email):
+def get_organization_by_email_domain(email, auto_create=True): # auto_create defaults to True now
     if '@' not in email: return None
     domain = email.split('@')[-1].lower()
+    
+    # Attempt 1: Direct mapping from DOMAIN_TO_ORGANIZATION_MAP
     org_name_from_map = DOMAIN_TO_ORGANIZATION_MAP.get(domain)
     if org_name_from_map:
-        return OrganizationOption.query.filter_by(name=org_name_from_map, is_active=True).first()
+        organization = OrganizationOption.query.filter_by(name=org_name_from_map, is_active=True).first()
+        if organization:
+            return organization
+        elif auto_create: # If mapped name doesn't exist in DB but should, create it
+            app.logger.info(f"Mapped organization '{org_name_from_map}' not found in DB for domain '{domain}'. Creating it.")
+            new_org = OrganizationOption(name=org_name_from_map, is_active=True)
+            db.session.add(new_org)
+            # The commit will happen in the calling route (e.g., register_client)
+            return new_org 
+    
+    # Attempt 2: If auto_create is True and no specific map entry, try to create one from the domain itself
+    if auto_create:
+        # Derive a plausible organization name from the domain.
+        # Example: "jietjodhpur.ac.in" -> "JIET Jodhpur" or "jietjodhpur"
+        # This is a simple derivation; more complex logic might be needed for varied domains.
+        parts = domain.split('.')
+        if len(parts) > 2 and parts[-2] in ['ac', 'co', 'com', 'org', 'gov', 'edu']: # common second-level domains
+            potential_org_name_base = parts[-3]
+        elif len(parts) > 1:
+            potential_org_name_base = parts[-2]
+        else:
+            potential_org_name_base = parts[0]
+        
+        # Try to make it a bit nicer: Jietjodhpur or Cloudkeeper
+        potential_org_name = potential_org_name_base.replace('-', ' ').title()
+
+        existing_org_by_derived_name = OrganizationOption.query.filter(OrganizationOption.name.ilike(potential_org_name)).first()
+        if existing_org_by_derived_name:
+            return existing_org_by_derived_name
+        
+        # If still not found, create a new one with the derived name
+        app.logger.info(f"No specific mapping or existing org found for domain '{domain}'. Auto-creating organization '{potential_org_name}'.")
+        new_org = OrganizationOption(name=potential_org_name, is_active=True)
+        db.session.add(new_org)
+        # The commit will happen in the calling route (e.g., register_client)
+        return new_org
+
     return None
+
 
 def get_active_choices(model_class, placeholder_text_id_0=None, placeholder_text_str_empty=None, order_by_attr='name'):
     query = model_class.query.filter_by(is_active=True).order_by(getattr(model_class, order_by_attr))
@@ -591,11 +631,19 @@ def register_client():
     form = UserSelfRegistrationForm()
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data.lower(), role='client'); user.set_password(form.password.data)
-        organization = get_organization_by_email_domain(user.email)
-        if organization: user.organization_id = organization.id; app.logger.info(f"User '{user.username}' auto-assigned to org '{organization.name}'.")
-        else: app.logger.info(f"No org found for domain of '{user.email}'.")
+        # Use auto_create=True to dynamically create Organization if not found by domain mapping or derived name
+        organization = get_organization_by_email_domain(user.email, auto_create=True) 
+        if organization: 
+            # If get_organization_by_email_domain created a new org, it needs to be flushed to get an ID
+            # if not organization.id: # This check is tricky if not committed yet
+            #    db.session.flush() # To get ID for newly created org
+            user.organization = organization # Assign the object
+            app.logger.info(f"User '{user.username}' associated with organization '{organization.name}'.")
+        else: app.logger.info(f"No organization could be determined or created for domain of '{user.email}'.")
         db.session.add(user)
-        try: db.session.commit(); flash('Client account created successfully! Please log in.', 'success'); return redirect(url_for('login'))
+        try: 
+            db.session.commit() # This will commit the user AND any new organization created by get_organization_by_email_domain
+            flash('Client account created successfully! Please log in.', 'success'); return redirect(url_for('login'))
         except Exception as e: db.session.rollback(); flash('Error during registration. Please try again.', 'danger'); app.logger.error(f"Client registration error: {e}", exc_info=True)
     return render_template('register_user.html', title='Register as Client', form=form, registration_type='Client', info_text='Submit and track your support tickets.')
 
@@ -624,9 +672,13 @@ def create_ticket():
     form.category.choices = get_active_category_choices(); form.cloud_provider.choices = get_active_cloud_provider_choices(); form.severity.choices = get_active_severity_choices()
     form.environment.choices = get_active_environment_choices(); form.form_type_id.choices = get_active_form_type_choices(); form.support_modal_id.choices = get_active_support_modal_choices()
     user_organization_object = current_user.organization; user_organization_name_for_template = user_organization_object.name if user_organization_object else None
-    if current_user.is_client and user_organization_object:
+    user_is_client_with_org_flag = current_user.is_client and user_organization_object is not None
+
+    if user_is_client_with_org_flag:
         form.organization_id.choices = [(user_organization_object.id, user_organization_object.name)]
-        if request.method == 'GET': form.organization_id.data = user_organization_object.id
+        if request.method == 'GET': 
+            form.organization_id.data = user_organization_object.id
+            if not form.customer_name.data : form.customer_name.data = user_organization_object.name
     else: form.organization_id.choices = get_active_organization_choices()
     if not form.category.choices[1:]: flash("Critical: No categories defined. Contact admin.", "danger")
     if not form.severity.choices[1:]: flash("Critical: No severity levels defined. Contact admin.", "danger")
@@ -642,28 +694,23 @@ def create_ticket():
                     else: form.attachments.errors.append(f"File type not allowed: {file_storage.filename}")
         if form.attachments.errors: flash('Error with attachments. Please correct and try again.', 'danger')
         else:
-            ticket_creator = current_user; ticket_org_id_to_save = None
-            if current_user.is_client and current_user.organization_id: ticket_org_id_to_save = current_user.organization_id
-            elif form.organization_id.data and form.organization_id.data != 0: ticket_org_id_to_save = form.organization_id.data
+            ticket_creator = current_user; ticket_org_id_to_save = None; customer_name_to_save = form.customer_name.data.strip()
+            if current_user.is_client:
+                if current_user.organization_id: ticket_org_id_to_save = current_user.organization_id
+                if not customer_name_to_save and current_user.organization: customer_name_to_save = current_user.organization.name
+            elif (current_user.is_agent or current_user.is_admin):
+                if form.organization_id.data and form.organization_id.data != 0: ticket_org_id_to_save = form.organization_id.data
             
-            customer_name_to_save = form.customer_name.data.strip()
-            if current_user.is_client and user_organization_object and not customer_name_to_save: # If client has org and didn't fill name, use org name
-                customer_name_to_save = user_organization_object.name
-
             ticket = Ticket(
                 title=form.title.data, description=form.description.data, created_by_id=ticket_creator.id,
-                organization_id=ticket_org_id_to_save,
-                form_type_id=form.form_type_id.data if form.form_type_id.data != 0 else None,
-                tags=form.tags.data.strip() if form.tags.data else None,
-                category_id=form.category.data if form.category.data != 0 else None,
-                cloud_provider=form.cloud_provider.data or None, 
-                severity=form.severity.data or None, 
+                organization_id=ticket_org_id_to_save, form_type_id=form.form_type_id.data if form.form_type_id.data != 0 else None,
+                tags=form.tags.data.strip() if form.tags.data else None, category_id=form.category.data if form.category.data != 0 else None,
+                cloud_provider=form.cloud_provider.data or None, severity=form.severity.data or None, 
                 aws_service=form.aws_service.data if form.cloud_provider.data == 'AWS' and form.aws_service.data else None, 
                 aws_account_id=form.aws_account_id.data.strip() if form.aws_account_id.data else None,
-                environment=form.environment.data or None,
-                request_call_back=form.request_call_back.data or None,
+                environment=form.environment.data or None, request_call_back=form.request_call_back.data or None,
                 contact_details=form.contact_details.data.strip() if form.contact_details.data else None,
-                customer_name=customer_name_to_save, # Use determined customer name
+                customer_name=customer_name_to_save,
                 support_modal_id=form.support_modal_id.data if form.support_modal_id.data != 0 else None,
                 additional_email_recipients=form.additional_recipients.data.strip() if form.additional_recipients.data else None
             )
@@ -684,8 +731,8 @@ def create_ticket():
                 return redirect(url_for('view_ticket', ticket_id=ticket.id))
             except Exception as e: db.session.rollback(); flash(f'Database error: {str(e)[:150]}', 'danger'); app.logger.error(f"Ticket creation error: {e}", exc_info=True)
     elif request.method == 'POST': flash('Please correct the errors in the form.', 'danger')
-    return render_template('client/create_ticket.html', title='Submit New Support Request', form=form, user_organization_name=user_organization_name_for_template)
-
+    return render_template('client/create_ticket.html', title='Submit New Support Request', form=form, user_organization_name=user_organization_name_for_template, user_is_client_with_org=user_is_client_with_org_flag)
+    
 @app.route('/tickets/my')
 @login_required
 def my_tickets(): tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).all(); return render_template('client/my_tickets.html', title='My Submitted Tickets', tickets=tickets)
@@ -1087,7 +1134,7 @@ def create_initial_data_command():
         
         print("\nEnsuring default options...")
         options_map = {
-            OrganizationOption: ['CloudKeeper (CK)', 'Client Org A', 'Client Org B', 'Default Client Org'],
+            OrganizationOption: ['CloudKeeper (CK)', 'Client Org A', 'Client Org B', 'Default Client Org', 'JIET Jodhpur'], # Added JIET
             Category: ['Technical Support', 'Billing Inquiry', 'General Question', 'Feature Request'],
             CloudProviderOption: ['AWS', 'Azure', 'GCP', 'On-Premise', 'Other'],
             EnvironmentOption: ['Production', 'Staging', 'Development', 'Test', 'QA', 'UAT'],
@@ -1126,13 +1173,16 @@ def create_initial_data_command():
         if not first_ticket: 
             print("\nNo existing tickets found. Creating a dummy ticket...")
             cat = Category.query.filter_by(name='Technical Support').first(); sev = SeverityOption.query.filter_by(name='Severity 1 (Critical)').first()
-            org = OrganizationOption.query.filter_by(name='CloudKeeper (CK)').first() or client_user.organization; form_type = FormTypeOption.query.filter_by(name='Technical').first()
+            org_for_client = client_user.organization or OrganizationOption.query.filter_by(name='CloudKeeper (CK)').first() or OrganizationOption.query.filter_by(name='Default Client Org').first()
+            form_type = FormTypeOption.query.filter_by(name='Technical').first()
             apn_opp = APNOpportunityOption.query.filter_by(name='Test 1').first(); cloud_provider = CloudProviderOption.query.filter_by(name='AWS').first(); env = EnvironmentOption.query.filter_by(name='Production').first()
-            if not all([cat, sev, org, form_type, apn_opp, cloud_provider, env]): print("  Could not find all necessary default options for dummy ticket. Skipping."); return
+            
+            if not all([cat, sev, org_for_client, form_type, apn_opp, cloud_provider, env]): print("  Could not find all necessary default options for dummy ticket. Skipping."); return
+            
             first_ticket = Ticket(
                 title="Urgent Server Down Issue", description="Production server is unresponsive after recent update.",
                 created_by_id=client_user.id, status='Open', priority='Urgent', category_id=cat.id,
-                severity=sev.name, organization_id=org.id, form_type_id=form_type.id,
+                severity=sev.name, organization_id=org_for_client.id, form_type_id=form_type.id,
                 customer_name=client_user.get_organization_name() or client_user.username,
                 cloud_provider=cloud_provider.name, aws_account_id="123456789012", environment=env.name,
                 tags='aws, ec2, critical, demo', effort_required_to_resolve_min=120, 
