@@ -48,6 +48,7 @@
                         </li>
                         {% endif %}
                         
+                        {# ... inside the navbar ... #}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 Tools
@@ -55,8 +56,13 @@
                             <div class="dropdown-menu" aria-labelledby="toolsDropdown">
                                 <a class="dropdown-item" href="{{ url_for('gdoc_importer_page') }}"><i class="fab fa-google-drive fa-fw mr-2"></i>GDoc Importer</a>
                                 <a class="dropdown-item" href="{{ url_for('chatbot_page_render') }}"><i class="fas fa-robot fa-fw mr-2"></i>AI Assistant</a>
+                                {% if current_user.is_admin %} {# Only show analytics to admin #}
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item" href="{{ url_for('analytics_dashboard_page') }}"><i class="fas fa-chart-line fa-fw mr-2"></i>Analytics Dashboard</a>
+                                {% endif %}
                             </div>
                         </li>
+{# ... #}
 
                          {% if current_user.is_admin %}
                          <li class="nav-item dropdown">

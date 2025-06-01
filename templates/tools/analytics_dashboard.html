@@ -1,0 +1,494 @@
+{% extends "base.html" %}
+{% set title = title or "Analytics Dashboard" %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script> 
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0/dist/chartjs-adapter-moment.min.js"></script> 
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+
+<style>
+    .chart-container {
+        position: relative;
+        margin: auto;
+        height: 350px;
+        width: 100%;
+        padding: 15px;
+        background-color: #fff;
+        border-radius: 0.25rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
+        margin-bottom: 2rem;
+    }
+    .filters-card { margin-bottom: 2rem; }
+    #dateRangePicker { cursor: pointer; background: #fff; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; width: 100%; text-align: center; height: calc(1.5em + .75rem + 2px); /* Match form-control height */}
+    #dateRangePicker i { margin-right: 5px; }
+    .loading-spinner { display: flex; justify-content: center; align-items: center; height: 100%; font-size: 1.5rem; color: #6c757d; }
+    .kpi-card { padding: 1rem; text-align: center; background-color: #fff; border-radius: .25rem; box-shadow: 0 .125rem .25rem rgba(0,0,0,.075); margin-bottom: 1rem; min-height: 100px; display: flex; flex-direction: column; justify-content: center;}
+    .kpi-card .kpi-value { font-size: 2rem; font-weight: bold; color: var(--primary-color, #007bff); }
+    .kpi-card .kpi-label { font-size: 0.9rem; color: #6c757d; }
+    .chart-placeholder { display: flex; justify-content: center; align-items: center; height: 100%; color: #6c757d; font-style: italic;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <h1 class="mb-4">{{ title }}</h1>
+
+    <div class="card filters-card shadow-sm">
+        <div class="card-header">
+            <i class="fas fa-filter mr-1"></i> Filters
+        </div>
+        <div class="card-body">
+            <form id="analyticsFiltersForm">
+                <div class="row">
+                    <div class="col-md-4 col-lg-3 form-group">
+                        <label for="dateRangePickerInput">Date Range (Ticket Creation)</label> {# Changed ID for clarity #}
+                        <div id="dateRangePicker" class="form-control"> {# This is the display div #}
+                            <i class="fa fa-calendar"></i> 
+                            <span></span> <i class="fa fa-caret-down"></i>
+                        </div>
+                        <input type="hidden" name="start_date" id="startDate">
+                        <input type="hidden" name="end_date" id="endDate">
+                    </div>
+                    <div class="col-md-4 col-lg-2 form-group">
+                        <label for="filterStatus">Status</label>
+                        <select id="filterStatus" name="status" class="form-control custom-select">
+                            <option value="all" selected>All Statuses</option>
+                            {% for status_opt in all_statuses %}
+                                <option value="{{ status_opt.value }}">{{ status_opt.display }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-lg-2 form-group">
+                        <label for="filterPriority">Priority</label>
+                        <select id="filterPriority" name="priority" class="form-control custom-select">
+                            <option value="all" selected>All Priorities</option>
+                            {% for prio_opt in all_priorities %}
+                                <option value="{{ prio_opt.value }}">{{ prio_opt.display }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-lg-2 form-group">
+                        <label for="filterCategory">Category</label>
+                        <select id="filterCategory" name="category_id" class="form-control custom-select">
+                            <option value="all" selected>All Categories</option>
+                            {% for cat_opt in all_categories %}
+                                <option value="{{ cat_opt.id }}">{{ cat_opt.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                     <div class="col-md-4 col-lg-3 form-group">
+                        <label for="filterOrganization">Organization</label>
+                        <select id="filterOrganization" name="organization_id" class="form-control custom-select">
+                            <option value="all" selected>All Organizations</option>
+                            {% for org_opt in all_organizations %}
+                                <option value="{{ org_opt.id }}">{{ org_opt.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 col-lg-3 form-group">
+                        <label for="filterAgent">Assigned To</label>
+                        <select id="filterAgent" name="assigned_to_id" class="form-control custom-select">
+                            <option value="all" selected>Any Agent</option>
+                            <option value="unassigned">Unassigned</option>
+                            {% for agent_opt in all_agents %}
+                                <option value="{{ agent_opt.id }}">{{ agent_opt.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-lg-2 form-group d-flex align-items-end">
+                        <button type="button" id="applyFiltersBtn" class="btn btn-primary btn-block">
+                            <i class="fas fa-check mr-1"></i>Apply
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="chartErrorContainer" class="mb-3"></div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="kpi-card">
+                <div id="avgResolutionTimeValue" class="kpi-value">N/A</div>
+                <div class="kpi-label">Avg. Resolution Time</div>
+                <small id="avgResolutionTicketCount" class="text-muted">(Resolved/Closed Tickets)</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 col-lg-4">
+            <div class="chart-container" id="ticketStatusChartContainer">
+                <canvas id="ticketStatusChart"></canvas>
+                 <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+         <div class="col-md-6 col-lg-4">
+            <div class="chart-container" id="severityDistributionChartContainer">
+                <canvas id="severityDistributionChart"></canvas>
+                 <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+            <div class="chart-container" id="ticketsByPriorityChartContainer">
+                <canvas id="ticketsByPriorityChart"></canvas>
+                <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+    </div>
+     <div class="row mt-0"> {# Removed mt-3 to bring charts closer #}
+        <div class="col-lg-12">
+            <div class="chart-container" id="ticketVolumeChartContainer" style="height: 400px;">
+                <canvas id="ticketVolumeChart"></canvas>
+                <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-0"> {# Removed mt-3 #}
+        <div class="col-md-6">
+            <div class="chart-container" id="ticketsByCategoryChartContainer">
+                <canvas id="ticketsByCategoryChart"></canvas>
+                <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="chart-container" id="ticketsByAgentChartContainer">
+                <canvas id="ticketsByAgentChart"></canvas>
+                <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<script>
+    let ticketStatusChart, ticketVolumeChart, ticketsByCategoryChart, ticketsByPriorityChart, ticketsByAgentChart, severityDistributionChart;
+
+    const defaultChartColors = [
+        'rgba(54, 162, 235, 0.7)', 'rgba(255, 99, 132, 0.7)',
+        'rgba(255, 206, 86, 0.7)', 'rgba(75, 192, 192, 0.7)',
+        'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)',
+        'rgba(99, 255, 132, 0.7)', 'rgba(201, 203, 207, 0.7)'
+    ];
+    const priorityColors = {
+        'Urgent': 'rgba(220, 53, 69, 0.7)',  
+        'High': 'rgba(255, 159, 64, 0.7)',   
+        'Medium': 'rgba(54, 162, 235, 0.7)', 
+        'Low': 'rgba(108, 117, 125, 0.7)'    
+    };
+    const severityColors = {
+        'Severity 1 (Critical)': 'rgba(220, 53, 69, 0.8)', 
+        'Severity 2 (High)': 'rgba(255, 128, 0, 0.8)',    
+        'Severity 3 (Medium)': 'rgba(255, 193, 7, 0.8)',   
+        'Severity 4 (Low)': 'rgba(40, 167, 69, 0.8)',     
+    };
+
+    function showLoadingSpinner(chartContainerId, show) {
+        const container = document.getElementById(chartContainerId);
+        if (!container) return;
+        const spinner = container.querySelector('.loading-spinner');
+        const canvas = container.querySelector('canvas');
+        if (spinner) spinner.classList.toggle('d-none', !show);
+        if (canvas) canvas.style.display = show ? 'none' : 'block';
+    }
+
+    function getQueryParams() {
+        const params = new URLSearchParams();
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const status = document.getElementById('filterStatus').value;
+        const priority = document.getElementById('filterPriority').value;
+        const categoryId = document.getElementById('filterCategory').value;
+        const organizationId = document.getElementById('filterOrganization').value;
+        const agentId = document.getElementById('filterAgent').value;
+
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
+        if (status && status !== 'all') params.append('status', status);
+        if (priority && priority !== 'all') params.append('priority', priority);
+        if (categoryId && categoryId !== 'all') params.append('category_id', categoryId);
+        if (organizationId && organizationId !== 'all') params.append('organization_id', organizationId);
+        if (agentId && agentId !== 'all') params.append('assigned_to_id', agentId);                         
+        
+        return params.toString();
+    }
+
+    async function fetchData(apiFlaskEndpoint, chartContainerId) {
+        if (chartContainerId) showLoadingSpinner(chartContainerId, true);
+        const queryParams = getQueryParams();
+        const fullUrl = `${apiFlaskEndpoint}${queryParams ? '?' + queryParams : ''}`;
+        
+        console.log("Fetching data from URL:", fullUrl);
+
+        try {
+            const response = await fetch(fullUrl);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`HTTP error! Status: ${response.status} for URL: ${fullUrl}. Response: ${errorText.substring(0, 500)}`);
+                throw new Error(`HTTP error! status: ${response.status}. See console for more details.`);
+            }
+            const data = await response.json();
+            if (chartContainerId) showLoadingSpinner(chartContainerId, false);
+            return data;
+        } catch (error) {
+            console.error(`Error fetching data for ${apiFlaskEndpoint}:`, error);
+            const errorContainer = document.getElementById('chartErrorContainer');
+            if (errorContainer) {
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'alert alert-danger alert-dismissible fade show';
+                errorMsg.setAttribute('role', 'alert');
+                errorMsg.innerHTML = `Failed to load data (${apiFlaskEndpoint.split('/').pop()}): ${error.message} <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>`;
+                errorContainer.appendChild(errorMsg);
+            }
+            if (chartContainerId) showLoadingSpinner(chartContainerId, false);
+            return null;
+        }
+    }
+
+    function destroyChart(chartInstance) {
+        if (chartInstance && typeof chartInstance.destroy === 'function') {
+            chartInstance.destroy();
+        }
+    }
+    
+    function setChartOrNoDataMessage(containerId, chartCreationCallback, data) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const canvas = container.querySelector('canvas');
+
+        if (data && data.labels && data.data && data.labels.length > 0) {
+            if (canvas) canvas.style.display = 'block'; // Ensure canvas is visible
+            const placeholder = container.querySelector('.chart-placeholder');
+            if(placeholder) placeholder.remove();
+            return chartCreationCallback(canvas.getContext('2d'), data);
+        } else if (data) { // Data fetched, but it's empty for the chart
+            container.innerHTML = '<div class="chart-placeholder">No data available for the current filters.</div>';
+        } else { // Fetch failed, error already shown by fetchData
+            container.innerHTML = '<div class="chart-placeholder">Could not load chart data.</div>';
+        }
+        return null;
+    }
+
+
+    async function renderTicketStatusChart() {
+        destroyChart(ticketStatusChart);
+        const apiUrl = "{{ url_for('ticket_status_distribution', _external=False) }}";
+        const data = await fetchData(apiUrl, 'ticketStatusChartContainer');
+        ticketStatusChart = setChartOrNoDataMessage('ticketStatusChartContainer', (ctx, chartData) => {
+            return new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Ticket Status', data: chartData.data,
+                        backgroundColor: defaultChartColors.slice(0, chartData.labels.length),
+                        borderColor: defaultChartColors.slice(0, chartData.labels.length).map(c => c.replace('0.7','1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Ticket Status Distribution' }}}
+            });
+        }, data);
+    }
+
+    async function renderTicketVolumeChart() {
+        destroyChart(ticketVolumeChart);
+        const apiUrl = "{{ url_for('ticket_volume_over_time', _external=False) }}";
+        const data = await fetchData(apiUrl, 'ticketVolumeChartContainer');
+        ticketVolumeChart = setChartOrNoDataMessage('ticketVolumeChartContainer', (ctx, chartData) => {
+            return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Tickets Created', data: chartData.data,
+                        backgroundColor: 'rgba(75, 192, 192, 0.7)', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'time', time: { unit: 'day', tooltipFormat: 'MMM D, YYYY', displayFormats: { day: 'MMM D' } }, title: { display: true, text: 'Date'}},
+                        y: { beginAtZero: true, title: { display: true, text: 'Number of Tickets'}, ticks: { precision: 0 } }
+                    },
+                    plugins: { title: { display: true, text: 'Ticket Volume Over Time' } }
+                }
+            });
+        }, data);
+    }
+
+    async function renderTicketsByCategoryChart() {
+        destroyChart(ticketsByCategoryChart);
+        const apiUrl = "{{ url_for('tickets_by_category', _external=False) }}";
+        const data = await fetchData(apiUrl, 'ticketsByCategoryChartContainer');
+        ticketsByCategoryChart = setChartOrNoDataMessage('ticketsByCategoryChartContainer', (ctx, chartData) => {
+             return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Tickets by Category', data: chartData.data,
+                        backgroundColor: defaultChartColors.slice(0, chartData.labels.length),
+                        borderColor: defaultChartColors.slice(0, chartData.labels.length).map(c => c.replace('0.7','1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { title: { display: true, text: 'Tickets by Category' } } }
+            });
+        }, data);
+    }
+    
+    async function renderTicketsByPriorityChart() {
+        destroyChart(ticketsByPriorityChart);
+        const apiUrl = "{{ url_for('tickets_by_priority', _external=False) }}";
+        const data = await fetchData(apiUrl, 'ticketsByPriorityChartContainer');
+        ticketsByPriorityChart = setChartOrNoDataMessage('ticketsByPriorityChartContainer', (ctx, chartData) => {
+            const backgroundColors = chartData.labels.map(label => priorityColors[label] || defaultChartColors[chartData.labels.indexOf(label) % defaultChartColors.length]);
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Tickets by Priority', data: chartData.data,
+                        backgroundColor: backgroundColors,
+                        borderColor: backgroundColors.map(c => c.replace('0.7','1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Tickets by Priority' } } }
+            });
+        }, data);
+    }
+
+    async function renderTicketsByAgentChart() {
+        destroyChart(ticketsByAgentChart);
+        const apiUrl = "{{ url_for('tickets_by_agent', _external=False) }}";
+        const data = await fetchData(apiUrl, 'ticketsByAgentChartContainer');
+        ticketsByAgentChart = setChartOrNoDataMessage('ticketsByAgentChartContainer', (ctx, chartData) => {
+            return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Tickets per Assignee', data: chartData.data,
+                        backgroundColor: defaultChartColors.slice(0, chartData.labels.length),
+                        borderColor: defaultChartColors.slice(0, chartData.labels.length).map(c => c.replace('0.7','1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { title: { display: true, text: 'Tickets by Assignee' } } }
+            });
+        }, data);
+    }
+
+    async function renderSeverityDistributionChart() {
+        destroyChart(severityDistributionChart);
+        const apiUrl = "{{ url_for('severity_distribution', _external=False) }}";
+        const data = await fetchData(apiUrl, 'severityDistributionChartContainer');
+        severityDistributionChart = setChartOrNoDataMessage('severityDistributionChartContainer', (ctx, chartData) => {
+            const backgroundColors = chartData.labels.map(label => severityColors[label] || defaultChartColors[chartData.labels.indexOf(label) % defaultChartColors.length]);
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Ticket Severity', data: chartData.data,
+                        backgroundColor: backgroundColors,
+                        borderColor: backgroundColors.map(c => c.replace('0.7','1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Ticket Severity Distribution' }}}
+            });
+        }, data);
+    }
+    
+    async function fetchAndUpdateAvgResolutionTime() {
+        const valueEl = document.getElementById('avgResolutionTimeValue');
+        const countEl = document.getElementById('avgResolutionTicketCount');
+        if (!valueEl || !countEl) return;
+
+        valueEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        countEl.textContent = '';
+
+        const apiUrl = "{{ url_for('avg_resolution_time', _external=False) }}";
+        const data = await fetchData(apiUrl, null); // No specific chart container for KPI
+
+        if (data) {
+            valueEl.textContent = data.average_resolution_time_str || "N/A";
+            if (data.resolved_ticket_count > 0) {
+                countEl.textContent = `(Based on ${data.resolved_ticket_count} tickets)`;
+            } else {
+                countEl.textContent = "(No resolved tickets match filters)";
+            }
+        } else {
+            valueEl.textContent = "Error";
+            countEl.textContent = "";
+        }
+    }
+
+    function initializeDateRangePicker() {
+        const storedStartDate = localStorage.getItem('analyticsStartDate');
+        const storedEndDate = localStorage.getItem('analyticsEndDate');
+        const start = storedStartDate ? moment(storedStartDate) : moment().subtract(29, 'days');
+        const end = storedEndDate ? moment(storedEndDate) : moment();
+
+        function cb(start, end) {
+            $('#dateRangePicker span').html(start.format('MMMM D, YYYY') + ' - ' + end.format('MMMM D, YYYY'));
+            $('#startDate').val(start.format('YYYY-MM-DD'));
+            $('#endDate').val(end.format('YYYY-MM-DD'));
+            localStorage.setItem('analyticsStartDate', start.format('YYYY-MM-DD'));
+            localStorage.setItem('analyticsEndDate', end.format('YYYY-MM-DD'));
+        }
+
+        $('#dateRangePicker').daterangepicker({
+            startDate: start, endDate: end, maxDate: moment(),
+            ranges: {
+               'Today': [moment(), moment()],
+               'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+               'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+               'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+               'This Month': [moment().startOf('month'), moment().endOf('month')],
+               'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+            }
+        }, cb);
+        cb(start, end);
+    }
+    
+    function loadAllCharts() {
+        document.getElementById('chartErrorContainer').innerHTML = ''; 
+        const chartContainersToReset = [
+            'ticketStatusChartContainer', 'ticketVolumeChartContainer', 
+            'ticketsByCategoryChartContainer', 'ticketsByPriorityChartContainer',
+            'ticketsByAgentChartContainer', 'severityDistributionChartContainer'
+        ];
+        chartContainersToReset.forEach(id => {
+            const container = document.getElementById(id);
+            if (container) {
+                container.innerHTML = `<canvas id="${id.replace('Container', '')}"></canvas><div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+            }
+        });
+        
+        renderTicketStatusChart();
+        renderTicketVolumeChart();
+        renderTicketsByCategoryChart();
+        renderTicketsByPriorityChart();
+        renderTicketsByAgentChart(); 
+        renderSeverityDistributionChart(); 
+        fetchAndUpdateAvgResolutionTime(); 
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeDateRangePicker();
+        loadAllCharts();
+        document.getElementById('applyFiltersBtn').addEventListener('click', loadAllCharts);
+    });
+</script>
+{% endblock %}
