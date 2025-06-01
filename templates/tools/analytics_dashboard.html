@@ -139,15 +139,15 @@
             </div>
         </div>
     </div>
-     <div class="row mt-0"> {# Removed mt-3 to bring charts closer #}
+     <div class="row mt-0"> 
         <div class="col-lg-12">
-            <div class="chart-container" id="ticketVolumeChartContainer" style="height: 400px;">
-                <canvas id="ticketVolumeChart"></canvas>
+            <div class="chart-container" id="cumulativeTicketsChartContainer" style="height: 400px;">
+                <canvas id="cumulativeTicketsChart"></canvas>
                 <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
             </div>
         </div>
     </div>
-    <div class="row mt-0"> {# Removed mt-3 #}
+    <div class="row mt-0"> 
         <div class="col-md-6">
             <div class="chart-container" id="ticketsByCategoryChartContainer">
                 <canvas id="ticketsByCategoryChart"></canvas>
@@ -161,6 +161,14 @@
             </div>
         </div>
     </div>
+     <div class="row mt-0">
+        <div class="col-md-6 col-lg-8 offset-lg-2"> 
+            <div class="chart-container" id="priorityStatusRadarChartContainer" style="height: 450px;">
+                <canvas id="priorityStatusRadarChart"></canvas>
+                <div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+    </div>
 
 </div>
 {% endblock %}
@@ -169,7 +177,9 @@
 {{ super() }}
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <script>
-    let ticketStatusChart, ticketVolumeChart, ticketsByCategoryChart, ticketsByPriorityChart, ticketsByAgentChart, severityDistributionChart;
+    // Chart instances
+    let ticketStatusChart, ticketVolumeChart, ticketsByCategoryChart, ticketsByPriorityChart, 
+        ticketsByAgentChart, severityDistributionChart, cumulativeTicketsChart, priorityStatusRadarChart;
 
     const defaultChartColors = [
         'rgba(54, 162, 235, 0.7)', 'rgba(255, 99, 132, 0.7)',
@@ -188,6 +198,7 @@
         'Severity 2 (High)': 'rgba(255, 128, 0, 0.8)',    
         'Severity 3 (Medium)': 'rgba(255, 193, 7, 0.8)',   
         'Severity 4 (Low)': 'rgba(40, 167, 69, 0.8)',     
+        'Default': 'rgba(108, 117, 125, 0.8)'
     };
 
     function showLoadingSpinner(chartContainerId, show) {
@@ -260,22 +271,44 @@
     
     function setChartOrNoDataMessage(containerId, chartCreationCallback, data) {
         const container = document.getElementById(containerId);
-        if (!container) return;
+        if (!container) {
+            console.error("Chart container not found:", containerId);
+            return null;
+        }
         const canvas = container.querySelector('canvas');
+        if (!canvas) {
+            console.error("Canvas not found in container:", containerId);
+            return null;
+        }
 
-        if (data && data.labels && data.data && data.labels.length > 0) {
-            if (canvas) canvas.style.display = 'block'; // Ensure canvas is visible
+        // Check if data is structured correctly for chart rendering
+        const hasLabels = data && data.labels && Array.isArray(data.labels) && data.labels.length > 0;
+        
+        // Check for 'data' array (for pie, doughnut, simple bar/line)
+        // It's valid if data.data is an array and its length matches labels length (can be all zeros)
+        const hasSimpleDataStructure = hasLabels && data.data && Array.isArray(data.data) && data.data.length === data.labels.length;
+        
+        // Check for 'datasets' array (for multi-series bar/line, radar)
+        // It's valid if data.datasets is a non-empty array, and each dataset has a 'data' array matching labels length
+        const hasComplexDataStructure = hasLabels && data.datasets && Array.isArray(data.datasets) && data.datasets.length > 0 &&
+                                        data.datasets.every(ds => ds.data && Array.isArray(ds.data) && ds.data.length === data.labels.length);
+
+        if (hasLabels && (hasSimpleDataStructure || hasComplexDataStructure)) {
+            canvas.style.display = 'block';
             const placeholder = container.querySelector('.chart-placeholder');
-            if(placeholder) placeholder.remove();
+            if (placeholder) placeholder.remove(); // Remove placeholder if it exists
             return chartCreationCallback(canvas.getContext('2d'), data);
-        } else if (data) { // Data fetched, but it's empty for the chart
+        } else if (data) { // Data was fetched, but not in a renderable format (e.g. labels empty, or data/datasets structure mismatch)
             container.innerHTML = '<div class="chart-placeholder">No data available for the current filters.</div>';
-        } else { // Fetch failed, error already shown by fetchData
-            container.innerHTML = '<div class="chart-placeholder">Could not load chart data.</div>';
+            console.warn(`No data message for ${containerId}. Received data structure was not renderable. Data:`, JSON.parse(JSON.stringify(data)));
+        } else { // Fetch failed or returned null (error handled by fetchData)
+            // Ensure a placeholder for error state if not already set by fetchData's catch block (though it should be)
+             if (!container.querySelector('.chart-placeholder')) {
+                container.innerHTML = '<div class="chart-placeholder">Could not load chart data. Check console.</div>';
+            }
         }
         return null;
     }
-
 
     async function renderTicketStatusChart() {
         destroyChart(ticketStatusChart);
@@ -298,31 +331,35 @@
         }, data);
     }
 
-    async function renderTicketVolumeChart() {
-        destroyChart(ticketVolumeChart);
-        const apiUrl = "{{ url_for('ticket_volume_over_time', _external=False) }}";
-        const data = await fetchData(apiUrl, 'ticketVolumeChartContainer');
-        ticketVolumeChart = setChartOrNoDataMessage('ticketVolumeChartContainer', (ctx, chartData) => {
+    async function renderCumulativeTicketsChart() { // Changed from ticketVolumeChart
+        destroyChart(cumulativeTicketsChart); // Use new chart instance variable
+        const apiUrl = "{{ url_for('cumulative_tickets_over_time', _external=False) }}"; // Use new endpoint
+        const data = await fetchData(apiUrl, 'cumulativeTicketsChartContainer'); // Use new container ID
+        cumulativeTicketsChart = setChartOrNoDataMessage('cumulativeTicketsChartContainer', (ctx, chartData) => { // Use new container ID
             return new Chart(ctx, {
-                type: 'bar',
+                type: 'line', // Changed to line chart
                 data: {
                     labels: chartData.labels,
                     datasets: [{
-                        label: 'Tickets Created', data: chartData.data,
-                        backgroundColor: 'rgba(75, 192, 192, 0.7)', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1
+                        label: 'Cumulative Tickets', data: chartData.data,
+                        borderColor: 'rgba(153, 102, 255, 1)', 
+                        backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                        tension: 0.1,
+                        fill: true
                     }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     scales: {
                         x: { type: 'time', time: { unit: 'day', tooltipFormat: 'MMM D, YYYY', displayFormats: { day: 'MMM D' } }, title: { display: true, text: 'Date'}},
-                        y: { beginAtZero: true, title: { display: true, text: 'Number of Tickets'}, ticks: { precision: 0 } }
+                        y: { beginAtZero: true, title: { display: true, text: 'Total Tickets'}, ticks: { precision: 0 } }
                     },
-                    plugins: { title: { display: true, text: 'Ticket Volume Over Time' } }
+                    plugins: { title: { display: true, text: 'Cumulative Tickets Over Time' } }
                 }
             });
         }, data);
     }
+
 
     async function renderTicketsByCategoryChart() {
         destroyChart(ticketsByCategoryChart);
@@ -409,6 +446,36 @@
             });
         }, data);
     }
+
+    async function renderPriorityStatusRadarChart() {
+        destroyChart(priorityStatusRadarChart);
+        const apiUrl = "{{ url_for('priority_status_radar_for_category', _external=False) }}";
+        const data = await fetchData(apiUrl, 'priorityStatusRadarChartContainer');
+        
+        let chartTitleText = 'Priority & Status Distribution';
+        if (data && data.category_name) { // data might be null if fetch fails
+            chartTitleText += ` for: ${data.category_name}`;
+        }
+
+        priorityStatusRadarChart = setChartOrNoDataMessage('priorityStatusRadarChartContainer', (ctx, chartData) => {
+            return new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: chartData.labels, 
+                    datasets: chartData.datasets 
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    elements: { line: { borderWidth: 2 } },
+                    scales: { r: { angleLines: { display: true }, suggestedMin: 0, ticks: { stepSize: 1, precision: 0 } } },
+                    plugins: { 
+                        title: { display: true, text: chartTitleText },
+                        legend: { position: 'top' }
+                    }
+                }
+            });
+        }, data);
+    }
     
     async function fetchAndUpdateAvgResolutionTime() {
         const valueEl = document.getElementById('avgResolutionTimeValue');
@@ -419,7 +486,7 @@
         countEl.textContent = '';
 
         const apiUrl = "{{ url_for('avg_resolution_time', _external=False) }}";
-        const data = await fetchData(apiUrl, null); // No specific chart container for KPI
+        const data = await fetchData(apiUrl, null); 
 
         if (data) {
             valueEl.textContent = data.average_resolution_time_str || "N/A";
@@ -465,23 +532,40 @@
     function loadAllCharts() {
         document.getElementById('chartErrorContainer').innerHTML = ''; 
         const chartContainersToReset = [
-            'ticketStatusChartContainer', 'ticketVolumeChartContainer', 
-            'ticketsByCategoryChartContainer', 'ticketsByPriorityChartContainer',
-            'ticketsByAgentChartContainer', 'severityDistributionChartContainer'
+            'ticketStatusChartContainer', 'severityDistributionChartContainer', 'ticketsByPriorityChartContainer',
+            'cumulativeTicketsChartContainer', // Changed from ticketVolumeChartContainer
+            'ticketsByCategoryChartContainer', 'ticketsByAgentChartContainer', 'priorityStatusRadarChartContainer'
         ];
         chartContainersToReset.forEach(id => {
             const container = document.getElementById(id);
             if (container) {
-                container.innerHTML = `<canvas id="${id.replace('Container', '')}"></canvas><div class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+                // Ensure canvas exists, or recreate it if setChartOrNoDataMessage removed it
+                if (!container.querySelector('canvas')) {
+                    const canvas = document.createElement('canvas');
+                    canvas.id = id.replace('Container', '');
+                    container.innerHTML = ''; // Clear placeholder/spinner first
+                    container.appendChild(canvas);
+                    const spinner = document.createElement('div');
+                    spinner.className = 'loading-spinner d-none';
+                    spinner.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                    container.appendChild(spinner);
+                } else {
+                     // If canvas exists, just ensure placeholder is gone if it was added by error
+                     const placeholder = container.querySelector('.chart-placeholder');
+                     if (placeholder) placeholder.remove();
+                     container.querySelector('.loading-spinner').classList.add('d-none'); // Hide spinner
+                     container.querySelector('canvas').style.display = 'block'; // Make sure canvas is visible
+                }
             }
         });
         
         renderTicketStatusChart();
-        renderTicketVolumeChart();
+        renderCumulativeTicketsChart(); // Changed from renderTicketVolumeChart
         renderTicketsByCategoryChart();
         renderTicketsByPriorityChart();
         renderTicketsByAgentChart(); 
         renderSeverityDistributionChart(); 
+        renderPriorityStatusRadarChart();
         fetchAndUpdateAvgResolutionTime(); 
     }
 

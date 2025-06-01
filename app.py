@@ -1876,10 +1876,11 @@ def api_aws_doc_search():
 
 # In app.py
 
-# --- API Endpoints for Chart Data ---
-
-def _apply_common_filters(query, args, model_alias=None):
-    TicketAlias = model_alias if model_alias else Ticket
+def _apply_common_filters(query, args, model_to_filter=Ticket):
+    """
+    Helper to apply common filters to a ticket query.
+    model_to_filter: The SQLAlchemy model/alias to apply filters on (e.g., Ticket or an alias).
+    """
     start_date_str = args.get('start_date')
     end_date_str = args.get('end_date')
     status = args.get('status')
@@ -1891,30 +1892,48 @@ def _apply_common_filters(query, args, model_alias=None):
     if start_date_str:
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            query = query.filter(TicketAlias.created_at >= start_date)
+            query = query.filter(model_to_filter.created_at >= start_date)
         except ValueError: app.logger.warning(f"Invalid start_date format: {start_date_str}")
     if end_date_str:
         try:
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            query = query.filter(TicketAlias.created_at < (end_date + timedelta(days=1)))
+            query = query.filter(model_to_filter.created_at < (end_date + timedelta(days=1)))
         except ValueError: app.logger.warning(f"Invalid end_date format: {end_date_str}")
-    if status and status != 'all': query = query.filter(TicketAlias.status == status)
-    if priority and priority != 'all': query = query.filter(TicketAlias.priority == priority)
-    if category_id and category_id != 'all' and category_id.isdigit(): query = query.filter(TicketAlias.category_id == int(category_id))
-    if organization_id and organization_id != 'all' and organization_id.isdigit(): query = query.filter(TicketAlias.organization_id == int(organization_id))
+    
+    if status and status != 'all': query = query.filter(model_to_filter.status == status)
+    if priority and priority != 'all': query = query.filter(model_to_filter.priority == priority)
+    if category_id and category_id != 'all' and category_id.isdigit(): query = query.filter(model_to_filter.category_id == int(category_id))
+    if organization_id and organization_id != 'all' and organization_id.isdigit(): query = query.filter(model_to_filter.organization_id == int(organization_id))
+    
     if assigned_to_id and assigned_to_id != 'all':
-        if assigned_to_id == 'unassigned' or assigned_to_id == '0': query = query.filter(TicketAlias.assigned_to_id.is_(None))
-        elif assigned_to_id.isdigit(): query = query.filter(TicketAlias.assigned_to_id == int(assigned_to_id))
+        if assigned_to_id == 'unassigned' or assigned_to_id == '0': query = query.filter(model_to_filter.assigned_to_id.is_(None))
+        elif assigned_to_id.isdigit(): query = query.filter(model_to_filter.assigned_to_id == int(assigned_to_id))
+    
     return query
+
+@app.route('/tools/analytics_dashboard')
+@admin_required
+def analytics_dashboard_page():
+    all_statuses = [{'value': s[0], 'display': s[1]} for s in TICKET_STATUS_CHOICES]
+    all_priorities = [{'value': p[0], 'display': p[1]} for p in TICKET_PRIORITY_CHOICES]
+    all_categories = [{'id': c.id, 'name': c.name} for c in Category.query.order_by(Category.name).all()]
+    all_organizations = [{'id': o.id, 'name': o.name} for o in OrganizationOption.query.filter_by(is_active=True).order_by(OrganizationOption.name).all()]
+    all_agents = [{'id': u.id, 'username': u.username} for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by(User.username).all()]
+    
+    return render_template('tools/analytics_dashboard.html',
+                           title="Analytics Dashboard",
+                           all_statuses=all_statuses,
+                           all_priorities=all_priorities,
+                           all_categories=all_categories,
+                           all_organizations=all_organizations,
+                           all_agents=all_agents)
 
 @app.route('/api/analytics/ticket_status_distribution')
 @admin_required
-def ticket_status_distribution(): # <--- THIS IS THE FUNCTION NAME / ENDPOINT
-    base_query = db.session.query(Ticket.status, func.count(Ticket.id).label('count'))
-    # For this simple query, model_alias is not strictly needed for _apply_common_filters
-    # as it defaults to Ticket, but it's good practice if Ticket was aliased in base_query.
-    filtered_query = _apply_common_filters(base_query, request.args).group_by(Ticket.status)
-    results = filtered_query.all()
+def ticket_status_distribution():
+    query = db.session.query(Ticket.status, func.count(Ticket.id).label('count'))
+    query = _apply_common_filters(query, request.args, model_to_filter=Ticket)
+    results = query.group_by(Ticket.status).all()
     labels = [r.status for r in results]
     data = [r.count for r in results]
     return jsonify(labels=labels, data=data)
@@ -1938,20 +1957,17 @@ def ticket_volume_over_time():
     date_labels = [d.strftime('%Y-%m-%d') for d in all_dates_in_range]
     ticket_counts_map = {label: 0 for label in date_labels}
 
-    # Create a subquery for filtered ticket IDs
-    filtered_ticket_ids_base_query = db.session.query(Ticket.id)
-    filtered_ticket_ids_query = _apply_common_filters(filtered_ticket_ids_base_query, request.args).subquery()
-
-    # Main aggregation query
-    query_for_chart = db.session.query(
+    base_ticket_query = Ticket.query # Start with the Ticket model for filtering
+    filtered_ticket_query = _apply_common_filters(base_ticket_query, request.args, model_to_filter=Ticket)
+    
+    results = db.session.query(
         cast(Ticket.created_at, Date).label('creation_date'), 
         func.count(Ticket.id).label('count')
-    ).filter(Ticket.id.in_(db.session.query(filtered_ticket_ids_query.c.id))) \
+    ).select_from(filtered_ticket_query.subquery()) \
      .filter(cast(Ticket.created_at, Date) >= start_date) \
      .filter(cast(Ticket.created_at, Date) <= end_date) \
-     .group_by('creation_date').order_by('creation_date')
+     .group_by('creation_date').order_by('creation_date').all()
     
-    results = query_for_chart.all()
     for r in results:
         date_str = r.creation_date.strftime('%Y-%m-%d')
         if date_str in ticket_counts_map:
@@ -1962,16 +1978,10 @@ def ticket_volume_over_time():
 @app.route('/api/analytics/tickets_by_category')
 @admin_required
 def tickets_by_category():
-    # Create a subquery for filtered ticket IDs and their category_id
-    filtered_tickets_base_query = db.session.query(Ticket.id, Ticket.category_id)
-    filtered_tickets_subquery = _apply_common_filters(filtered_tickets_base_query, request.args).subquery()
-
-    # Join the Category table with the subquery of filtered tickets
-    results_query = db.session.query(Category.name, func.count(filtered_tickets_subquery.c.id).label('count')) \
-        .join(filtered_tickets_subquery, filtered_tickets_subquery.c.category_id == Category.id) \
-        .group_by(Category.name).order_by(func.count(filtered_tickets_subquery.c.id).desc())
-    
-    results = results_query.all()
+    query = db.session.query(Category.name, func.count(Ticket.id).label('count')) \
+        .join(Ticket, Ticket.category_id == Category.id)
+    query = _apply_common_filters(query, request.args, model_to_filter=Ticket)
+    results = query.group_by(Category.name).order_by(func.count(Ticket.id).desc()).all()
     labels = [r.name if r.name else "Uncategorized" for r in results]
     data = [r.count for r in results]
     return jsonify(labels=labels, data=data)
@@ -1979,9 +1989,9 @@ def tickets_by_category():
 @app.route('/api/analytics/tickets_by_priority')
 @admin_required
 def tickets_by_priority():
-    base_query = db.session.query(Ticket.priority, func.count(Ticket.id).label('count'))
-    filtered_query = _apply_common_filters(base_query, request.args).group_by(Ticket.priority).order_by(func.count(Ticket.id).desc())
-    results = filtered_query.all()
+    query = db.session.query(Ticket.priority, func.count(Ticket.id).label('count'))
+    query = _apply_common_filters(query, request.args, model_to_filter=Ticket)
+    results = query.group_by(Ticket.priority).order_by(func.count(Ticket.id).desc()).all()
     labels = [r.priority if r.priority else "No Priority" for r in results]
     data = [r.count for r in results]
     return jsonify(labels=labels, data=data)
@@ -1989,21 +1999,14 @@ def tickets_by_priority():
 @app.route('/api/analytics/tickets_by_agent')
 @admin_required
 def tickets_by_agent():
-    AssigneeUser = aliased(User)
-    # Subquery to get IDs and assigned_to_id of tickets matching common filters
-    filtered_tickets_base = db.session.query(Ticket.id.label("ticket_id"), Ticket.assigned_to_id.label("assigned_id"))
-    filtered_tickets_subquery = _apply_common_filters(filtered_tickets_base, request.args).subquery()
-
-    # Main query to count tickets per agent using the filtered subquery
-    results_query = db.session.query(
-            AssigneeUser.username,
-            func.count(filtered_tickets_subquery.c.ticket_id).label('count')
+    AssigneeUser = aliased(User, name="assignee_user")
+    query = db.session.query(
+            AssigneeUser.username, 
+            func.count(Ticket.id).label('count')
         )\
-        .outerjoin(AssigneeUser, filtered_tickets_subquery.c.assigned_id == AssigneeUser.id)\
-        .group_by(AssigneeUser.username)\
-        .order_by(func.count(filtered_tickets_subquery.c.ticket_id).desc()) # Order by count
-        
-    results = results_query.all()
+        .outerjoin(AssigneeUser, Ticket.assigned_to_id == AssigneeUser.id)
+    query = _apply_common_filters(query, request.args, model_to_filter=Ticket)
+    results = query.group_by(AssigneeUser.username).order_by(func.count(Ticket.id).desc()).all()
     labels = [r.username if r.username else "Unassigned" for r in results]
     data = [r.count for r in results]
     return jsonify(labels=labels, data=data)
@@ -2011,9 +2014,9 @@ def tickets_by_agent():
 @app.route('/api/analytics/severity_distribution')
 @admin_required
 def severity_distribution():
-    base_query = db.session.query(Ticket.severity, func.count(Ticket.id).label('count'))
-    filtered_query = _apply_common_filters(base_query, request.args).group_by(Ticket.severity)
-    results_raw = filtered_query.all()
+    query = db.session.query(Ticket.severity, func.count(Ticket.id).label('count'))
+    query = _apply_common_filters(query, request.args, model_to_filter=Ticket)
+    results_raw = query.group_by(Ticket.severity).all()
     severity_order_map = {sev.name: sev.order for sev in SeverityOption.query.all()}
     results = sorted(results_raw, key=lambda r: severity_order_map.get(r.severity, 99))
     labels = [r.severity if r.severity else "No Severity" for r in results]
@@ -2024,7 +2027,8 @@ def severity_distribution():
 @admin_required
 def avg_resolution_time():
     base_query = Ticket.query.filter(Ticket.status.in_(['Resolved', 'Closed']))
-    filtered_query = _apply_common_filters(base_query, request.args)
+    # Pass model_to_filter explicitly
+    filtered_query = _apply_common_filters(base_query, request.args, model_to_filter=Ticket)
     resolved_tickets = filtered_query.all()
     total_resolution_seconds = 0
     count_resolved_with_time = 0
@@ -2034,43 +2038,168 @@ def avg_resolution_time():
             if time_diff.total_seconds() > 0: 
                 total_resolution_seconds += time_diff.total_seconds()
                 count_resolved_with_time += 1
-    avg_resolution_seconds = total_resolution_seconds / count_resolved_with_time if count_resolved_with_time > 0 else 0
+    avg_seconds = total_resolution_seconds / count_resolved_with_time if count_resolved_with_time > 0 else 0
     avg_time_str = "N/A"
-    if avg_resolution_seconds > 0:
-        days = avg_resolution_seconds // (24 * 3600); avg_resolution_seconds %= (24 * 3600)
-        hours = avg_resolution_seconds // 3600; avg_resolution_seconds %= 3600
-        minutes = avg_resolution_seconds // 60
-        avg_time_str = ""
-        if days > 0: avg_time_str += f"{int(days)}d "
-        if hours > 0: avg_time_str += f"{int(hours)}h "
-        if minutes > 0 or not avg_time_str : avg_time_str += f"{int(minutes)}m"
-        avg_time_str = avg_time_str.strip()
+    if avg_seconds > 0:
+        days = int(avg_seconds // (24 * 3600)); avg_seconds %= (24 * 3600)
+        hours = int(avg_seconds // 3600); avg_seconds %= 3600
+        minutes = int(avg_seconds // 60)
+        parts = []
+        if days > 0: parts.append(f"{days}d")
+        if hours > 0: parts.append(f"{hours}h")
+        if minutes > 0 or not parts : parts.append(f"{minutes}m")
+        avg_time_str = " ".join(parts) if parts else "0m"
     return jsonify(
         average_resolution_time_str=avg_time_str, 
-        average_resolution_seconds=int(avg_resolution_seconds) if count_resolved_with_time > 0 else 0,
+        average_resolution_seconds=int(avg_seconds), # Use originally calculated avg_seconds for consistency
         resolved_ticket_count=count_resolved_with_time
     )
+
+@app.route('/api/analytics/cumulative_tickets_over_time')
+@admin_required
+def cumulative_tickets_over_time():
+    args = request.args
+    end_date_max = datetime.utcnow().date()
+    start_date_min = end_date_max - timedelta(days=29)
+    start_date_filter_str = args.get('start_date')
+    end_date_filter_str = args.get('end_date')
+    if start_date_filter_str:
+        try: start_date_min = datetime.strptime(start_date_filter_str, '%Y-%m-%d').date()
+        except ValueError: pass
+    if end_date_filter_str:
+        try: end_date_max = datetime.strptime(end_date_filter_str, '%Y-%m-%d').date()
+        except ValueError: pass
+    if start_date_min > end_date_max: start_date_min = end_date_max - timedelta(days=29)
+
+    all_dates_in_range = [start_date_min + timedelta(days=x) for x in range((end_date_max - start_date_min).days + 1)]
+    date_labels = [d.strftime('%Y-%m-%d') for d in all_dates_in_range]
     
+    base_ticket_query = db.session.query(
+        cast(Ticket.created_at, Date).label('creation_date'),
+        func.count(Ticket.id).label('daily_count')
+    )
+    # Pass model_to_filter=Ticket when filtering on Ticket attributes directly
+    filtered_ticket_query = _apply_common_filters(base_ticket_query, args, model_to_filter=Ticket)
+    
+    daily_counts_results = filtered_ticket_query.filter(cast(Ticket.created_at, Date).between(start_date_min, end_date_max)) \
+                                       .group_by(cast(Ticket.created_at, Date)) \
+                                       .order_by(cast(Ticket.created_at, Date).asc()) \
+                                       .all()
+
+    daily_counts_map = {result.creation_date.strftime('%Y-%m-%d'): result.daily_count for result in daily_counts_results}
+    cumulative_sum = 0
+    final_cumulative_counts = []
+    for date_str in date_labels:
+        cumulative_sum += daily_counts_map.get(date_str, 0)
+        final_cumulative_counts.append(cumulative_sum)
+    return jsonify(labels=date_labels, data=final_cumulative_counts)
+
 # In app.py
 
-# --- Make sure this is the ONLY definition for this route and function ---
-@app.route('/tools/analytics_dashboard')
-@admin_required 
-def analytics_dashboard_page(): # Endpoint name will be 'analytics_dashboard_page'
-    all_statuses = [{'value': s[0], 'display': s[1]} for s in TICKET_STATUS_CHOICES]
-    all_priorities = [{'value': p[0], 'display': p[1]} for p in TICKET_PRIORITY_CHOICES]
-    all_categories = [{'id': c.id, 'name': c.name} for c in Category.query.order_by(Category.name).all()]
-    all_organizations = [{'id': o.id, 'name': o.name} for o in OrganizationOption.query.filter_by(is_active=True).order_by(OrganizationOption.name).all()]
-    all_agents = [{'id': u.id, 'username': u.username} for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by(User.username).all()]
-    
-    return render_template('tools/analytics_dashboard.html',
-                           title="Analytics Dashboard",
-                           all_statuses=all_statuses,
-                           all_priorities=all_priorities,
-                           all_categories=all_categories,
-                           all_organizations=all_organizations,
-                           all_agents=all_agents)
+# ... (other functions and routes as before) ...
 
+@app.route('/api/analytics/priority_status_radar_for_category')
+@admin_required
+def priority_status_radar_for_category():
+    args = request.args
+    category_id_filter_str = args.get('category_id')
+    target_category_id = None
+    category_name_for_chart = "Overall" 
+    app.logger.info(f"--- Radar Chart API Start ---")
+    app.logger.info(f"Initial args: {args}")
+    app.logger.info(f"Radar chart: category_id_filter from args: {category_id_filter_str}")
+
+    # Determine the target category for the radar chart
+    if category_id_filter_str and category_id_filter_str != 'all' and category_id_filter_str.isdigit():
+        target_category_id = int(category_id_filter_str)
+        cat_obj = db.session.get(Category, target_category_id)
+        if cat_obj:
+            category_name_for_chart = cat_obj.name
+            app.logger.info(f"Radar chart: Using specified category ID: {target_category_id}, Name: {category_name_for_chart}")
+        else: 
+            target_category_id = None 
+            app.logger.warning(f"Radar chart: Invalid category_id '{category_id_filter_str}' provided. Will attempt to find most active.")
+            # No need to set category_name_for_chart here yet, it will be set by most active logic
+            
+    if not target_category_id: 
+        app.logger.info("Radar chart: No specific category selected or invalid ID. Finding most active category based on current filters.")
+        # Find the most active category *within the context of other applied filters*
+        # Query for ticket counts per category, applying common filters (date, org, assignee)
+        
+        # Start with a query to count tickets per category
+        most_active_cat_query_base = db.session.query(Ticket.category_id, func.count(Ticket.id).label('ticket_count'))
+        
+        # Prepare args for _apply_common_filters, excluding category_id itself as we are determining it
+        temp_args_for_most_active = args.copy()
+        temp_args_for_most_active.pop('category_id', None) 
+        
+        filtered_cat_counts_query = _apply_common_filters(most_active_cat_query_base, temp_args_for_most_active, model_to_filter=Ticket)
+        
+        most_active_cat = filtered_cat_counts_query.group_by(Ticket.category_id) \
+            .order_by(func.count(Ticket.id).desc()) \
+            .first()
+            
+        if most_active_cat and most_active_cat.category_id:
+            target_category_id = most_active_cat.category_id
+            cat_obj = db.session.get(Category, target_category_id)
+            if cat_obj: 
+                category_name_for_chart = f"{cat_obj.name} (Most Active in Filter)"
+                app.logger.info(f"Radar chart: Using most active category ID: {target_category_id}, Name: {cat_obj.name} (based on current filters)")
+            else: 
+                app.logger.error(f"Radar chart: Could not find category name for determined most active ID: {target_category_id}. This is unexpected if tickets exist for this category.")
+                return jsonify(labels=[], datasets=[], category_name="Error: Category for Most Active Tickets Not Found")
+        else: 
+            app.logger.info("Radar chart: No ticket data to determine most active category after applying other filters. Returning empty.")
+            return jsonify(labels=[], datasets=[], category_name="No Ticket Data for Radar with Current Filters")
+
+    # If, after all, target_category_id is still None, it means no categories with tickets exist at all.
+    if not target_category_id:
+        app.logger.info("Radar chart: No target category could be determined. Returning empty.")
+        return jsonify(labels=[], datasets=[], category_name="No Category Data")
+
+    radar_statuses = ['Open', 'In Progress'] 
+    radar_priorities = TICKET_PRIORITY_CHOICES 
+    priority_labels = [p[1] for p in radar_priorities] 
+    datasets_data = []
+
+    app.logger.info(f"Radar chart: Preparing data for category '{category_name_for_chart}' (ID: {target_category_id})")
+
+    for status_val_internal, status_display_name in [(s[0], s[1]) for s in TICKET_STATUS_CHOICES if s[0] in radar_statuses]:
+        app.logger.debug(f"Radar chart: Processing status '{status_display_name}'")
+        
+        # Base query for the current status and target category
+        query = db.session.query(Ticket.priority, func.count(Ticket.id).label('count')) \
+            .filter(Ticket.category_id == target_category_id) \
+            .filter(Ticket.status == status_val_internal)
+        
+        # Prepare args for common filters, EXCLUDING status, priority, and category_id
+        # as these are dimensions of this specific radar chart query.
+        temp_args_for_dataset = args.copy()
+        temp_args_for_dataset.pop('status', None)
+        temp_args_for_dataset.pop('priority', None)
+        temp_args_for_dataset.pop('category_id', None) 
+        
+        # Apply the remaining common filters (date, organization, assignee)
+        final_query_for_status = _apply_common_filters(query, temp_args_for_dataset, model_to_filter=Ticket)
+        
+        status_priority_counts_raw = final_query_for_status.group_by(Ticket.priority).all()
+        app.logger.debug(f"Radar chart: Raw counts for status '{status_display_name}': {status_priority_counts_raw}")
+
+        status_priority_map = {r.priority: r.count for r in status_priority_counts_raw}
+        data_for_status = [status_priority_map.get(p_val[0], 0) for p_val in radar_priorities]
+        
+        datasets_data.append({
+            'label': status_display_name, 
+            'data': data_for_status,
+            'borderWidth': 1.5 
+        })
+
+    app.logger.info(f"Radar chart data for category '{category_name_for_chart}': Labels: {priority_labels}, Datasets: {datasets_data}")
+    return jsonify(labels=priority_labels, datasets=datasets_data, category_name=category_name_for_chart)
+
+# ... (The rest of your app.py, including other analytics endpoints, CLI, etc. should remain)
+
+# ... (the rest of app.py: other routes, CLI, etc.)
 # --- CLI Commands ---
 @app.cli.command('init-db')
 def init_db_command():
