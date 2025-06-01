@@ -1266,18 +1266,47 @@ def admin_delete_support_modal(item_id): return _admin_delete_option(SupportModa
 @app.route('/admin/tickets')
 @admin_required
 def admin_all_tickets():
-    page = request.args.get('page', 1, type=int); filters = {k: v for k, v in request.args.items() if k != 'page' and v}; query = Ticket.query
-    if filters.get('status'): query = query.filter(Ticket.status == filters['status'])
-    if filters.get('priority'): query = query.filter(Ticket.priority == filters['priority'])
-    if filters.get('category_id') and filters['category_id'] != '0': query = query.filter(Ticket.category_id == int(filters['category_id']))
+    page = request.args.get('page', 1, type=int)
+    filters = {k: v for k, v in request.args.items() if k != 'page' and v and v != ""} # Ignore empty filter values
+    query = Ticket.query
+
+    if filters.get('status'):
+        query = query.filter(Ticket.status == filters['status'])
+    if filters.get('priority'):
+        query = query.filter(Ticket.priority == filters['priority'])
+    if filters.get('category_id') and filters['category_id'] != '0': # Assuming '0' is "All Categories" value
+        query = query.filter(Ticket.category_id == int(filters['category_id']))
+    
     assignee_id_filter = filters.get('assigned_to_id')
     if assignee_id_filter:
-        if assignee_id_filter == '0' or assignee_id_filter.lower() == 'none': query = query.filter(Ticket.assigned_to_id.is_(None))
-        elif assignee_id_filter.isdigit(): query = query.filter(Ticket.assigned_to_id == int(assignee_id_filter))
-    tickets_pagination = query.order_by(Ticket.updated_at.desc()).paginate(page=page, per_page=10, error_out=False)
-    categories_for_filter = Category.query.order_by('name').all(); agents_for_filter = User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()
-    return render_template('admin/all_tickets.html', title='All Tickets Overview', tickets_pagination=tickets_pagination, statuses=TICKET_STATUS_CHOICES, priorities=TICKET_PRIORITY_CHOICES, categories=categories_for_filter, agents=agents_for_filter, current_filters=filters)
+        if assignee_id_filter == '0': # Assuming '0' is "Unassigned"
+            query = query.filter(Ticket.assigned_to_id.is_(None))
+        elif assignee_id_filter.isdigit(): # Check if it's a valid user ID
+            query = query.filter(Ticket.assigned_to_id == int(assignee_id_filter))
+            
+    # --- NEW: Handle Organization Filter ---
+    organization_id_filter = filters.get('organization_id')
+    if organization_id_filter and organization_id_filter.isdigit() and organization_id_filter != '0': # Assuming '0' or empty is "All Organizations"
+        query = query.filter(Ticket.organization_id == int(organization_id_filter))
+    # --- END: Handle Organization Filter ---
 
+    tickets_pagination = query.order_by(Ticket.updated_at.desc()).paginate(page=page, per_page=10, error_out=False)
+    
+    categories_for_filter = Category.query.order_by('name').all()
+    agents_for_filter = User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()
+    # --- NEW: Fetch Organizations for Filter ---
+    organizations_for_filter = OrganizationOption.query.filter_by(is_active=True).order_by('name').all()
+    # --- END: Fetch Organizations for Filter ---
+
+    return render_template('admin/all_tickets.html', 
+                           title='All Tickets Overview', 
+                           tickets_pagination=tickets_pagination, 
+                           statuses=TICKET_STATUS_CHOICES, 
+                           priorities=TICKET_PRIORITY_CHOICES, 
+                           categories=categories_for_filter, 
+                           agents=agents_for_filter,
+                           organizations_for_filter=organizations_for_filter, # Pass to template
+                           current_filters=filters)
 # --- NEW FEATURE ROUTES ---
 @app.route('/api/ai/generate_ticket_description', methods=['POST'])
 @login_required
