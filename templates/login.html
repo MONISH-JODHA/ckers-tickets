@@ -1,13 +1,12 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% set title = "Login" %} {# Corrected: Set title variable passed from the route #}
 
 {% block content %}
 <div class="row justify-content-center mt-5">
     <div class="col-md-6 col-lg-5">
         <div class="card shadow-sm">
             <div class="card-header text-center bg-primary text-white">
-                <h2 class="mb-0">{{ title }}</h2>
+                <h2 class="mb-0">{{ title }}</h2> {# Use the title variable #}
             </div>
             <div class="card-body p-4">
                 <form method="POST" action="{{ url_for('login') }}" novalidate>
@@ -50,13 +49,10 @@
             <div class="card-footer text-muted text-center py-3">
                 <small>
                     Need an account?
-                    <a href="{{ url_for('register_client') }}" class="ml-2">Register as Client</a> |
-                    <a href="{{ url_for('register_agent') }}" class="ml-1">Register as Agent</a>
+                    <a href="{{ url_for('register_client') }}" class="ml-2">Register as Client</a>
+                    {# Link to admin-controlled agent registration could be here if needed #}
+                    {# <a href="{{ url_for('register_agent') }}" class="ml-1">Register as Agent</a> #}
                 </small>
-                {# <br>
-                <small class="mt-2 d-block">
-                    <a href="#">Forgot Password?</a>
-                </small> #}
             </div>
         </div>
     </div>

@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% set title = title or "AI Assistant" %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --primary-color: #0052CC; 
+        --secondary-color: #0065FF;
+        --cta-color: #00A3BF; 
+        --research-color: #FF991F; 
+        --text-dark: #172B4D; 
+        --text-light: #505F79; 
+        --text-on-primary: #FFFFFF;
+        --background-light: #F4F5F7; 
+        --white: #FFFFFF;
+        --border-color: #DFE1E6; 
+        --user-message-bg: #DEEBFF; 
+        --bot-message-bg: #E9F2FF; 
+        --bot-message-alt-bg: #F4F5F7;
+        --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    html, body { height: 100%; } 
+    body { display: flex; flex-direction: column; background-color: var(--background-light); }
+    .content-wrapper { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .chat-container-wrapper {
+        flex-grow: 1; display: flex; justify-content: center; align-items: stretch;
+        padding: 20px; 
+        overflow: hidden; width: 100%; margin-top: 0; 
+    }
+    .chat-window {
+        width: 100%; max-width: 800px; height: 100%;
+        background-color: var(--white); border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12); display: flex; flex-direction: column;
+        overflow: hidden; border: 1px solid var(--border-color);
+    }
+    .chat-header {
+        background-color: var(--primary-color); color: var(--text-on-primary);
+        padding: 12px 20px; font-size: 1.1em; font-weight: 600;
+        display: flex; justify-content: space-between; align-items: center;
+        border-top-left-radius: 11px; border-top-right-radius: 11px;
+        flex-shrink: 0;
+    }
+    .chat-mode-toggle { display: flex; align-items: center; font-size: 0.85em; }
+    .chat-mode-toggle label { margin-right: 8px; cursor: pointer; }
+    .chat-mode-toggle input[type="checkbox"] { height: 0; width: 0; visibility: hidden; position: absolute; }
+    .chat-mode-toggle .switch { cursor: pointer; text-indent: -9999px; width: 40px; height: 20px; background: var(--text-light); display: block; border-radius: 100px; position: relative; }
+    .chat-mode-toggle .switch:after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: var(--white); border-radius: 90px; transition: 0.3s; }
+    .chat-mode-toggle input:checked + .switch { background: var(--cta-color); }
+    .chat-mode-toggle input:checked + .switch:after { left: calc(100% - 2px); transform: translateX(-100%); }
+    .chat-mode-status { margin-left: 10px; font-weight: 500; font-size: 0.9em;}
+
+    .chat-messages {
+        flex-grow: 1; padding: 20px; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 12px;
+    }
+    .message { padding: 10px 15px; border-radius: 18px; max-width: 75%; line-height: 1.5; word-wrap: break-word; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
+    .message.user { background-color: var(--user-message-bg); color: var(--text-dark); align-self: flex-end; border-bottom-right-radius: 5px; }
+    .message.bot { background-color: var(--bot-message-bg); color: var(--text-dark); align-self: flex-start; border-bottom-left-radius: 5px; }
+    .message.bot.direct-ai { background-color: var(--bot-message-alt-bg); border-left: 3px solid var(--cta-color); }
+    .message.system-notification { text-align: center; font-size: 0.85em; color: var(--text-light); font-style: italic; background: none; box-shadow: none; align-self: center; max-width: 100%;}
+
+    .message strong { font-weight: 600; }
+    .message code { background-color: rgba(0,0,0,0.05); padding: 0.2em 0.4em; border-radius: 3px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 0.9em;}
+    .message pre { white-space: pre-wrap; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; background-color: rgba(0,0,0,0.04); padding: 10px; margin-top: 8px; border-radius: 6px; font-size: 0.9em; overflow-x: auto; border: 1px solid rgba(0,0,0,0.06); }
+    .message pre code { background-color: transparent; padding: 0; border-radius: 0; }
+    
+    .message .actions-toolbar { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.08); display: flex; gap: 8px; }
+    .message .btn-deep-research { background-color: transparent; color: var(--research-color); border: 1px solid var(--research-color); padding: 4px 10px; border-radius: 15px; cursor: pointer; font-size: 0.8em; font-weight: 500; transition: background-color 0.2s, color 0.2s; }
+    .message .btn-deep-research:hover { background-color: var(--research-color); color: var(--white); }
+    .message .btn-deep-research .spinner-border-sm { width: 0.8em; height: 0.8em; border-width: .15em; margin-right: .3em; }
+    .message .btn-deep-research i:not(.spinner-border-sm) { margin-right: 5px; }
+
+
+    .message .docs-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color); }
+    .message .docs-section h4 { font-size: 0.9em; color: var(--text-light); margin-bottom: 5px; font-weight: 600; }
+    .message .docs-section ul { list-style: none; padding-left: 0; margin-bottom: 0; }
+    .message .docs-section li a { display: flex; align-items:center; padding: 5px 0; font-size: 0.9em; color: var(--primary-color); text-decoration: none; transition: color 0.2s; }
+    .message .docs-section li a:hover { color: var(--secondary-color); text-decoration: underline; }
+    .message .docs-section li a i { margin-right: 8px; width: 16px; text-align: center; color: var(--text-light); }
+    .message .aws-docs h4 { color: var(--research-color); }
+    .message .relevant-docs i { color: var(--primary-color) !important; }
+
+    .chat-input-area { display: flex; padding: 15px 20px; border-top: 1px solid var(--border-color); background-color: var(--white); flex-shrink: 0; align-items: center; }
+    #userInput { flex-grow: 1; padding: 12px 18px; border: 1px solid var(--border-color); border-radius: 25px; margin-right: 12px; font-size: 1em; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    #userInput:focus { border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2); }
+    #sendButton { background-color: var(--cta-color); color: var(--text-on-primary); border: none; padding: 0 22px; height: 46px; border-radius: 25px; cursor: pointer; font-size: 1em; font-weight: 600; display: inline-flex; align-items: center; transition: background-color 0.2s; }
+    #sendButton:hover { background-color: #008DAA; }
+    #sendButton .spinner-border-sm { width: 1em; height: 1em; border-width: .2em; margin-right: .5em;}
+    #sendButton i:not(.spinner-border-sm) { margin-left: 8px; }
+    #sendButton:disabled { background-color: #B3BAC5; color: #7A869A; cursor: not-allowed; }
+
+    @media (max-width: 768px) {
+        .chat-container-wrapper { padding: 10px; }
+        .chat-window { max-width: 100%; border-radius: 8px; }
+        .chat-header { padding: 10px 15px; font-size: 1em; flex-direction: column; gap: 5px; align-items: flex-start;}
+        .chat-mode-toggle { font-size: 0.8em; }
+        .chat-mode-status { font-size: 0.75em; margin-left: 5px; }
+        .chat-messages { padding: 15px; }
+        .message { max-width: 90%; }
+        .chat-input-area { padding: 10px 15px; }
+        #userInput { padding: 10px 15px; font-size: 0.95em; }
+        #sendButton { height: 42px; padding: 0 18px; font-size: 0.95em;}
+        .message .btn-deep-research { font-size: 0.75em; padding: 3px 8px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="chat-container-wrapper">
+        <div class="chat-window">
+            <div class="chat-header">
+                <span>AI Assistant</span>
+                <div class="chat-mode-toggle">
+                    <label for="aiModeToggle" title="Ticket-specific help">Ticket Help</label>
+                    <input type="checkbox" id="aiModeToggle">
+                    <label for="aiModeToggle" class="switch" title="Toggle for General AI assistance"></label>
+                    <label for="aiModeToggle" title="General AI assistance">General AI</label>
+                    <span class="chat-mode-status" id="chatModeStatusText">(Ticket Focused)</span>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot">
+                    Hello {{ username }}! I'm your AI Assistant.
+                    In "Ticket Help" mode, I can assist with your tickets (e.g., "show ticket 123", "my open tickets").
+                    Toggle to "General AI" for broader queries.
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="userInput" placeholder="Ask about tickets or toggle for general AI..." autocomplete="off">
+                <button id="sendButton" title="Send Message">
+                    <span>Send</span> <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatMessagesEl = document.getElementById('chatMessages');
+    const userInputEl = document.getElementById('userInput');
+    const sendButtonEl = document.getElementById('sendButton');
+    const sendButtonTextEl = sendButtonEl.querySelector('span');
+    const sendButtonIconEl = sendButtonEl.querySelector('i');
+    const aiModeToggleEl = document.getElementById('aiModeToggle');
+    const chatModeStatusTextEl = document.getElementById('chatModeStatusText');
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    let currentChatMode = 'ticket_assistant'; 
+    let lastBotQueryContext = null; 
+    let isFetchingAwsDocs = false; // Prevent multiple AWS doc fetches
+
+    function updateChatModeStatus() {
+        if (aiModeToggleEl.checked) {
+            currentChatMode = 'general_ai';
+            chatModeStatusTextEl.textContent = '(General AI)';
+            userInputEl.placeholder = 'Ask me anything...';
+            addMessageToChat("Switched to <strong>General AI</strong> mode. How can I help you with general queries?", 'system-notification');
+        } else {
+            currentChatMode = 'ticket_assistant';
+            chatModeStatusTextEl.textContent = '(Ticket Focused)';
+            userInputEl.placeholder = 'Ask about tickets...';
+            addMessageToChat("Switched to <strong>Ticket Assistant</strong> mode. Ask about your tickets.", 'system-notification');
+        }
+        lastBotQueryContext = null; 
+        userInputEl.focus();
+    }
+    
+    aiModeToggleEl.addEventListener('change', updateChatModeStatus);
+
+    function escapeHtml(unsafe) {
+        if (typeof unsafe !== 'string') return '';
+        return unsafe
+             .replace(/&/g, "&")
+             .replace(/</g, "<")
+             .replace(/>/g, ">")
+             .replace(/"/g, """)
+             .replace(/'/g, "'");
+    }
+
+    function formatBotMessage(text) {
+        if (typeof text !== 'string') text = String(text);
+        let-html = escapeHtml(text); // Escape all HTML first
+
+        // Apply markdown-like formatting
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
+        html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');       // Italics
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');   // Inline code
+        
+        // Code Blocks (must handle multi-line correctly)
+        html = html.replace(/```([\s\S]*?)```/g, (match, codeContent) => {
+            return `<pre><code>${codeContent.trim()}</code></pre>`; // Already escaped
+        });
+
+        // Basic lists (assumes simple lists, no nesting)
+        html = html.replace(/^\s*(\d+)\.\s*(.*)/gm, '<ol><li>$2</li></ol>'); // Numbered list item
+        html = html.replace(/<\/ol>\s*<ol>/g, ''); // Merge adjacent OLs
+
+        html = html.replace(/^\s*[-*+]\s*(.*)/gm, '<ul><li>$1</li></ul>'); // Bullet list item
+        html = html.replace(/<\/ul>\s*<ul>/g, ''); // Merge adjacent ULs
+        
+        return html.replace(/\n/g, '<br>'); // Convert remaining newlines to <br>
+    }
+
+
+    function addMessageToChat(text, sender, relevantDocs = null, awsDocs = null, isDirectAiResponse = false, queryContextForResearch = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', sender);
+
+        if (sender === 'system-notification') { messageDiv.classList.add('system-notification'); }
+        if (isDirectAiResponse && sender === 'bot') { messageDiv.classList.add('direct-ai'); }
+
+        const contentSpan = document.createElement('span');
+        if (sender === 'bot' || sender === 'system-notification') {
+            contentSpan.innerHTML = formatBotMessage(text);
+        } else {
+            contentSpan.textContent = text; // User input should be textContent to prevent XSS
+        }
+        messageDiv.appendChild(contentSpan);
+
+        if (relevantDocs && relevantDocs.length > 0) {
+            const docsDiv = document.createElement('div');
+            docsDiv.className = 'docs-section relevant-docs'; 
+            const docsHeader = document.createElement('h4');
+            docsHeader.innerHTML = '<i class="fas fa-folder-open"></i> Related Ticket Documents:';
+            docsDiv.appendChild(docsHeader);
+            const ul = document.createElement('ul');
+            relevantDocs.forEach(doc => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = doc.url; 
+                a.textContent = doc.name;
+                a.target = '_blank';
+                const icon = document.createElement('i');
+                icon.className = doc.type === 'remedy_document' ? 'fas fa-file-medical' : 'fas fa-paperclip';
+                a.prepend(icon);
+                li.appendChild(a);
+                ul.appendChild(li);
+            });
+            docsDiv.appendChild(ul);
+            messageDiv.appendChild(docsDiv);
+        }
+
+        if (awsDocs && awsDocs.length > 0) {
+            const awsDocsDiv = document.createElement('div');
+            awsDocsDiv.className = 'docs-section aws-docs';
+            const awsDocsHeader = document.createElement('h4');
+            awsDocsHeader.innerHTML = '<i class="fab fa-aws"></i> AWS Documentation:';
+            awsDocsDiv.appendChild(awsDocsHeader);
+            const ulAws = document.createElement('ul');
+            awsDocs.forEach(doc => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = doc.url;
+                a.textContent = doc.title || doc.name; 
+                a.target = '_blank';
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-book-open';
+                a.prepend(icon);
+                li.appendChild(a);
+                ulAws.appendChild(li);
+            });
+            awsDocsDiv.appendChild(ulAws);
+            messageDiv.appendChild(awsDocsDiv);
+        }
+        
+        if (sender === 'bot' && !isDirectAiResponse && !awsDocs && queryContextForResearch && currentChatMode === 'ticket_assistant') { 
+            const actionsToolbar = document.createElement('div');
+            actionsToolbar.className = 'actions-toolbar';
+            const researchButton = document.createElement('button');
+            researchButton.className = 'btn-deep-research';
+            researchButton.innerHTML = '<i class="fas fa-search-plus"></i> <span>Deep Research AWS Docs</span>';
+            researchButton.title = 'Find relevant AWS documentation for this topic';
+            researchButton.onclick = () => {
+                fetchAwsDocumentation(queryContextForResearch, messageDiv, researchButton);
+            };
+            actionsToolbar.appendChild(researchButton);
+            messageDiv.appendChild(actionsToolbar);
+        }
+        chatMessagesEl.appendChild(messageDiv);
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+    }
+
+    async function fetchAwsDocumentation(topic, originalMessageDiv, buttonElement) {
+        if (isFetchingAwsDocs) return; // Prevent concurrent fetches
+        isFetchingAwsDocs = true;
+
+        const originalButtonHtml = buttonElement.innerHTML;
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Searching AWS Docs...';
+
+        addMessageToChat(`Looking for AWS documentation related to: "${topic}"...`, 'system-notification');
+        
+        try {
+            const payload = { research_topic: topic };
+            const response = await fetch("{{ url_for('api_aws_doc_search') }}", { 
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `Server error: ${response.status}`);
+            }
+            
+            buttonElement.closest('.actions-toolbar')?.remove(); // Remove the button/toolbar
+
+            if (data.aws_docs && data.aws_docs.length > 0) {
+                const awsDocsDiv = document.createElement('div');
+                awsDocsDiv.className = 'docs-section aws-docs';
+                const awsDocsHeader = document.createElement('h4');
+                awsDocsHeader.innerHTML = '<i class="fab fa-aws"></i> AWS Documentation Found:';
+                awsDocsDiv.appendChild(awsDocsHeader);
+                const ulAws = document.createElement('ul');
+                data.aws_docs.forEach(doc => {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.href = doc.url;
+                    a.textContent = doc.title || doc.name;
+                    a.target = '_blank';
+                    const icon = document.createElement('i');
+                    icon.className = 'fas fa-book-open';
+                    a.prepend(icon);
+                    li.appendChild(a);
+                    ulAws.appendChild(li);
+                });
+                awsDocsDiv.appendChild(ulAws);
+                originalMessageDiv.appendChild(awsDocsDiv); // Append docs to the original message
+                chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+            } else {
+                addMessageToChat(`No specific AWS documentation found for "${topic}".`, 'bot');
+            }
+
+        } catch (error) {
+            console.error("AWS Doc Search API error:", error);
+            addMessageToChat(`Sorry, I encountered an error while searching AWS docs: ${error.message}`, 'bot');
+            buttonElement.disabled = false; // Re-enable button on error
+            buttonElement.innerHTML = originalButtonHtml;
+        } finally {
+            isFetchingAwsDocs = false;
+        }
+    }
+
+    async function sendMessageToBot() {
+        const messageText = userInputEl.value.trim();
+        if (!messageText) return;
+
+        addMessageToChat(messageText, 'user');
+        userInputEl.value = '';
+        const originalButtonText = sendButtonTextEl.textContent;
+        const originalButtonIconClass = sendButtonIconEl.className;
+
+        sendButtonEl.disabled = true;
+        sendButtonIconEl.className = 'fas fa-spinner fa-spin';
+        sendButtonTextEl.textContent = 'Sending...';
+        
+        lastBotQueryContext = messageText; 
+
+        try {
+            const payload = { message: messageText, mode: currentChatMode };
+            const response = await fetch("{{ url_for('api_chat') }}", {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken 
+                },
+                body: JSON.stringify(payload),
+            });
+            
+            let data;
+            const responseContentType = response.headers.get("content-type");
+            if (responseContentType && responseContentType.includes("application/json")) {
+                data = await response.json();
+            } else {
+                const textResponse = await response.text();
+                console.error("Server returned non-JSON response:", textResponse);
+                throw new Error(`Server error. Status: ${response.status}. Check console for details.`);
+            }
+            
+            if (!response.ok) {
+                throw new Error(data.reply || data.error || `Server error: ${response.status} ${response.statusText}`);
+            }
+            
+            let researchContext = data.research_topic_suggestion || messageText;
+            addMessageToChat(data.reply, 'bot', data.relevant_docs, data.aws_docs, data.is_direct_ai, researchContext);
+
+        } catch (error) {
+            console.error("Chat API Error:", error); 
+            addMessageToChat(`Sorry, I encountered an error: ${error.message || 'Unable to connect to the assistant.'}`, 'bot');
+        } finally {
+            sendButtonEl.disabled = false;
+            sendButtonIconEl.className = originalButtonIconClass;
+            sendButtonTextEl.textContent = originalButtonText;
+            userInputEl.focus();
+        }
+    }
+
+    sendButtonEl.addEventListener('click', sendMessageToBot);
+    userInputEl.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendMessageToBot();
+        }
+    });
+    userInputEl.focus();
+});
+</script>
+{% endblock %}

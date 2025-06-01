@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}Welcome - Ticket Management System{% endblock %}
+{% set title = "Welcome" %} {# Corrected: Set title variable #}
 
 {% block content %}
 <div class="jumbotron mt-4 text-center shadow-lg p-5 bg-light rounded">
@@ -15,12 +14,6 @@
         <a class="btn btn-success btn-lg" href="{{ url_for('register_client') }}" role="button">
             <i class="fas fa-user-plus mr-1"></i>Register
         </a>
-        {# Removed Register as Agent from public index page for better security/control #}
-        {# It's typically an admin function to create agent accounts #}
-        {# If you need public agent registration, you can uncomment it and ensure proper validation/approval workflow #}
-        {# <a class="btn btn-info btn-lg" href="{{ url_for('register_agent') }}" role="button"> #}
-        {#    <i class="fas fa-headset mr-1"></i>Register as Agent #}
-        {# </a> #}
     {% else %}
         <p>You are logged in, {{ current_user.username }}. Go to your dashboard to get started.</p>
         <a class="btn btn-primary btn-lg" href="{{ url_for('dashboard') }}" role="button">

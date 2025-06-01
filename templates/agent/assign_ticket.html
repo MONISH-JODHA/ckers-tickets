@@ -1,26 +1,34 @@
 {% extends "base.html" %}
-
-{% block title %}Assign Ticket #{{ ticket.id }} - Ticket CMS{% endblock %}
+{% set title = "Assign Ticket #" ~ ticket.id %} {# Corrected: Set title variable #}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-6">
-        <div class="card mt-4">
-            <div class="card-header">
-                <h2>Assign Ticket #{{ ticket.id }}: {{ ticket.title }}</h2>
+        <div class="card mt-4 shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h2 class="mb-0">Assign Ticket #{{ ticket.id }}: {{ ticket.title }}</h2>
             </div>
             <div class="card-body">
                 <p><strong>Current Assignee:</strong> {{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</p>
+                <p><strong>Status:</strong> <span class="badge badge-info">{{ ticket.status }}</span></p>
+                <p><strong>Priority:</strong> <span class="badge 
+                    {% if ticket.priority == 'Urgent' %}badge-danger
+                    {% elif ticket.priority == 'High' %}badge-warning
+                    {% elif ticket.priority == 'Medium' %}badge-primary
+                    {% else %}badge-secondary{% endif %}">{{ ticket.priority }}</span>
+                </p>
+                <hr>
                 
-                {# This form assumes you have a 'form' object passed for assignment.
-                   If assignment is handled differently (e.g., via AgentUpdateTicketForm on view_ticket),
-                   this template might need adjustment or a dedicated route and form.
+                {# This form assumes you have a `form` object (e.g., AgentUpdateTicketForm or a dedicated AssignAgentForm) 
+                   passed from the route that renders this template.
+                   If assignment is primarily done via the "Assign to Me" button or the AgentUpdateTicketForm on view_ticket.html, 
+                   this dedicated page might be simpler or not use a full WTForm.
                 #}
-                {% if form %}
-                <form method="POST"> 
+                {% if form and form.assigned_to_id %} {# Check if the relevant field exists #}
+                <form method="POST"> {# Action URL defaults to current page if not specified #}
                     {{ form.hidden_tag() }}
                     <div class="form-group">
-                        {{ form.assigned_to_id.label(class="form-control-label") }}
+                        {{ form.assigned_to_id.label(class="form-control-label font-weight-bold") }}
                         {{ form.assigned_to_id(class="form-control custom-select " + ("is-invalid" if form.assigned_to_id.errors else "")) }}
                         {% if form.assigned_to_id.errors %}
                             <div class="invalid-feedback d-block">
@@ -29,13 +37,16 @@
                         {% endif %}
                     </div>
                     <div class="form-group mt-4">
-                        {{ form.submit(class="btn btn-primary") }}
+                        {{ form.submit(class="btn btn-primary", value="Assign Agent") }}
                         <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary">Cancel</a>
                     </div>
                 </form>
                 {% else %}
-                 <p class="text-muted"><em>Assignment functionality via this page is not currently configured with a form. Re-assign via the main ticket view page if available.</em></p>
-                 <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary">Back to Ticket</a>
+                 <p class="text-muted">
+                     <em>To assign this ticket, please use the "Assign to Me" button on the ticket list or the assignment options on the main ticket view page.</em>
+                 </p>
+                 <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary mt-2">Back to Ticket #{{ ticket.id }}</a>
+                 <a href="{{ url_for('agent_ticket_list') }}" class="btn btn-outline-primary mt-2">Back to Ticket List</a>
                 {% endif %}
             </div>
         </div>

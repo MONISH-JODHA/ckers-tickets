@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% set title = title %} {# Corrected: Use the title variable passed from the route #}
 
 {% block content %}
     <div class="d-flex justify-content-between align-items-center mb-3">

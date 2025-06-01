@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% set title = title %} {# Corrected: Use the title variable passed from the route #}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -50,7 +49,6 @@
                             {% endif %}
                         </div>
 
-                        {# Organization field for admin to assign to user #}
                         <div class="form-group mb-3">
                             {{ form.organization_id.label(class="form-control-label") }}
                             {% if form.organization_id.errors %}

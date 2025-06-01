@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Ticket CMS{% endblock %}</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUA6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    {% block head_extra %}{% endblock %}
-</head>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="csrf-token" content="{{ csrf_token() }}"> {# <--- ADD THIS LINE #}
+        <title>{% block title %}Ticket CMS{% endblock %}</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUA6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+        {% block head_extra %}{% endblock %}
+    </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
@@ -46,6 +47,17 @@
                             </div>
                         </li>
                         {% endif %}
+                        
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                Tools
+                            </a>
+                            <div class="dropdown-menu" aria-labelledby="toolsDropdown">
+                                <a class="dropdown-item" href="{{ url_for('gdoc_importer_page') }}"><i class="fab fa-google-drive fa-fw mr-2"></i>GDoc Importer</a>
+                                <a class="dropdown-item" href="{{ url_for('chatbot_page_render') }}"><i class="fas fa-robot fa-fw mr-2"></i>AI Assistant</a>
+                            </div>
+                        </li>
+
                          {% if current_user.is_admin %}
                          <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">

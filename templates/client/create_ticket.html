@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% set title = title %} {# Use title passed from route #}
 
 {% block head_extra %}
 <style>
@@ -12,16 +12,29 @@
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
         border-bottom: 1px solid #e9ecef;
-        color: #007bff; /* Primary color for section headers */
+        color: #007bff;
     }
-    .readonly-org-display { /* For displaying pre-set organization for clients */
+    .readonly-org-display {
         background-color: #e9ecef; 
         padding: .375rem .75rem;
         border-radius: .25rem;
         border: 1px solid #ced4da;
-        min-height: calc(1.5em + .75rem + 2px); /* Match select height */
+        min-height: calc(1.5em + .75rem + 2px);
         display: flex;
         align-items: center;
+    }
+    .ai-description-btn {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+    }
+    #aiDescriptionStatus {
+        font-size: 0.8em;
+        margin-top: 5px;
+    }
+    .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        border-width: .2em;
     }
 </style>
 {% endblock %}
@@ -32,27 +45,23 @@
         <div class="card mt-4 shadow-sm">
             <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
             <div class="card-body p-4">
-                <form method="POST" action="{{ url_for('create_ticket') }}" novalidate enctype="multipart/form-data">
+                <form method="POST" action="{{ url_for('create_ticket') }}" novalidate enctype="multipart/form-data" id="createTicketMainForm">
                     {{ form.hidden_tag() }}
                     
                     <div class="form-group">
                         {{ form.title.label(class="form-control-label") }}
-                        {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="A brief summary of your issue") }}
+                        {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="A brief summary of your issue", id="ticketTitle") }}
                         {% for error in form.title.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
 
                     <div class="form-row">
-                        {# Organization Field Logic #}
                         <div class="form-group col-md-6">
                             {{ form.organization_id.label(class="form-control-label") }}
                             {% if user_is_client_with_org %}
                                 <p class="form-control-static readonly-org-display" title="Your organization is automatically set based on your registration.">
                                     {{ user_organization_name }}
                                 </p>
-                                {# The actual organization_id will be taken from current_user on the backend #}
-                                {# No need to render the form field itself for the client if it's auto-set and non-editable #}
                             {% else %} 
-                                {# Agents/Admins or Clients without a pre-set organization see the dropdown #}
                                 {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
                                 {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                             {% endif %}
@@ -67,19 +76,18 @@
                     
                     <div class="form-group">
                         {{ form.category.label(class="form-control-label") }}
-                        {{ form.category(class="form-control custom-select" + (" is-invalid" if form.category.errors else "")) }}
+                        {{ form.category(class="form-control custom-select" + (" is-invalid" if form.category.errors else ""), id="ticketCategory") }}
                         {% for error in form.category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="form-group">
                         {{ form.severity.label(class="form-control-label") }}
-                        {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else "")) }}
+                        {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else ""), id="ticketSeverity") }}
                         {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     
                     <div class="form-group">
                         {{ form.customer_name.label(class="form-control-label") }}
                         {% if user_is_client_with_org %}
-                            {# Pre-fill and make readonly for client with org #}
                             {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), value=user_organization_name, readonly=True, placeholder="Your Company Name") }}
                              <small class="form-text text-muted">Company name is set based on your organization.</small>
                         {% else %}
@@ -143,8 +151,14 @@
 
                     <hr>
                     <div class="form-group">
-                        {{ form.description.label(class="form-control-label") }}
-                        {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows="8", placeholder="Please describe your issue in detail...") }}
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            {{ form.description.label(class="form-control-label mb-0") }}
+                            <button type="button" class="btn btn-outline-info btn-sm ai-description-btn" id="generateAiDescriptionBtn">
+                                <i class="fas fa-magic"></i> Generate with AI
+                            </button>
+                        </div>
+                        {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows="8", placeholder="Please describe your issue in detail...", id="ticketDescription") }}
+                        <div id="aiDescriptionStatus" class="text-muted"></div>
                         {% for error in form.description.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="form-group">
@@ -188,6 +202,70 @@ document.addEventListener('DOMContentLoaded', function() {
     if (cloudProviderSelect) {
         cloudProviderSelect.addEventListener('change', toggleAwsService);
         toggleAwsService(); 
+    }
+
+    const generateBtn = document.getElementById('generateAiDescriptionBtn');
+    const descriptionTextarea = document.getElementById('ticketDescription');
+    const titleInput = document.getElementById('ticketTitle');
+    const categorySelect = document.getElementById('ticketCategory');
+    const severitySelect = document.getElementById('ticketSeverity');
+    const aiStatusDiv = document.getElementById('aiDescriptionStatus');
+    const mainForm = document.getElementById('createTicketMainForm');
+
+    if (generateBtn) {
+        generateBtn.addEventListener('click', async function() {
+            const title = titleInput.value.trim();
+            const currentDescription = descriptionTextarea.value.trim();
+            const categoryId = categorySelect.value;
+            const severityName = severitySelect.value;
+
+            if (!title && !currentDescription && (categoryId === "0" || !categoryId) && !severityName) {
+                aiStatusDiv.textContent = 'Please provide a title, description, category, or severity.';
+                aiStatusDiv.className = 'text-danger';
+                return;
+            }
+
+            aiStatusDiv.textContent = 'Generating AI description...';
+            aiStatusDiv.className = 'text-info';
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+            
+            const csrfToken = mainForm.querySelector('input[name="csrf_token"]').value;
+
+            try {
+                const response = await fetch("{{ url_for('ai_generate_ticket_description') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken 
+                    },
+                    body: JSON.stringify({
+                        title: title,
+                        current_description: currentDescription,
+                        category_id: categoryId,
+                        severity_name: severityName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.generated_description) {
+                    descriptionTextarea.value = data.generated_description;
+                    aiStatusDiv.textContent = 'AI description generated and populated!';
+                    aiStatusDiv.className = 'text-success';
+                } else {
+                    throw new Error(data.error || 'Failed to generate description.');
+                }
+
+            } catch (error) {
+                console.error('AI Description Error:', error);
+                aiStatusDiv.textContent = 'Error: ' + error.message;
+                aiStatusDiv.className = 'text-danger';
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate with AI';
+            }
+        });
     }
 });
 </script>

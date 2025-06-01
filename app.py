@@ -1,6 +1,6 @@
 import os
-from datetime import datetime, timedelta
-from flask import Flask, render_template, redirect, url_for, flash, request, current_app, send_from_directory, session
+from datetime import datetime, timedelta, date
+from flask import Flask, render_template, redirect, url_for, flash, request, current_app, send_from_directory, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, current_user, UserMixin, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -8,9 +8,8 @@ from werkzeug.utils import secure_filename
 from urllib.parse import urlparse, quote_plus
 from functools import wraps
 from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf 
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField, IntegerField, MultipleFileField
-from wtforms.widgets import TextArea as TextAreaWidget
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, Length, Optional, NumberRange, InputRequired, Regexp
 import logging
 from markupsafe import escape, Markup
@@ -19,7 +18,13 @@ import uuid
 from flask_mail import Mail, Message
 import sys
 from itertools import groupby
-from datetime import date
+
+# --- New Imports for Integrated Features ---
+import google.generativeai as genai
+import requests
+from bs4 import BeautifulSoup
+import json 
+from sqlalchemy import or_ 
 
 # Twilio Integration
 from twilio.rest import Client as TwilioClient
@@ -36,6 +41,8 @@ AWS_SERVICE_CHOICES = [
 ]
 TICKET_STATUS_CHOICES = [('Open', 'Open'), ('In Progress', 'In Progress'), ('On Hold', 'On Hold'), ('Resolved', 'Resolved'), ('Closed', 'Closed')]
 TICKET_PRIORITY_CHOICES = [('Low', 'Low'), ('Medium', 'Medium'), ('High', 'High'), ('Urgent', 'Urgent')]
+
+TICKET_STATUS_CHOICES_FLAT = [s[0].lower() for s in TICKET_STATUS_CHOICES]
 
 REQUEST_CALL_BACK_CHOICES = [('', '-'), ('Yes', 'Yes'), ('No', 'No')]
 EFFORT_CHOICES = [
@@ -57,7 +64,7 @@ def to_snake_case(name):
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'ticket-cms-agent-views-final-key-secure'
     MYSQL_USER = os.environ.get('MYSQL_USER_TICKET_CMS') or 'ticket_user'
-    _raw_mysql_password = os.environ.get('MYSQL_PASSWORD_TICKET_CMS') or 'Jodha@123'
+    _raw_mysql_password = os.environ.get('MYSQL_PASSWORD_TICKET_CMS') or 'Jodha@123' 
     MYSQL_PASSWORD_ENCODED = quote_plus(_raw_mysql_password) if _raw_mysql_password else ''
     MYSQL_HOST = os.environ.get('MYSQL_HOST_TICKET_CMS') or 'localhost'
     MYSQL_DB = os.environ.get('MYSQL_DB_TICKET_CMS') or 'ticket_cms_db'
@@ -80,11 +87,11 @@ class Config:
     MAIL_PORT = int(os.environ.get('MAIL_PORT_TICKET_CMS') or 587)
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS_TICKET_CMS', 'true').lower() in ['true', '1', 't']
     MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL_TICKET_CMS', 'false').lower() in ['true', '1', 't']
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME_TICKET_CMS') or 'monish.jodha@cloudkeeper.com'
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD_TICKET_CMS') or 'tuvljncwusoodplx'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME_TICKET_CMS') 
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD_TICKET_CMS') 
     MAIL_DEFAULT_SENDER_EMAIL = os.environ.get('MAIL_DEFAULT_SENDER_EMAIL_TICKET_CMS') or MAIL_USERNAME
     MAIL_DEFAULT_SENDER = ('TicketSys Admin', MAIL_DEFAULT_SENDER_EMAIL or 'noreply@example.com')
-    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL_TICKET_CMS')
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL_TICKET_CMS') 
 
     IMAP_SERVER = os.environ.get('IMAP_SERVER_TICKET_CMS_FETCH') or 'imap.gmail.com'
     IMAP_USERNAME = os.environ.get('IMAP_USERNAME_TICKET_CMS_FETCH')
@@ -109,6 +116,9 @@ class Config:
     EMERGENCY_CALL_RECIPIENT_PHONE_NUMBER = os.environ.get('EMERGENCY_CALL_RECIPIENT_PHONE_NUMBER_TICKET_CMS')
     SEVERITIES_FOR_CALL_ALERT = ["Severity 1 (Critical)", "Severity 2 (High)"]
 
+    GEMINI_API_KEY = os.getenv('GOOGLE_API_KEY')
+
+
 app = Flask(__name__)
 app.config.from_object(Config)
 app.jinja_env.add_extension('jinja2.ext.do')
@@ -119,8 +129,9 @@ app.logger.setLevel(logging.INFO)
 app.logger.info(f"--- App Initialization ---")
 app.logger.info(f"Configured UPLOAD_FOLDER: {app.config['UPLOAD_FOLDER']}")
 if app.config['UPLOAD_FOLDER'] == "/path/to/your/uploads":
-    app.logger.warning("UPLOAD_FOLDER is set to '/path/to/your/uploads'. This is a placeholder and likely incorrect. "
-                       "Please unset the UPLOAD_FOLDER environment variable or set it to a valid writable path.")
+    app.logger.warning("UPLOAD_FOLDER is set to '/path/to/your/uploads'. This is a placeholder. Unsetting it to use default.")
+    app.config['UPLOAD_FOLDER'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'uploads')
+    app.logger.info(f"UPLOAD_FOLDER reset to default: {app.config['UPLOAD_FOLDER']}")
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     try:
@@ -135,6 +146,17 @@ if not app.config['SQLALCHEMY_DATABASE_URI']:
 csrf = CSRFProtect(app)
 mail = Mail(app)
 db = SQLAlchemy(app)
+
+if not app.config['GEMINI_API_KEY']:
+    app.logger.warning("CRITICAL WARNING: GOOGLE_API_KEY (GEMINI_API_KEY in Config) environment variable not set. AI features will fail.")
+else:
+    try:
+        genai.configure(api_key=app.config['GEMINI_API_KEY'])
+        app.logger.info("Gemini API Key configured successfully.")
+    except Exception as e:
+        app.logger.error(f"Error configuring Gemini API: {e}")
+        app.config['GEMINI_API_KEY'] = None
+
 
 def nl2br_filter(value):
     if not isinstance(value, str): value = str(value)
@@ -208,6 +230,7 @@ class OrganizationOption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False, index=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    tickets = db.relationship('Ticket', backref='organization_option_ref', lazy='dynamic')
     def __repr__(self): return f'<OrganizationOption {self.name}>'
 
 class FormTypeOption(db.Model):
@@ -245,9 +268,9 @@ class Ticket(db.Model):
     updated_at = db.Column(db.DateTime, index=True, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
     cloud_provider = db.Column(db.String(50), nullable=True)
-    severity = db.Column(db.String(50), nullable=True)
+    severity = db.Column(db.String(50), nullable=False)
     aws_service = db.Column(db.String(100), nullable=True)
     aws_account_id = db.Column(db.String(20), nullable=True)
     environment = db.Column(db.String(50), nullable=True)
@@ -259,16 +282,19 @@ class Ticket(db.Model):
     contact_details = db.Column(db.String(255), nullable=True)
     aws_support_case_id = db.Column(db.String(50), nullable=True)
     effort_required_to_resolve_min = db.Column(db.Integer, nullable=True)
-    customer_name = db.Column(db.String(100), nullable=True)
+    customer_name = db.Column(db.String(100), nullable=False)
     apn_opportunity_id = db.Column(db.Integer, db.ForeignKey('apn_opportunity_options.id'), nullable=True)
     apn_opportunity_description = db.Column(db.Text, nullable=True)
     support_modal_id = db.Column(db.Integer, db.ForeignKey('support_modal_options.id'), nullable=True)
     first_response_at = db.Column(db.DateTime, nullable=True)
     first_response_duration_minutes = db.Column(db.Integer, nullable=True)
+    
     comments = db.relationship('Comment', backref='ticket_ref', lazy='dynamic', cascade="all, delete-orphan")
+    
     cloud_provider_obj = db.relationship('CloudProviderOption', foreign_keys=[cloud_provider], primaryjoin='Ticket.cloud_provider == CloudProviderOption.name', viewonly=True)
     severity_obj = db.relationship('SeverityOption', foreign_keys=[severity], primaryjoin='Ticket.severity == SeverityOption.name', viewonly=True)
     environment_obj = db.relationship('EnvironmentOption', foreign_keys=[environment], primaryjoin='Ticket.environment == EnvironmentOption.name', viewonly=True)
+    
     def __repr__(self): return f'<Ticket {self.id}: {self.title}>'
 
 class Comment(db.Model):
@@ -299,7 +325,7 @@ class Interaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    interaction_type = db.Column(db.String(50), nullable=False)
+    interaction_type = db.Column(db.String(50), nullable=False) 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     details = db.Column(db.JSON, nullable=True)
     ticket = db.relationship('Ticket', backref=db.backref('interactions_rel', lazy='dynamic', cascade="all, delete-orphan"))
@@ -353,7 +379,7 @@ class CreateTicketForm(FlaskForm):
     contact_details = StringField('Contact Details for Callback', validators=[Optional(), Length(max=255)])
     customer_name = StringField('Customer Company Name*', validators=[DataRequired(), Length(max=100)])
     support_modal_id = SelectField('Support Modals by Plan', coerce=int, validators=[Optional()])
-    additional_recipients = StringField('Additional Email Recipients (comma-separated)', widget=TextAreaWidget(), validators=[Optional()])
+    additional_recipients = TextAreaField('Additional Email Recipients (comma-separated)', validators=[Optional()])
     attachments = MultipleFileField('Attachments', validators=[Optional()])
     submit = SubmitField('Submit Ticket')
 
@@ -394,7 +420,7 @@ class AgentUpdateTicketForm(FlaskForm):
     apn_opportunity_id = SelectField('APN Opportunities', coerce=int, validators=[Optional()])
     apn_opportunity_description = TextAreaField('APN Opportunities Description', validators=[Optional()])
     support_modal_id = SelectField('Support Modals by Plan', coerce=int, validators=[Optional()])
-    additional_email_recipients = StringField('Additional Email Recipients (comma-separated)', widget=TextAreaWidget(), validators=[Optional()])
+    additional_email_recipients = TextAreaField('Additional Email Recipients (comma-separated)', validators=[Optional()])
     submit = SubmitField('Update Ticket')
 
 class CategoryForm(FlaskForm):
@@ -449,7 +475,8 @@ login_manager.login_message_category = 'info'
 login_manager.login_message = "Please log in to access this page."
 
 @login_manager.user_loader
-def load_user(user_id): return User.query.get(int(user_id))
+def load_user(user_id): 
+    return db.session.get(User, int(user_id))
 
 @app.context_processor
 def inject_global_vars():
@@ -457,7 +484,9 @@ def inject_global_vars():
         'current_year': datetime.utcnow().year,
         'app': app,
         'to_snake_case': to_snake_case,
-        'EFFORT_CHOICES': EFFORT_CHOICES
+        'EFFORT_CHOICES': EFFORT_CHOICES,
+        'active_category_choices_gdoc': get_active_category_choices(),
+        'active_severity_choices_gdoc': get_active_severity_choices(),
     }
 
 def admin_required(f):
@@ -480,59 +509,37 @@ def agent_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- Helper functions for dynamic choices ---
+# --- Helper functions ---
 DOMAIN_TO_ORGANIZATION_MAP = {
     'cloudkeeper.com': 'CloudKeeper (CK)',
-    'jietjodhpur.ac.in': 'JIET Jodhpur' # Example added
-    # Add more: 'example.com': 'Example Corp', 
+    'jietjodhpur.ac.in': 'JIET Jodhpur' 
 }
 
-def get_organization_by_email_domain(email, auto_create=True): # auto_create defaults to True now
+def get_organization_by_email_domain(email, auto_create=True):
     if '@' not in email: return None
     domain = email.split('@')[-1].lower()
     
-    # Attempt 1: Direct mapping from DOMAIN_TO_ORGANIZATION_MAP
     org_name_from_map = DOMAIN_TO_ORGANIZATION_MAP.get(domain)
     if org_name_from_map:
         organization = OrganizationOption.query.filter_by(name=org_name_from_map, is_active=True).first()
-        if organization:
-            return organization
-        elif auto_create: # If mapped name doesn't exist in DB but should, create it
-            app.logger.info(f"Mapped organization '{org_name_from_map}' not found in DB for domain '{domain}'. Creating it.")
-            new_org = OrganizationOption(name=org_name_from_map, is_active=True)
-            db.session.add(new_org)
-            # The commit will happen in the calling route (e.g., register_client)
+        if organization: return organization
+        elif auto_create: 
+            app.logger.info(f"Mapped organization '{org_name_from_map}' not found. Creating for domain '{domain}'.")
+            new_org = OrganizationOption(name=org_name_from_map, is_active=True); db.session.add(new_org)
+            db.session.flush() 
             return new_org 
     
-    # Attempt 2: If auto_create is True and no specific map entry, try to create one from the domain itself
     if auto_create:
-        # Derive a plausible organization name from the domain.
-        # Example: "jietjodhpur.ac.in" -> "JIET Jodhpur" or "jietjodhpur"
-        # This is a simple derivation; more complex logic might be needed for varied domains.
-        parts = domain.split('.')
-        if len(parts) > 2 and parts[-2] in ['ac', 'co', 'com', 'org', 'gov', 'edu']: # common second-level domains
-            potential_org_name_base = parts[-3]
-        elif len(parts) > 1:
-            potential_org_name_base = parts[-2]
-        else:
-            potential_org_name_base = parts[0]
-        
-        # Try to make it a bit nicer: Jietjodhpur or Cloudkeeper
+        parts = domain.split('.'); potential_org_name_base = parts[-2] if len(parts) > 1 else parts[0]
+        if len(parts) > 2 and parts[-2] in ['ac', 'co', 'com', 'org', 'gov', 'edu']: potential_org_name_base = parts[-3]
         potential_org_name = potential_org_name_base.replace('-', ' ').title()
-
         existing_org_by_derived_name = OrganizationOption.query.filter(OrganizationOption.name.ilike(potential_org_name)).first()
-        if existing_org_by_derived_name:
-            return existing_org_by_derived_name
-        
-        # If still not found, create a new one with the derived name
-        app.logger.info(f"No specific mapping or existing org found for domain '{domain}'. Auto-creating organization '{potential_org_name}'.")
-        new_org = OrganizationOption(name=potential_org_name, is_active=True)
-        db.session.add(new_org)
-        # The commit will happen in the calling route (e.g., register_client)
+        if existing_org_by_derived_name: return existing_org_by_derived_name
+        app.logger.info(f"No mapping/existing org for domain '{domain}'. Auto-creating '{potential_org_name}'.")
+        new_org = OrganizationOption(name=potential_org_name, is_active=True); db.session.add(new_org)
+        db.session.flush() 
         return new_org
-
     return None
-
 
 def get_active_choices(model_class, placeholder_text_id_0=None, placeholder_text_str_empty=None, order_by_attr='name'):
     query = model_class.query.filter_by(is_active=True).order_by(getattr(model_class, order_by_attr))
@@ -560,7 +567,6 @@ def get_active_apn_opportunity_choices():
 def get_active_support_modal_choices():
     return get_active_choices(SupportModalOption, placeholder_text_id_0='--- Select Support Modal ---')
 
-# --- Interaction Log Helper ---
 def log_interaction(ticket_id, interaction_type, user_id=None, details=None, timestamp_override=None, commit_now=False):
     actual_user_id = user_id
     if actual_user_id is None and current_user and current_user.is_authenticated:
@@ -574,24 +580,67 @@ def log_interaction(ticket_id, interaction_type, user_id=None, details=None, tim
             db.session.rollback()
             app.logger.error(f"Failed to commit interaction log for ticket {ticket_id}: {e}", exc_info=True)
 
-# --- Twilio Helper ---
 def trigger_priority_call_alert(ticket, old_severity=None):
-    account_sid = app.config.get('TWILIO_ACCOUNT_SID'); auth_token = app.config.get('TWILIO_AUTH_TOKEN')
-    twilio_phone_number = app.config.get('TWILIO_PHONE_NUMBER'); recipient_phone_number = app.config.get('EMERGENCY_CALL_RECIPIENT_PHONE_NUMBER')
-    alert_severities = app.config.get('SEVERITIES_FOR_CALL_ALERT', []); new_severity = ticket.severity
-    if not all([account_sid, auth_token, twilio_phone_number, recipient_phone_number]): app.logger.warning(f"Twilio not fully configured. Skipping call alert for ticket #{ticket.id}."); return
-    if new_severity not in alert_severities: app.logger.info(f"Ticket #{ticket.id} severity '{new_severity}' not in alert list. Skipping."); return
-    if old_severity is not None and old_severity == new_severity and new_severity in alert_severities and old_severity in alert_severities: app.logger.info(f"Ticket #{ticket.id} severity '{new_severity}' unchanged high. No new alert."); return
-    app.logger.info(f"Ticket #{ticket.id} severity change triggers call. Old: '{old_severity}', New: '{new_severity}'.")
+    account_sid = app.config.get('TWILIO_ACCOUNT_SID')
+    auth_token = app.config.get('TWILIO_AUTH_TOKEN')
+    twilio_phone_number = app.config.get('TWILIO_PHONE_NUMBER')
+    recipient_phone_number = app.config.get('EMERGENCY_CALL_RECIPIENT_PHONE_NUMBER')
+    alert_severities = app.config.get('SEVERITIES_FOR_CALL_ALERT', [])
+    current_ticket_severity = ticket.severity
+
+    app.logger.info(f"--- trigger_priority_call_alert (Using simpler logic) ---")
+    app.logger.info(f"Ticket ID: {ticket.id}, Current Severity: '{current_ticket_severity}', Old Severity: '{old_severity}'")
+    app.logger.info(f"Alert Severities List: {alert_severities}")
+    app.logger.info(f"Twilio Config: SID set: {bool(account_sid)}, Token set: {bool(auth_token)}, From #: {twilio_phone_number}, To #: {recipient_phone_number}")
+
+    if not all([account_sid, auth_token, twilio_phone_number, recipient_phone_number]):
+        app.logger.warning(f"Twilio not fully configured. Skipping call alert for ticket #{ticket.id}.")
+        return
+
+    if current_ticket_severity not in alert_severities:
+        app.logger.info(f"Ticket #{ticket.id} severity '{current_ticket_severity}' is not in the alert list {alert_severities}. Skipping call.")
+        return
+    
+    alert_description = f"Ticket {ticket.id} ({ticket.title}) has severity {current_ticket_severity}."
+    if old_severity and old_severity != current_ticket_severity:
+        # This case means it was already alertable and changed, or escalated into alertable
+        if current_ticket_severity in alert_severities and old_severity not in alert_severities:
+            alert_description = f"Ticket {ticket.id} ({ticket.title}) severity escalated from {old_severity} to {current_ticket_severity}."
+        elif current_ticket_severity in alert_severities and old_severity in alert_severities : # Changed between alertable severities
+            alert_description = f"Ticket {ticket.id} ({ticket.title}) severity changed from {old_severity} to {current_ticket_severity}."
+        # else: # de-escalated from alertable to non-alertable, or changed between non-alertable (already handled by first if)
+    elif not old_severity: # New ticket
+        alert_description = f"New high priority ticket {ticket.id} ({ticket.title}) created with severity {current_ticket_severity}."
+    else: # old_severity == new_severity and new_severity is alertable (no change, was already high)
+        app.logger.info(f"Ticket #{ticket.id} severity '{current_ticket_severity}' unchanged and already alertable. No new call.")
+        return
+
+
+    app.logger.info(f"Proceeding to make Twilio call for ticket #{ticket.id}. Description: {alert_description}")
     try:
-        client = TwilioClient(account_sid, auth_token); sanitized_title = re.sub(r'[^\w\s,.-]', '', ticket.title)
-        alert_reason = "created or escalated" if old_severity is None or old_severity not in alert_severities else f"updated from {old_severity} to {new_severity}"
-        message_to_say = (f"Hello. Urgent alert from Ticket System. Ticket number {ticket.id} has been {alert_reason}. Severity is now {new_severity}. Subject: {sanitized_title}. Check system immediately.")
+        client = TwilioClient(account_sid, auth_token)
+        sanitized_title = re.sub(r'[^\w\s,.-]', '', ticket.title) 
+        
+        message_to_say = (
+            f"Hello. This is an urgent alert from the Ticket System. "
+            f"{alert_description} "
+            f"Please check the system immediately."
+        )
         twiml_instruction = f'<Response><Say>{escape(message_to_say)}</Say></Response>'
-        call = client.calls.create(twiml=twiml_instruction, to=recipient_phone_number, from_=twilio_phone_number)
-        app.logger.info(f"Twilio call for ticket #{ticket.id} to {recipient_phone_number}. SID: {call.sid}"); flash(f'High priority ticket #{ticket.id} alert ({alert_reason}): Call to {recipient_phone_number}.', 'info')
-    except TwilioRestException as e: app.logger.error(f"Twilio API error for ticket #{ticket.id}: {e}"); flash(f'Error initiating Twilio call for ticket #{ticket.id}: {e.message}', 'danger')
-    except Exception as e: app.logger.error(f"Unexpected error during Twilio call for ticket #{ticket.id}: {e}", exc_info=True); flash(f'Unexpected error during Twilio call for ticket #{ticket.id}.', 'danger')
+        
+        call = client.calls.create(
+            twiml=twiml_instruction,
+            to=recipient_phone_number,
+            from_=twilio_phone_number
+        )
+        app.logger.info(f"Twilio call initiated for ticket #{ticket.id} to {recipient_phone_number}. Call SID: {call.sid}")
+        flash(f'High priority ticket #{ticket.id} alerted via call to {recipient_phone_number}. ({alert_description})', 'success') 
+    except TwilioRestException as e:
+        app.logger.error(f"Twilio API error for ticket #{ticket.id}: {e}")
+        flash(f'Error initiating Twilio call for ticket #{ticket.id}: {e.message}', 'danger')
+    except Exception as e:
+        app.logger.error(f"Unexpected error during Twilio call for ticket #{ticket.id}: {e}", exc_info=True)
+        flash(f'An unexpected error occurred while trying to initiate a call for ticket #{ticket.id}.', 'danger')
 
 # --- Routes ---
 @app.route('/')
@@ -631,18 +680,16 @@ def register_client():
     form = UserSelfRegistrationForm()
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data.lower(), role='client'); user.set_password(form.password.data)
-        # Use auto_create=True to dynamically create Organization if not found by domain mapping or derived name
         organization = get_organization_by_email_domain(user.email, auto_create=True) 
         if organization: 
-            # If get_organization_by_email_domain created a new org, it needs to be flushed to get an ID
-            # if not organization.id: # This check is tricky if not committed yet
-            #    db.session.flush() # To get ID for newly created org
-            user.organization = organization # Assign the object
+            if not organization.id: 
+                db.session.flush() 
+            user.organization_id = organization.id 
             app.logger.info(f"User '{user.username}' associated with organization '{organization.name}'.")
         else: app.logger.info(f"No organization could be determined or created for domain of '{user.email}'.")
         db.session.add(user)
         try: 
-            db.session.commit() # This will commit the user AND any new organization created by get_organization_by_email_domain
+            db.session.commit() 
             flash('Client account created successfully! Please log in.', 'success'); return redirect(url_for('login'))
         except Exception as e: db.session.rollback(); flash('Error during registration. Please try again.', 'danger'); app.logger.error(f"Client registration error: {e}", exc_info=True)
     return render_template('register_user.html', title='Register as Client', form=form, registration_type='Client', info_text='Submit and track your support tickets.')
@@ -661,10 +708,19 @@ def register_agent():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    if current_user.is_admin: stats = {'total_tickets': Ticket.query.count(), 'open_tickets': Ticket.query.filter_by(status='Open').count(), 'inprogress_tickets': Ticket.query.filter_by(status='In Progress').count(), 'resolved_tickets': Ticket.query.filter_by(status='Resolved').count(), 'total_users': User.query.count()}; return render_template('dashboard.html', title='Admin Dashboard', **stats)
-    elif current_user.is_agent: agent_data = {'my_assigned_tickets': Ticket.query.filter_by(assigned_to_id=current_user.id).filter(Ticket.status.notin_(['Resolved', 'Closed'])).order_by(Ticket.updated_at.desc()).all(), 'unassigned_tickets': Ticket.query.filter_by(assigned_to_id=None, status='Open').order_by(Ticket.created_at.desc()).limit(10).all()}; return render_template('dashboard.html', title='Agent Dashboard', **agent_data)
-    else: my_tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).limit(10).all(); return render_template('dashboard.html', title='My Dashboard', my_tickets=my_tickets)
-
+    page_title = "My Dashboard"
+    if current_user.is_admin: 
+        page_title = 'Admin Dashboard'
+        stats = {'total_tickets': Ticket.query.count(), 'open_tickets': Ticket.query.filter_by(status='Open').count(), 'inprogress_tickets': Ticket.query.filter_by(status='In Progress').count(), 'resolved_tickets': Ticket.query.filter_by(status='Resolved').count(), 'total_users': User.query.count()}
+        return render_template('dashboard.html', title=page_title, **stats)
+    elif current_user.is_agent: 
+        page_title = 'Agent Dashboard'
+        agent_data = {'my_assigned_tickets': Ticket.query.filter_by(assigned_to_id=current_user.id).filter(Ticket.status.notin_(['Resolved', 'Closed'])).order_by(Ticket.updated_at.desc()).all(), 'unassigned_tickets': Ticket.query.filter_by(assigned_to_id=None, status='Open').order_by(Ticket.created_at.desc()).limit(10).all()}
+        return render_template('dashboard.html', title=page_title, **agent_data)
+    else: 
+        my_tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).limit(10).all()
+        return render_template('dashboard.html', title=page_title, my_tickets=my_tickets)
+    
 @app.route('/tickets/new', methods=['GET', 'POST'])
 @login_required
 def create_ticket():
@@ -688,10 +744,24 @@ def create_ticket():
         if form.attachments.data:
             for file_storage in form.attachments.data:
                 if file_storage and file_storage.filename:
-                    if allowed_file(file_storage.filename): filename = secure_filename(file_storage.filename); unique_suffix = uuid.uuid4().hex[:8]; stored_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{unique_suffix}_{filename}"; file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
-                    try: file_storage.save(file_path); uploaded_files_info.append({'original_filename': filename, 'stored_filename': stored_filename, 'content_type': file_storage.content_type})
-                    except Exception as e: app.logger.error(f"Failed to save attachment {filename}: {e}", exc_info=True); form.attachments.errors.append(f"Could not save file: {filename}")
-                    else: form.attachments.errors.append(f"File type not allowed: {file_storage.filename}")
+                    filename = secure_filename(file_storage.filename)
+                    if allowed_file(filename):
+                        unique_suffix = uuid.uuid4().hex[:8]
+                        stored_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{unique_suffix}_{filename}"
+                        file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
+                        try:
+                            file_storage.save(file_path)
+                            uploaded_files_info.append({
+                                'original_filename': filename,
+                                'stored_filename': stored_filename,
+                                'content_type': file_storage.content_type
+                            })
+                        except Exception as e:
+                            app.logger.error(f"Failed to save attachment {filename}: {e}", exc_info=True)
+                            form.attachments.errors.append(f"Could not save file: {filename}")
+                    else: 
+                        form.attachments.errors.append(f"File type not allowed: {filename}")
+
         if form.attachments.errors: flash('Error with attachments. Please correct and try again.', 'danger')
         else:
             ticket_creator = current_user; ticket_org_id_to_save = None; customer_name_to_save = form.customer_name.data.strip()
@@ -732,43 +802,94 @@ def create_ticket():
             except Exception as e: db.session.rollback(); flash(f'Database error: {str(e)[:150]}', 'danger'); app.logger.error(f"Ticket creation error: {e}", exc_info=True)
     elif request.method == 'POST': flash('Please correct the errors in the form.', 'danger')
     return render_template('client/create_ticket.html', title='Submit New Support Request', form=form, user_organization_name=user_organization_name_for_template, user_is_client_with_org=user_is_client_with_org_flag)
-    
+
 @app.route('/tickets/my')
 @login_required
-def my_tickets(): tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).all(); return render_template('client/my_tickets.html', title='My Submitted Tickets', tickets=tickets)
+def my_tickets(): 
+    tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).all()
+    return render_template('client/my_tickets.html', title='My Submitted Tickets', tickets=tickets)
 
 @app.route('/ticket/<int:ticket_id>', methods=['GET', 'POST'])
 @login_required
 def view_ticket(ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    if not (current_user.is_admin or current_user.is_agent or ticket.created_by_id == current_user.id): flash('You do not have permission to view this ticket.', 'danger'); return redirect(url_for('dashboard'))
-    comment_form = CommentForm(); agent_update_form = None; attachments = ticket.ticket_attachments.order_by(Attachment.uploaded_at.desc()).all(); is_privileged_user = current_user.is_agent or current_user.is_admin
+    app.logger.critical(f"--- ENTERED VIEW_TICKET ROUTE for ticket_id: {ticket_id} ---")
+    ticket = db.session.get(Ticket, ticket_id) 
+    if not ticket:
+        flash('Ticket not found.', 'danger')
+        app.logger.warning(f"Ticket ID: {ticket_id} not found by db.session.get. Redirecting.")
+        return redirect(url_for('dashboard'))
+        
+    app.logger.info(f"Found ticket: {ticket.title} for ID: {ticket_id}")
+
+    if not (current_user.is_admin or current_user.is_agent or ticket.created_by_id == current_user.id): 
+        flash('You do not have permission to view this ticket.', 'danger')
+        app.logger.warning(f"Unauthorized attempt to view ticket ID: {ticket_id} by user {current_user.username}. Redirecting.")
+        return redirect(url_for('dashboard')) 
+
+    comment_form = CommentForm()
+    agent_update_form = None
+    attachments = ticket.ticket_attachments.order_by(Attachment.uploaded_at.desc()).all()
+    is_privileged_user = current_user.is_agent or current_user.is_admin
+
+    sorted_interaction_dates = []
+    interactions_by_date = {}
+    today_date_obj = date.today() 
+    yesterday_date_obj = today_date_obj - timedelta(days=1)
+
     if is_privileged_user:
-        agent_update_form = AgentUpdateTicketForm(obj=None)
-        agent_choices = [(u.id, u.username) for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()]; agent_update_form.assigned_to_id.choices = [(0, '--- Unassign/Select Agent ---')] + agent_choices
-        agent_update_form.category_id.choices = get_active_category_choices(); agent_update_form.cloud_provider.choices = get_active_cloud_provider_choices(); agent_update_form.severity.choices = get_active_severity_choices()
-        agent_update_form.environment.choices = get_active_environment_choices(); agent_update_form.organization_id.choices = get_active_organization_choices(); agent_update_form.form_type_id.choices = get_active_form_type_choices()
-        agent_update_form.apn_opportunity_id.choices = get_active_apn_opportunity_choices(); agent_update_form.support_modal_id.choices = get_active_support_modal_choices()
-        if request.method == 'GET': 
-            agent_update_form.status.data = ticket.status; agent_update_form.priority.data = ticket.priority; agent_update_form.assigned_to_id.data = ticket.assigned_to_id or 0; agent_update_form.category_id.data = ticket.category_id or 0
-            agent_update_form.cloud_provider.data = ticket.cloud_provider or ''; agent_update_form.severity.data = ticket.severity or ''; agent_update_form.aws_service.data = ticket.aws_service or ''
-            agent_update_form.aws_account_id.data = ticket.aws_account_id or ''; agent_update_form.environment.data = ticket.environment or ''; agent_update_form.organization_id.data = ticket.organization_id or 0
-            agent_update_form.form_type_id.data = ticket.form_type_id or 0; agent_update_form.tags.data = ticket.tags or ''; agent_update_form.additional_email_recipients.data = ticket.additional_email_recipients or ''
-            agent_update_form.request_call_back.data = ticket.request_call_back or ''; agent_update_form.contact_details.data = ticket.contact_details or ''; agent_update_form.aws_support_case_id.data = ticket.aws_support_case_id or ''
-            agent_update_form.effort_required_to_resolve_min.data = str(ticket.effort_required_to_resolve_min) if ticket.effort_required_to_resolve_min is not None else ''; agent_update_form.customer_name.data = ticket.customer_name or ''
-            agent_update_form.apn_opportunity_id.data = ticket.apn_opportunity_id or 0; agent_update_form.apn_opportunity_description.data = ticket.apn_opportunity_description or ''; agent_update_form.support_modal_id.data = ticket.support_modal_id or 0
+        agent_update_form = AgentUpdateTicketForm(obj=ticket if request.method == 'GET' else None)
+        agent_choices = [(u.id, u.username) for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()]
+        agent_update_form.assigned_to_id.choices = [(0, '--- Unassign/Select Agent ---')] + agent_choices
+        agent_update_form.category_id.choices = get_active_category_choices()
+        agent_update_form.cloud_provider.choices = get_active_cloud_provider_choices()
+        agent_update_form.severity.choices = get_active_severity_choices()
+        agent_update_form.environment.choices = get_active_environment_choices()
+        agent_update_form.organization_id.choices = get_active_organization_choices()
+        agent_update_form.form_type_id.choices = get_active_form_type_choices()
+        agent_update_form.apn_opportunity_id.choices = get_active_apn_opportunity_choices()
+        agent_update_form.support_modal_id.choices = get_active_support_modal_choices()
+
+        if request.method == 'GET':
+            agent_update_form.status.data = ticket.status
+            agent_update_form.priority.data = ticket.priority
+            agent_update_form.assigned_to_id.data = ticket.assigned_to_id or 0
+            agent_update_form.category_id.data = ticket.category_id or 0
+            agent_update_form.cloud_provider.data = ticket.cloud_provider or ''
+            agent_update_form.severity.data = ticket.severity or ''
+            agent_update_form.aws_service.data = ticket.aws_service or ''
+            agent_update_form.aws_account_id.data = ticket.aws_account_id or ''
+            agent_update_form.environment.data = ticket.environment or ''
+            agent_update_form.organization_id.data = ticket.organization_id or 0
+            agent_update_form.form_type_id.data = ticket.form_type_id or 0
+            agent_update_form.tags.data = ticket.tags or ''
+            agent_update_form.additional_email_recipients.data = ticket.additional_email_recipients or ''
+            agent_update_form.request_call_back.data = ticket.request_call_back or ''
+            agent_update_form.contact_details.data = ticket.contact_details or ''
+            agent_update_form.aws_support_case_id.data = ticket.aws_support_case_id or ''
+            agent_update_form.effort_required_to_resolve_min.data = str(ticket.effort_required_to_resolve_min) if ticket.effort_required_to_resolve_min is not None else ''
+            agent_update_form.customer_name.data = ticket.customer_name or ''
+            agent_update_form.apn_opportunity_id.data = ticket.apn_opportunity_id or 0
+            agent_update_form.apn_opportunity_description.data = ticket.apn_opportunity_description or ''
+            agent_update_form.support_modal_id.data = ticket.support_modal_id or 0
+
     if request.method == 'POST':
+        app.logger.info(f"POST request to view_ticket for ID: {ticket_id}")
         if 'submit_comment' in request.form and comment_form.validate_on_submit():
-            is_internal_comment = is_privileged_user and hasattr(comment_form, 'is_internal') and comment_form.is_internal.data; comment = Comment(content=comment_form.content.data, user_id=current_user.id, ticket_id=ticket.id, is_internal=is_internal_comment)
-            db.session.add(comment); db.session.flush(); log_interaction(ticket.id, 'COMMENT_ADDED', user_id=current_user.id, details={'comment_id': comment.id, 'is_internal': is_internal_comment})
+            app.logger.info(f"Attempting to add comment for ticket ID: {ticket_id}")
+            is_internal_comment = is_privileged_user and hasattr(comment_form, 'is_internal') and comment_form.is_internal.data
+            comment = Comment(content=comment_form.content.data, user_id=current_user.id, ticket_id=ticket.id, is_internal=is_internal_comment)
+            db.session.add(comment); db.session.flush()
+            log_interaction(ticket.id, 'COMMENT_ADDED', user_id=current_user.id, details={'comment_id': comment.id, 'is_internal': is_internal_comment})
             if not is_internal_comment and is_privileged_user and not ticket.first_response_at:
                 ticket.first_response_at = comment.created_at
                 if ticket.created_at: ticket.first_response_duration_minutes = int((ticket.first_response_at - ticket.created_at).total_seconds() / 60)
                 log_interaction(ticket.id, 'FIRST_RESPONSE_RECORDED', user_id=current_user.id, details={'responded_at': ticket.first_response_at.isoformat() if ticket.first_response_at else None, 'duration_minutes': ticket.first_response_duration_minutes})
-            db.session.commit(); flash('Your comment has been added.', 'success'); return redirect(url_for('view_ticket', ticket_id=ticket.id, _anchor='comments_section'))
+            db.session.commit(); flash('Your comment has been added.', 'success')
+            return redirect(url_for('view_ticket', ticket_id=ticket.id, _anchor='comments_section'))
+        
         elif 'submit_update' in request.form and is_privileged_user and agent_update_form and agent_update_form.validate_on_submit():
-            old_values = {
-                'status': ticket.status, 'priority': ticket.priority,
+            app.logger.info(f"Attempting to update ticket ID: {ticket_id}")
+            old_values = { 'status': ticket.status, 'priority': ticket.priority, 
                 'assignee_name': ticket.assignee.username if ticket.assignee else "Unassigned",
                 'category_name': ticket.category_ref.name if ticket.category_ref else "None",
                 'cloud_provider': ticket.cloud_provider or "None", 'severity': ticket.severity or "None",
@@ -786,34 +907,33 @@ def view_ticket(ticket_id):
                 'apn_opportunity_name': ticket.apn_opportunity_option_ref.name if ticket.apn_opportunity_option_ref else "None",
                 'apn_opportunity_description': ticket.apn_opportunity_description or "None",
                 'support_modal_name': ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else "None",
-            }; old_severity_for_alert_trigger = ticket.severity
-            ticket.status = agent_update_form.status.data; ticket.priority = agent_update_form.priority.data
+            }
+            old_severity_for_alert_trigger = ticket.severity
+            
+            agent_update_form.populate_obj(ticket) 
             ticket.assigned_to_id = agent_update_form.assigned_to_id.data if agent_update_form.assigned_to_id.data != 0 else None
             ticket.category_id = agent_update_form.category_id.data if agent_update_form.category_id.data != 0 else None
             ticket.organization_id = agent_update_form.organization_id.data if agent_update_form.organization_id.data != 0 else None
             ticket.form_type_id = agent_update_form.form_type_id.data if agent_update_form.form_type_id.data != 0 else None
             ticket.apn_opportunity_id = agent_update_form.apn_opportunity_id.data if agent_update_form.apn_opportunity_id.data != 0 else None
             ticket.support_modal_id = agent_update_form.support_modal_id.data if agent_update_form.support_modal_id.data != 0 else None
+            
             effort_str_val = agent_update_form.effort_required_to_resolve_min.data
             if effort_str_val and effort_str_val != '':
                 try: ticket.effort_required_to_resolve_min = int(effort_str_val)
                 except ValueError: agent_update_form.effort_required_to_resolve_min.errors.append("Invalid selection for effort.")
             else: ticket.effort_required_to_resolve_min = None
-            ticket.cloud_provider = agent_update_form.cloud_provider.data or None; ticket.severity = agent_update_form.severity.data or None
-            ticket.aws_service = agent_update_form.aws_service.data if ticket.cloud_provider == 'AWS' and agent_update_form.aws_service.data else None
-            ticket.aws_account_id = agent_update_form.aws_account_id.data.strip() if agent_update_form.aws_account_id.data else None
-            ticket.environment = agent_update_form.environment.data or None; ticket.tags = agent_update_form.tags.data.strip() if agent_update_form.tags.data else None
-            ticket.additional_email_recipients = agent_update_form.additional_email_recipients.data.strip() if agent_update_form.additional_email_recipients.data else None
-            ticket.request_call_back = agent_update_form.request_call_back.data or None; ticket.contact_details = agent_update_form.contact_details.data.strip() if agent_update_form.contact_details.data else None
-            ticket.aws_support_case_id = agent_update_form.aws_support_case_id.data.strip() if agent_update_form.aws_support_case_id.data else None
-            ticket.customer_name = agent_update_form.customer_name.data.strip() if agent_update_form.customer_name.data else None
-            ticket.apn_opportunity_description = agent_update_form.apn_opportunity_description.data.strip() if agent_update_form.apn_opportunity_description.data else None
+
+            if ticket.cloud_provider != 'AWS': ticket.aws_service = None
+
             changed_fields_map_display = {
                 'Status': (old_values['status'], ticket.status), 'Priority': (old_values['priority'], ticket.priority),
                 'Assignee': (old_values['assignee_name'], ticket.assignee.username if ticket.assignee else "Unassigned"),
                 'Category': (old_values['category_name'], ticket.category_ref.name if ticket.category_ref else "None"),
-                'Cloud Provider': (old_values['cloud_provider'], ticket.cloud_provider or "None"), 'Severity': (old_values['severity'], ticket.severity or "None"),
-                'AWS Service': (old_values['aws_service'], ticket.aws_service or "None"), 'AWS Account ID': (old_values['aws_account_id'], ticket.aws_account_id or "None"),
+                'Cloud Provider': (old_values['cloud_provider'], ticket.cloud_provider or "None"), 
+                'Severity': (old_values['severity'], ticket.severity or "None"),
+                'AWS Service': (old_values['aws_service'], ticket.aws_service or "None"), 
+                'AWS Account ID': (old_values['aws_account_id'], ticket.aws_account_id or "None"),
                 'Environment': (old_values['environment'], ticket.environment or "None"),
                 'Organization': (old_values['organization_name'], ticket.organization_option_ref.name if ticket.organization_option_ref else "None"),
                 'Form Type': (old_values['form_type_name'], ticket.form_type_option_ref.name if ticket.form_type_option_ref else "None"),
@@ -829,15 +949,30 @@ def view_ticket(ticket_id):
                 'Support Modal': (old_values['support_modal_name'], ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else "None"),
             }
             for field_name, (old_val, new_val) in changed_fields_map_display.items():
-                if old_val != new_val: interaction_type_suffix = field_name.upper().replace(" ", "_").replace("(", "").replace(")", "") + "_CHANGE"; log_interaction(ticket.id, interaction_type_suffix, user_id=current_user.id, details={'old_value': old_val, 'new_value': new_val, 'field_display_name': field_name})
+                if old_val != new_val: 
+                    interaction_type_suffix = field_name.upper().replace(" ", "_").replace("(", "").replace(")", "") + "_CHANGE"
+                    log_interaction(ticket.id, interaction_type_suffix, user_id=current_user.id, details={'old_value': old_val, 'new_value': new_val, 'field_display_name': field_name})
+            
             if agent_update_form.errors: flash('Error updating ticket. Please check the form.', 'danger')
             else:
-                try: db.session.commit(); flash('Ticket details updated successfully.', 'success'); trigger_priority_call_alert(ticket, old_severity_for_alert_trigger); return redirect(url_for('view_ticket', ticket_id=ticket.id))
-                except Exception as e: db.session.rollback(); flash(f'Database error during ticket update: {str(e)[:150]}', 'danger'); app.logger.error(f"Ticket update DB error for #{ticket.id}: {e}", exc_info=True)
-        elif request.method == 'POST' and (comment_form.errors or (agent_update_form and agent_update_form.errors)): flash('Please correct the errors in the form.', 'danger')
+                try: 
+                    db.session.commit()
+                    flash('Ticket details updated successfully.', 'success')
+                    trigger_priority_call_alert(ticket, old_severity_for_alert_trigger) 
+                    return redirect(url_for('view_ticket', ticket_id=ticket.id))
+                except Exception as e: 
+                    db.session.rollback()
+                    flash(f'Database error during ticket update: {str(e)[:150]}', 'danger')
+                    app.logger.error(f"Ticket update DB error for #{ticket.id}: {e}", exc_info=True)
+        
+        elif request.method == 'POST' and (comment_form.errors or (agent_update_form and agent_update_form.errors)):
+            flash('Please correct the errors in the form.', 'danger')
+
     comments_query = ticket.comments
-    if not is_privileged_user: comments_query = comments_query.filter_by(is_internal=False)
-    comments = comments_query.order_by(Comment.created_at.asc()).all(); sorted_interaction_dates = []; interactions_by_date = {}; today_date_obj = None; yesterday_date_obj = None
+    if not is_privileged_user: 
+        comments_query = comments_query.filter_by(is_internal=False)
+    comments = comments_query.order_by(Comment.created_at.asc()).all()
+    
     if is_privileged_user:
         raw_interactions = ticket.interactions_rel.order_by(Interaction.timestamp.desc()).all(); processed_interactions = []
         for interaction in raw_interactions:
@@ -854,14 +989,30 @@ def view_ticket(ticket_id):
                 else: p_interaction['message'] = f"changed <strong>{field_display_name}</strong> from <strong>{old_val_display}</strong> to <strong>{new_val_display}</strong>."
             if interaction.interaction_type == 'TICKET_CREATED': p_interaction['message'] = f"created this ticket."
             elif interaction.interaction_type == 'COMMENT_ADDED':
-                comment_obj = Comment.query.get(details.get('comment_id')); comment_type = "internal" if details.get('is_internal') else "public"; p_interaction['message'] = f"added a {comment_type} comment."
+                comment_id_from_details = details.get('comment_id')
+                comment_obj = db.session.get(Comment, comment_id_from_details) if comment_id_from_details else None
+                comment_type = "internal" if details.get('is_internal') else "public"; p_interaction['message'] = f"added a {comment_type} comment."
                 if comment_obj and (not comment_obj.is_internal or is_privileged_user): p_interaction['comment_preview'] = comment_obj.content
             elif interaction.interaction_type == 'FIRST_RESPONSE_RECORDED': duration_min = details.get('duration_minutes', 'N/A'); p_interaction['message'] = f"logged the first agent response. Duration: {duration_min} minutes."
             if not p_interaction['message'] and not field_display_name: p_interaction['message'] = f"performed action: {interaction.interaction_type}. Details: {details}"
             processed_interactions.append(p_interaction)
         interactions_by_date = {k: sorted(list(g), key=lambda i: i['timestamp_obj'], reverse=True) for k, g in groupby(processed_interactions, key=lambda i: i['timestamp_obj'].date())}
-        sorted_interaction_dates = sorted(interactions_by_date.keys(), reverse=True); today_date_obj = date.today(); yesterday_date_obj = today_date_obj - timedelta(days=1)
-    return render_template('client/view_ticket.html', title=f'Ticket #{ticket.id}: {ticket.title}', ticket=ticket, comments=comments, comment_form=comment_form, agent_update_form=agent_update_form, attachments=attachments, is_privileged_user=is_privileged_user, sorted_interaction_dates=sorted_interaction_dates, interactions_by_date=interactions_by_date, today_date=today_date_obj, yesterday_date=yesterday_date_obj)
+        sorted_interaction_dates = sorted(interactions_by_date.keys(), reverse=True)
+    
+    page_title = f'Ticket #{ticket.id}: {ticket.title}'
+    app.logger.info(f"Rendering view_ticket for ID: {ticket.id} with title: '{page_title}' for user {current_user.username}")
+    return render_template('client/view_ticket.html', 
+                           title=page_title, 
+                           ticket=ticket, 
+                           comments=comments, 
+                           comment_form=comment_form, 
+                           agent_update_form=agent_update_form, 
+                           attachments=attachments, 
+                           is_privileged_user=is_privileged_user,
+                           sorted_interaction_dates=sorted_interaction_dates, 
+                           interactions_by_date=interactions_by_date,     
+                           today_date=today_date_obj,                   
+                           yesterday_date=yesterday_date_obj) 
 
 @app.route('/uploads/<filename>')
 @login_required
@@ -883,20 +1034,31 @@ def agent_ticket_list(view_name=None):
     if view_name == 'my_unsolved': query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed'])); list_title = "Your Unsolved Tickets"
     elif view_name == 'unassigned': query = query.filter(Ticket.assigned_to_id.is_(None), Ticket.status == 'Open'); list_title = "Unassigned Open Tickets"
     elif view_name == 'all_unsolved': query = query.filter(Ticket.status.notin_(['Resolved', 'Closed'])); list_title = "All Unsolved Tickets"
-    elif view_name == 'recently_updated': list_title = "Recently Updated Tickets"
+    elif view_name == 'recently_updated': list_title = "Recently Updated Tickets" 
     elif view_name == 'pending': query = query.filter(Ticket.status == 'On Hold'); list_title = "Pending (On Hold) Tickets"
     elif view_name == 'recently_solved': query = query.filter(Ticket.status == 'Resolved'); list_title = "Recently Solved Tickets"
     elif view_name == 'current_tasks': query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status == 'In Progress'); list_title = "Your Current In-Progress Tickets"
     else: flash(f"Unknown ticket view: '{view_name}'. Defaulting to 'Your Unsolved Tickets'.", "warning"); query = query.filter(Ticket.assigned_to_id == current_user.id, Ticket.status.notin_(['Resolved', 'Closed'])); list_title = "Your Unsolved Tickets"; view_name = 'my_unsolved'
-    if view_name in ['recently_updated', 'recently_solved', 'all_unsolved', 'unassigned', 'pending']: ordered_query = query.order_by(Ticket.updated_at.desc())
-    else: priority_order = db.case({'Urgent': 1, 'High': 2, 'Medium': 3, 'Low': 4}, value=Ticket.priority, else_=5); ordered_query = query.order_by(priority_order.asc(), Ticket.updated_at.desc())
+    
+    if view_name in ['recently_updated', 'recently_solved']: 
+        ordered_query = query.order_by(Ticket.updated_at.desc())
+    elif view_name in ['all_unsolved', 'unassigned', 'pending']:
+        ordered_query = query.order_by(Ticket.created_at.desc()) 
+    else: 
+        priority_order = db.case({'Urgent': 1, 'High': 2, 'Medium': 3, 'Low': 4}, value=Ticket.priority, else_=5)
+        ordered_query = query.order_by(priority_order.asc(), Ticket.updated_at.desc())
+        
     tickets_pagination = ordered_query.paginate(page=page, per_page=10, error_out=False)
     return render_template('agent/ticket_list.html', title=list_title, tickets_pagination=tickets_pagination, current_view=view_name)
 
 @app.route('/ticket/<int:ticket_id>/assign_to_me')
 @agent_required
 def assign_ticket_to_me(ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
+    ticket = db.session.get(Ticket, ticket_id) 
+    if not ticket:
+        flash('Ticket not found.', 'danger')
+        return redirect(url_for('agent_ticket_list'))
+        
     if ticket.assigned_to_id is None or ticket.assigned_to_id != current_user.id:
         old_assignee_name = ticket.assignee.username if ticket.assignee else "Unassigned"; old_status = ticket.status; status_changed = False
         ticket.assigned_to_id = current_user.id
@@ -912,8 +1074,10 @@ def assign_ticket_to_me(ticket_id):
 def _admin_list_options(model_class, template_name, title, order_by_attr='name'):
     items = model_class.query.order_by(getattr(model_class, order_by_attr)).all(); model_name_slug = to_snake_case(model_class.__name__)
     return render_template(template_name, title=title, items=items, model_name=model_name_slug)
+
 def _admin_create_edit_option(model_class, form_class, list_url_func_name, item_id=None):
-    item = model_class.query.get_or_404(item_id) if item_id else None; form = form_class(obj=item if request.method == 'GET' and item else None)
+    item = db.session.get(model_class, item_id) if item_id else None
+    form = form_class(obj=item if request.method == 'GET' and item else None)
     type_name_raw = model_class.__name__.replace("Option",""); type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw]);
     if not type_name_display.strip(): type_name_display = model_class.__name__ 
     legend = f'New {type_name_display}' if not item else f'Edit {type_name_display}: {getattr(item, "name", "Item")}'
@@ -928,8 +1092,13 @@ def _admin_create_edit_option(model_class, form_class, list_url_func_name, item_
             try: db.session.commit(); flash(f'{type_name_display} "{option_instance.name}" saved.', 'success'); return redirect(url_for(list_url_func_name))
             except Exception as e: db.session.rollback(); flash(f'DB error saving {type_name_display}: {e}', 'danger'); app.logger.error(f"Error saving option {type_name_display} {option_instance.name}: {e}", exc_info=True)
     return render_template('admin/create_edit_option.html', title=legend, form=form, legend=legend,item_type_name=type_name_display, list_url=url_for(list_url_func_name))
+
 def _admin_delete_option(model_class, item_id, list_url_func_name, related_ticket_attr_id=None, related_ticket_attr_name=None):
-    item = model_class.query.get_or_404(item_id); item_name = getattr(item, "name", "Item"); type_name_raw = model_class.__name__.replace("Option",""); type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw])
+    item = db.session.get(model_class, item_id)
+    if not item:
+        flash(f'{model_class.__name__} not found.', 'danger')
+        return redirect(url_for(list_url_func_name))
+    item_name = getattr(item, "name", "Item"); type_name_raw = model_class.__name__.replace("Option",""); type_name_display = " ".join(re.findall('[A-Z][^A-Z]*', type_name_raw) or [type_name_raw])
     if not type_name_display.strip(): type_name_display = model_class.__name__
     can_delete = True; query_filter = None
     if related_ticket_attr_id and hasattr(Ticket, related_ticket_attr_id): query_filter = (getattr(Ticket, related_ticket_attr_id) == item.id)
@@ -943,11 +1112,13 @@ def _admin_delete_option(model_class, item_id, list_url_func_name, related_ticke
 @app.route('/admin/users')
 @admin_required
 def admin_user_list(): users = User.query.order_by(User.username).all(); share_form = ShareCredentialsForm(); return render_template('admin/user_list.html', title='Manage Users', users=users, share_form=share_form)
+
 @app.route('/admin/user/new', methods=['GET', 'POST'])
 @app.route('/admin/user/<int:user_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def admin_create_edit_user(user_id=None):
-    user_to_edit = User.query.get_or_404(user_id) if user_id else None; form = AdminUserForm(obj=user_to_edit if request.method == 'GET' and user_to_edit else None)
+    user_to_edit = db.session.get(User, user_id) if user_id else None
+    form = AdminUserForm(obj=user_to_edit if request.method == 'GET' and user_to_edit else None)
     form.organization_id.choices = get_active_organization_choices()
     legend = 'Create New User' if not user_to_edit else f'Edit User: {user_to_edit.username}'
     original_password_validators = list(form.password.validators); original_password2_validators = list(form.password2.validators)
@@ -971,7 +1142,10 @@ def admin_create_edit_user(user_id=None):
 @app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
 @admin_required
 def admin_delete_user(user_id):
-    user_to_delete = User.query.get_or_404(user_id)
+    user_to_delete = db.session.get(User, user_id)
+    if not user_to_delete:
+        flash('User not found.', 'danger')
+        return redirect(url_for('admin_user_list'))
     if user_to_delete.id == current_user.id: flash('You cannot delete your own account.', 'danger')
     elif user_to_delete.is_admin and User.query.filter_by(role='admin').count() <= 1: flash('Cannot delete the only remaining administrator account.', 'danger')
     else:
@@ -986,7 +1160,11 @@ def admin_delete_user(user_id):
 @app.route('/admin/user/<int:user_id>/share_credentials', methods=['POST'])
 @admin_required
 def admin_share_credentials(user_id):
-    user_to_share = User.query.get_or_404(user_id); admin_user = current_user; form = ShareCredentialsForm(request.form)
+    user_to_share = db.session.get(User, user_id)
+    if not user_to_share:
+        flash('User not found.', 'danger')
+        return redirect(url_for('admin_user_list'))
+    admin_user = current_user; form = ShareCredentialsForm(request.form)
     if form.validate():
         recipient_email = form.recipient_email.data; subject = f"Account Information for Ticket System: {user_to_share.username}"; body_text = render_template('email/share_credentials_email.txt', user_being_shared=user_to_share, admin_user=admin_user)
         msg = Message(subject, recipients=[recipient_email], body=body_text)
@@ -1100,6 +1278,569 @@ def admin_all_tickets():
     categories_for_filter = Category.query.order_by('name').all(); agents_for_filter = User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()
     return render_template('admin/all_tickets.html', title='All Tickets Overview', tickets_pagination=tickets_pagination, statuses=TICKET_STATUS_CHOICES, priorities=TICKET_PRIORITY_CHOICES, categories=categories_for_filter, agents=agents_for_filter, current_filters=filters)
 
+# --- NEW FEATURE ROUTES ---
+@app.route('/api/ai/generate_ticket_description', methods=['POST'])
+@login_required
+def ai_generate_ticket_description():
+    if not app.config['GEMINI_API_KEY']:
+        return jsonify({"error": "AI service unavailable. Key not configured."}), 503
+
+    data = request.get_json()
+    if not data:
+        app.logger.error("AI Description: No JSON payload received.")
+        return jsonify({"error": "Invalid payload. Expecting JSON."}), 400
+
+    title = data.get('title', '').strip()
+    current_description = data.get('current_description', '').strip() 
+    category_id = data.get('category_id')
+    severity_name = data.get('severity_name', '').strip()
+
+    category_name = ""
+    if category_id:
+        try:
+            cat_id_int = int(category_id)
+            if cat_id_int != 0: 
+                category_obj = db.session.get(Category, cat_id_int)
+                if category_obj:
+                    category_name = category_obj.name
+        except ValueError:
+            app.logger.warning(f"Invalid category_id format: {category_id}")
+    
+    prompt_parts = ["You are an expert technical writer for a ticketing system. Your task is to refine or generate a bug/issue description."]
+    context_provided = False
+    if current_description:
+        prompt_parts.append(f"Given the following user-submitted description:\n'''\n{current_description}\n'''")
+        context_provided = True
+    if title:
+        prompt_parts.append(f"The ticket title is: \"{title}\"")
+        context_provided = True
+    if category_name:
+        prompt_parts.append(f"The ticket category is: \"{category_name}\"")
+        context_provided = True
+    if severity_name:
+        prompt_parts.append(f"The ticket severity is: \"{severity_name}\"")
+        context_provided = True
+
+    if not context_provided:
+        return jsonify({"error": "Please provide at least a title, current description, category, or severity to generate an AI description."}), 400
+
+    if current_description:
+        prompt_parts.append("\nRewrite this into a clear, professional, and concise description suitable for a technical support ticket. Focus on clarity and completeness. If possible, infer context, potential steps to reproduce (if logical from the input), expected behavior, and actual behavior. Output only the refined description text. Do not add any preamble like 'Here is the rewritten description:'.")
+    else:
+        prompt_parts.append("\nBased on the provided ticket information (title, category, severity), generate a detailed and professional bug/issue description. If the information is too generic, try to expand on common issues related to such a context. Include potential steps to reproduce, expected behavior, and actual behavior where appropriate. Output only the generated description text. Do not add any preamble.")
+    
+    prompt = "\n\n".join(prompt_parts)
+    app.logger.info(f"AI Ticket Description Prompt (first 100 chars): {prompt[:100]}...")
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=800,
+                temperature=0.5      
+            )
+        )
+        generated_text = "".join(part.text for part in response.candidates[0].content.parts).strip() if response.candidates and response.candidates[0].content.parts else ""
+        
+        if not generated_text:
+            if response.prompt_feedback and response.prompt_feedback.block_reason:
+                block_msg = response.prompt_feedback.block_reason_message or "Content generation was limited."
+                app.logger.warning(f"Gemini blocked AI ticket description generation: {block_msg}")
+                return jsonify({"error": f"AI content generation was blocked: {block_msg}. Please rephrase your input or try again."}), 400
+            app.logger.warning(f"Gemini returned empty content for AI ticket description. Prompt was: {prompt[:200]}...")
+            return jsonify({"generated_description": "AI could not generate a description for the provided input. Please try rephrasing or adding more details."})
+            
+        return jsonify({"generated_description": generated_text})
+
+    except Exception as e:
+        app.logger.error(f"Gemini API error during AI ticket description generation: {str(e)}", exc_info=True)
+        return jsonify({"error": "An error occurred while communicating with the AI service."}), 500
+
+@app.route('/tools/gdoc_import', methods=['GET'])
+@login_required
+def gdoc_importer_page():
+    return render_template('tools/gdoc_import.html', 
+                           username=current_user.username,
+                           title="Import Ticket from Google Doc")
+
+@app.route('/api/extract_gdoc_content', methods=['POST'])
+@login_required
+def api_extract_gdoc_content():
+    data = request.get_json()
+    if not data or 'gdoc_url' not in data:
+        return jsonify({"success": False, "detail": "Google Doc URL is required."}), 400
+    
+    gdoc_url = data.get('gdoc_url').strip()
+    if not gdoc_url:
+        return jsonify({"success": False, "detail": "Google Doc URL cannot be empty."}), 400
+
+    is_likely_edit_url = "/edit" in gdoc_url.split('?')[0].split('#')[0] 
+    is_likely_publish_url = ("/d/e/" in gdoc_url or "/pub" in gdoc_url)
+
+    if is_likely_edit_url and not is_likely_publish_url : 
+        app.logger.warning(f"GDoc Importer: Received likely editor URL: {gdoc_url}")
+        return jsonify({"success": False, "detail": "Please use a 'Published to the web' link, not the direct editor link. (File > Share > Publish to web)"}), 400
+    
+    if not is_likely_publish_url:
+        app.logger.warning(f"GDoc Importer: URL doesn't match typical publish patterns: {gdoc_url}. Allowing attempt.")
+
+    app.logger.info(f"Attempting to extract content from GDoc URL: {gdoc_url}")
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(gdoc_url, timeout=20, headers=headers) 
+        
+        if 'text/html' not in response.headers.get('Content-Type', '').lower():
+            app.logger.error(f"GDoc URL did not return HTML. Content-Type: {response.headers.get('Content-Type')}. URL: {gdoc_url}")
+            return jsonify({"success": False, "detail": "The URL did not return an HTML document. Check if it's correctly published and accessible."}), 400
+
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        content_div = soup.find('div', id='contents')
+        if not content_div: 
+            body_content = soup.body
+            if body_content:
+                for tag_to_remove in body_content(['header', 'footer', 'nav', 'aside', 'script', 'style']):
+                    tag_to_remove.decompose()
+                content_div = body_content
+            if not content_div:
+                app.logger.warning(f"Could not find main content area (div#contents or body) in GDoc: {gdoc_url}")
+                return jsonify({"success": False, "detail": "Could not find main content area in the document. Structure might be unexpected."}), 400
+        
+        for s_or_s_tag in content_div(['script', 'style']):
+            s_or_s_tag.decompose()
+        extracted_text = content_div.get_text(separator='\n', strip=True)
+        
+        if not extracted_text.strip():
+            app.logger.warning(f"No text content found in the GDoc after cleaning: {gdoc_url}")
+            return jsonify({"success": False, "detail": "No text content found in the document after cleaning."}), 400
+        return jsonify({"success": True, "content": extracted_text})
+    except requests.exceptions.Timeout:
+        app.logger.error(f"Timeout fetching GDoc URL: {gdoc_url}")
+        return jsonify({"success": False, "detail": "The request to Google Docs timed out. Please try again."}), 504
+    except requests.exceptions.HTTPError as http_err:
+        app.logger.error(f"HTTP error fetching GDoc {gdoc_url}: {http_err}")
+        if http_err.response.status_code == 404:
+            return jsonify({"success": False, "detail": "Document not found (404). Check the URL or publish settings."}), 404
+        return jsonify({"success": False, "detail": f"Error fetching document (status {http_err.response.status_code}). Check if the document is 'Published to web' and accessible without login."}), http_err.response.status_code
+    except requests.exceptions.RequestException as req_err:
+        app.logger.error(f"Request error fetching GDoc {gdoc_url}: {req_err}")
+        return jsonify({"success": False, "detail": f"Network error fetching document: {req_err}"}), 500
+    except Exception as e:
+        app.logger.error(f"Error parsing GDoc {gdoc_url}: {e}", exc_info=True)
+        return jsonify({"success": False, "detail": "An error occurred while parsing the document content."}), 500
+
+@app.route('/api/create_ticket_from_gdoc_data', methods=['POST'])
+@login_required
+def api_create_ticket_from_gdoc_data():
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "detail": "Invalid JSON payload"}), 400
+
+    title = data.get('title')
+    description = data.get('remedies') 
+    category_id_str = data.get('category_id')
+    severity_name = data.get('severity_name')
+    customer_name = data.get('customer_name')
+
+    errors = []
+    if not title: errors.append("Title is required.")
+    if not description: errors.append("Description (from GDoc content) is required.")
+    if not category_id_str or category_id_str == "0": errors.append("Category is required.")
+    if not severity_name: errors.append("Severity is required.")
+    if not customer_name: errors.append("Customer Name is required.")
+
+    if errors:
+        return jsonify({"success": False, "detail": " ".join(errors)}), 400
+
+    category_id = int(category_id_str)
+    category = db.session.get(Category, category_id)
+    severity_obj = SeverityOption.query.filter_by(name=severity_name, is_active=True).first()
+
+    if not category:
+        return jsonify({"success": False, "detail": "Invalid Category selected."}), 400
+    if not severity_obj:
+        return jsonify({"success": False, "detail": "Invalid Severity selected."}), 400
+
+    ticket_creator = current_user
+    ticket_org_id_to_save = None
+    if current_user.is_client and current_user.organization_id:
+        ticket_org_id_to_save = current_user.organization_id
+    elif current_user.organization:
+        ticket_org_id_to_save = current_user.organization_id
+    
+    ticket = Ticket(
+        title=title, description=description, created_by_id=ticket_creator.id,
+        category_id=category.id, severity=severity_obj.name,
+        customer_name=customer_name, organization_id=ticket_org_id_to_save,
+        status='Open', priority='Medium' 
+    )
+    if "Critical" in severity_obj.name or "Urgent" in severity_obj.name: ticket.priority = "Urgent"
+    elif "High" in severity_obj.name: ticket.priority = "High"
+    elif "Medium" in severity_obj.name: ticket.priority = "Medium"
+    else: ticket.priority = "Low"
+
+    db.session.add(ticket)
+    try:
+        db.session.flush() 
+        log_interaction(ticket.id, 'TICKET_CREATED_GDOC', user_id=ticket_creator.id, details={'title': ticket.title, 'source': 'Google Doc Import'}, timestamp_override=ticket.created_at)
+        db.session.commit()
+        try:
+            admin_and_agent_emails = list(set(([app.config['ADMIN_EMAIL']] if app.config['ADMIN_EMAIL'] else []) + [user.email for user in User.query.filter(User.role.in_(['admin', 'agent'])).all() if user.email]))
+            if admin_and_agent_emails:
+                mail.send(Message(subject=f"New Ticket (GDoc): #{ticket.id} - {ticket.title}", recipients=admin_and_agent_emails, body=render_template('email/new_ticket_admin_notification.txt', ticket=ticket, submitter=ticket_creator, ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))))
+            creator_email_list = [ticket_creator.email] if ticket_creator.email else []
+            if creator_email_list:
+                 mail.send(Message(subject=f"Confirmation (GDoc): Your Ticket #{ticket.id} - {ticket.title}", recipients=creator_email_list, body=render_template('email/ticket_info_recipient.txt', ticket=ticket, submitter=ticket_creator, ticket_url=url_for('view_ticket', ticket_id=ticket.id, _external=True))))
+        except Exception as e:
+            app.logger.error(f"Failed to send email notifications for GDoc ticket #{ticket.id}: {e}", exc_info=True)
+        trigger_priority_call_alert(ticket, old_severity=None)
+        flash(f'Ticket #{ticket.id} created successfully from Google Doc!', 'success')
+        return jsonify({"success": True, "message": f"Ticket #{ticket.id} created successfully!", "ticket_id": ticket.id})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"GDoc Ticket creation DB error: {e}", exc_info=True)
+        return jsonify({"success": False, "detail": f"Database error creating ticket: {str(e)[:150]}"}), 500
+
+# --- Chatbot ---
+DIRECT_AI_SIGNAL_TYPE = "DIRECT_AI_FOR_GENERAL_QUERY_TYPE" 
+TICKET_DETAILS_TYPE = "TICKET_DETAILS_TYPE"
+
+def query_database_for_chatbot_sqlalchemy(user_message_lower):
+    response_data = "Sorry, I couldn't find specific information related to your query in our ticket system. You can try asking about: 'ticket id 123', 'tickets by user@example.com', 'open tickets', 'search tickets for [keyword]', 'how many open tickets are there?', or 'show me the latest 3 tickets'."
+    found_specific_query = False
+    try:
+        ticket_id_phrases = ["ticket id ", "show ticket ", "details for ticket ", "ticket #", "ticket#", "ticket "]
+        matched_phrase = next((p for p in ticket_id_phrases if user_message_lower.startswith(p)), None)
+        tid_str = None
+        if matched_phrase:
+            potential_id = user_message_lower[len(matched_phrase):].strip().split(" ")[0]
+            if potential_id.isdigit(): tid_str = potential_id
+        elif user_message_lower.split()[-1].isdigit() and any(kw in user_message_lower for kw in ["ticket", "id"]):
+            tid_str = user_message_lower.split()[-1]
+
+        if tid_str:
+            found_specific_query = True
+            try:
+                tid = int(tid_str)
+                ticket = db.session.get(Ticket, tid)
+                if ticket:
+                    text_parts = [
+                        f"Ticket ID: {ticket.id}", f"Title: {ticket.title}", f"Status: {ticket.status}",
+                        f"Priority: {ticket.priority}", f"Severity: {ticket.severity or 'N/A'}"
+                    ]
+                    if ticket.description and ticket.description.strip(): text_parts.append(f"Description: {ticket.description[:200]}...")
+                    text_parts.append(f"Created By: {ticket.creator.username} on {ticket.created_at.strftime('%Y-%m-%d %H:%M')}")
+                    if ticket.assignee: text_parts.append(f"Assigned To: {ticket.assignee.username}")
+                    
+                    ticket_data_for_response = {
+                        "type": TICKET_DETAILS_TYPE, "id": ticket.id, "title": ticket.title, "status": ticket.status,
+                        "description": ticket.description, "created_by": ticket.creator.username,
+                        "created_at": ticket.created_at.strftime('%Y-%m-%d %H:%M:%S'), 
+                        "severity": ticket.severity, "priority": ticket.priority,
+                        "assignee": ticket.assignee.username if ticket.assignee else "Unassigned",
+                        "category": ticket.category_ref.name if ticket.category_ref else "N/A",
+                        "attachments_info": [],
+                        "summary_text_for_ai": "\n".join(text_parts)
+                    }
+                    attachments = ticket.ticket_attachments.all()
+                    if attachments:
+                        for att in attachments:
+                            try:
+                                ticket_data_for_response["attachments_info"].append({
+                                    "name": att.filename,
+                                    "url": url_for('uploaded_file', filename=att.stored_filename, _external=False),
+                                    "type": "attachment"
+                                })
+                                text_parts.append(f"Attachment: {att.filename}")
+                            except Exception as e_url:
+                                app.logger.error(f"Error generating URL for attachment {att.filename} in chatbot: {e_url}")
+                        ticket_data_for_response["summary_text_for_ai"] = "\n".join(text_parts)
+                    response_data = ticket_data_for_response
+                else: response_data = f"Sorry, I couldn't find any ticket with ID {tid}."
+            except ValueError: response_data = f"The ticket ID '{tid_str}' doesn't seem to be a valid number."
+            except Exception as e:
+                app.logger.error(f"Chatbot error fetching ticket ID {tid_str} (SQLAlchemy): {e}", exc_info=True)
+                response_data = "I encountered an error trying to fetch the ticket details."
+            
+        elif any(user_message_lower.startswith(p) for p in ["tickets by ", "show tickets for user ", "tickets for "]):
+            found_specific_query = True
+            s_query = user_message_lower.split(" ", 2)[-1].strip() 
+            if not s_query: response_data = "Please specify a username or email to search for (e.g., 'tickets by agent1')."
+            else:
+                tickets = Ticket.query.join(User, Ticket.created_by_id == User.id)\
+                               .filter(User.username.ilike(f"%{s_query}%"))\
+                               .order_by(Ticket.created_at.desc()).limit(5).all()
+                if tickets: response_data = f"Here are the latest 5 tickets for users matching '{s_query}':\n" + "\n".join([f"- ID {t.id}: {t.title} (Status: {t.status}, Created: {t.created_at.strftime('%Y-%m-%d')})" for t in tickets])
+                else: response_data = f"No tickets found for users matching '{s_query}'."
+        
+        elif any(keyword in user_message_lower for keyword in [" tickets", " status is "]) and \
+             any(status_keyword in user_message_lower for status_keyword in TICKET_STATUS_CHOICES_FLAT + ['pending']): 
+            found_specific_query = True
+            status_to_find = None
+            for status_key in TICKET_STATUS_CHOICES_FLAT:
+                if status_key in user_message_lower:
+                    status_to_find = next((s_disp for s_val, s_disp in TICKET_STATUS_CHOICES if s_val.lower() == status_key), None)
+                    break
+            if 'pending' in user_message_lower and not status_to_find : 
+                 on_hold_value = next((s_val for s_val, s_disp in TICKET_STATUS_CHOICES if s_disp.lower() == 'on hold'), None)
+                 if on_hold_value : status_to_find = on_hold_value
+            if status_to_find:
+                tickets = Ticket.query.filter(Ticket.status == status_to_find)\
+                               .order_by(Ticket.created_at.desc()).limit(5).all()
+                if tickets: response_data = f"Here are the latest 5 '{status_to_find}' tickets:\n" + "\n".join([f"- ID {t.id}: {t.title} (By: {t.creator.username})" for t in tickets])
+                else: response_data = f"No '{status_to_find}' tickets found currently."
+            else: response_data = f"Which status are you interested in (e.g., {', '.join(TICKET_STATUS_CHOICES_FLAT)})?"
+
+        elif user_message_lower.startswith("search tickets for ") or user_message_lower.startswith("find tickets about "):
+            found_specific_query = True
+            search_term = user_message_lower.replace("search tickets for ", "").replace("find tickets about ","").strip()
+            if search_term:
+                like_term = f"%{search_term}%"
+                tickets = Ticket.query.filter(
+                                or_(Ticket.title.ilike(like_term), 
+                                    Ticket.description.ilike(like_term),
+                                    Ticket.tags.ilike(like_term))
+                               ).order_by(Ticket.created_at.desc()).limit(5).all()
+                if tickets: response_data = f"Found up to 5 tickets matching '{search_term}':\n" + "\n".join([f"- ID {t.id}: {t.title} (Status: {t.status})" for t in tickets])
+                else: response_data = f"No tickets found matching '{search_term}'."
+            else: response_data = "Please specify what you want to search for (e.g., 'search tickets for login issue')."
+
+        elif user_message_lower.startswith("how many tickets are ") or user_message_lower.startswith("count of "):
+            found_specific_query = True
+            status_to_count = None
+            for status_key in TICKET_STATUS_CHOICES_FLAT:
+                if status_key in user_message_lower:
+                    status_to_count = next((s_disp for s_val, s_disp in TICKET_STATUS_CHOICES if s_val.lower() == status_key), None)
+                    break
+            if 'pending' in user_message_lower and not status_to_count :
+                 on_hold_value = next((s_val for s_val, s_disp in TICKET_STATUS_CHOICES if s_disp.lower() == 'on hold'), None)
+                 if on_hold_value : status_to_count = on_hold_value
+            if status_to_count:
+                count = Ticket.query.filter(Ticket.status == status_to_count).count()
+                response_data = f"There are {count} ticket(s) with status '{status_to_count}'."
+            elif "total tickets" in user_message_lower or "all tickets" in user_message_lower:
+                count = Ticket.query.count()
+                response_data = f"There are a total of {count} ticket(s) in the system."
+            else: response_data = "Which status count are you interested in (e.g., 'how many tickets are open')?"
+        
+        elif "latest " in user_message_lower and " tickets" in user_message_lower:
+            found_specific_query = True
+            try:
+                parts = user_message_lower.split()
+                num_tickets = None
+                for i, part in enumerate(parts):
+                    if part == "latest" and i + 1 < len(parts) and parts[i+1].isdigit():
+                        num_tickets = int(parts[i+1]); break
+                if num_tickets is not None:
+                    num_tickets = min(num_tickets, 10) 
+                    tickets = Ticket.query.order_by(Ticket.created_at.desc()).limit(num_tickets).all()
+                    if tickets: response_data = f"Here are the latest {len(tickets)} tickets:\n" + "\n".join([f"- ID {t.id}: {t.title} (Status: {t.status})" for t in tickets])
+                    else: response_data = "No tickets found."
+                else: response_data = "Please specify how many latest tickets you want (e.g., 'latest 5 tickets')."
+            except ValueError: response_data = "Please specify a valid number for latest tickets."
+            except Exception as e:
+                app.logger.error(f"Chatbot error fetching latest tickets (SQLAlchemy): {e}", exc_info=True)
+                response_data = "I encountered an error trying to fetch the latest tickets."
+
+        elif any(user_message_lower.startswith(p) for p in ["who created ticket ", "creator of ticket "]):
+            found_specific_query = True
+            try:
+                creator_tid_str = None
+                for p in ["who created ticket ", "creator of ticket "]:
+                    if user_message_lower.startswith(p):
+                        potential_id = user_message_lower[len(p):].strip().split(" ")[0]
+                        if potential_id.isdigit(): creator_tid_str = potential_id; break
+                if not creator_tid_str and user_message_lower.split()[-1].isdigit() and any(kw in user_message_lower for kw in ["ticket", "id", "creator"]):
+                     creator_tid_str = user_message_lower.split()[-1]
+                if not creator_tid_str: response_data = "Please provide a valid ticket ID to find its creator (e.g., 'creator of ticket 123')."
+                else:
+                    tid = int(creator_tid_str)
+                    ticket = db.session.get(Ticket, tid)
+                    if ticket: response_data = f"Ticket ID {tid} (\"{ticket.title}\") was created by: {ticket.creator.username}."
+                    else: response_data = f"No ticket found with ID {tid}."
+            except ValueError: response_data = "Please provide a valid ticket ID (must be a number)."
+            except Exception as e:
+                app.logger.error(f"Chatbot error fetching ticket creator for ID '{creator_tid_str}' (SQLAlchemy): {e}", exc_info=True)
+                response_data = "I encountered an error trying to find the ticket creator."
+
+        if not found_specific_query and len(user_message_lower.split()) > 1:
+            like_term = f"%{user_message_lower}%"
+            tickets = Ticket.query.join(User, Ticket.created_by_id == User.id).filter(
+                or_(Ticket.title.ilike(like_term), Ticket.description.ilike(like_term), User.username.ilike(like_term))
+            ).order_by(Ticket.created_at.desc()).limit(3).all()
+            if tickets:
+                response_data = f"I found these tickets that might be related to '{user_message_lower}':\n" + "\n".join([f"- ID {t.id}: {t.title} (Status: {t.status}, By: {t.creator.username})" for t in tickets])
+                response_data += "\n\nCould you be more specific if this isn't what you're looking for, or ask a general question?"
+                found_specific_query = True
+    except Exception as e:
+        app.logger.error(f"Chatbot unexpected error during DB query for '{user_message_lower}' (SQLAlchemy): {e}", exc_info=True)
+        response_data = "I encountered an unexpected issue while trying to understand your request. Please try again."
+        found_specific_query = True
+    if not found_specific_query:
+        app.logger.info(f"Chatbot: No specific DB query matched for '{user_message_lower}'. Signaling for direct AI processing.")
+        return {"type": DIRECT_AI_SIGNAL_TYPE, "original_query": user_message_lower}
+    return response_data
+
+def generate_ai_chat_response_gemini(user_message, db_query_or_signal):
+    if not app.config['GEMINI_API_KEY']:
+        app.logger.warning("Chatbot: Gemini API Key is missing. AI responses will be limited.")
+        if isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == DIRECT_AI_SIGNAL_TYPE:
+            return "My AI capabilities are currently unavailable for general questions. Please try asking about specific tickets."
+        if isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == TICKET_DETAILS_TYPE:
+            return db_query_or_signal.get("summary_text_for_ai", "Ticket information is available, but AI summarization is currently offline.")
+        return str(db_query_or_signal) 
+    prompt = ""
+    if isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == DIRECT_AI_SIGNAL_TYPE:
+        original_query = db_query_or_signal.get("original_query", user_message)
+        app.logger.info(f"Chatbot: Using direct AI prompt for query: '{original_query}'")
+        prompt = f"""The user asked: "{original_query}"
+Please provide a helpful and general response. You do not have access to specific database information for this question.
+Answer as a helpful assistant. If the question seems like a command you cannot fulfill (e.g. 'delete ticket 5'), politely explain you are an informational assistant and cannot perform actions.
+If the query is vague, ask for clarification. If it's a greeting, respond politely.
+Chatbot's Answer:"""
+    elif isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == TICKET_DETAILS_TYPE:
+        ticket_summary = db_query_or_signal.get("summary_text_for_ai", "Found details for a ticket.")
+        app.logger.info(f"Chatbot: Using DB-contextualized (TICKET_DETAILS_TYPE) AI prompt for query: '{user_message}'")
+        prompt = f"""User asked: "{user_message}"
+Based *only* on this ticket information, provide a friendly and concise summary or answer related to the user's question.
+Do not invent information not present in the ticket details. If the ticket description is long, summarize the key points relevant to the user's query.
+Ticket Information:
+{ticket_summary}
+
+Chatbot's Answer:"""
+    else: 
+        app.logger.info(f"Chatbot: Using DB-contextualized (string) AI prompt for query: '{user_message}'")
+        prompt = f"""User asked: "{user_message}"
+Based *only* on the following database information, provide a friendly and concise answer. 
+If the database info is a list of items, summarize it or list key items. 
+If the database info indicates "no ticket/s found" or a similar negative result, state that politely. 
+If it's an error message or a help message like "Please specify...", rephrase that helpfully for the user.
+Do not add any information not present in the database result.
+Database Result:
+```{str(db_query_or_signal)}```
+Chatbot's Answer:"""
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+        response = model.generate_content(
+            prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=500, temperature=0.5)
+        )
+        ai_text = "".join(part.text for part in response.candidates[0].content.parts).strip() if response.candidates and response.candidates[0].content.parts else ""
+        if not ai_text: 
+            if response.prompt_feedback and response.prompt_feedback.block_reason:
+                block_msg = response.prompt_feedback.block_reason_message or "Content generation was limited due to safety settings."
+                app.logger.warning(f"Gemini blocked AI response: {block_msg}. Prompt: {prompt[:200]}")
+                return f"My response was limited by content policy ({block_msg}). Could you please rephrase your query or ask something different?"
+            app.logger.info(f"Chatbot AI returned empty content. Fallback based on db_query_or_signal. Prompt: {prompt[:200]}")
+            if isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == DIRECT_AI_SIGNAL_TYPE: return "I'm sorry, I couldn't generate a specific response for that right now. Please try rephrasing your question."
+            if isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == TICKET_DETAILS_TYPE: return db_query_or_signal.get("summary_text_for_ai", "AI could not summarize the ticket, but its details were found.")
+            return "The AI assistant couldn't phrase a response. Here's the direct information I found:\n" + str(db_query_or_signal)
+        return ai_text
+    except Exception as e:
+        app.logger.error(f"Gemini API call error for chatbot (prompt: {prompt[:200]}...): {str(e)}", exc_info=True)
+        if isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == DIRECT_AI_SIGNAL_TYPE: return "An AI service error occurred. I can't process general queries right now. Try asking about specific tickets."
+        if isinstance(db_query_or_signal, dict) and db_query_or_signal.get("type") == TICKET_DETAILS_TYPE: return db_query_or_signal.get("summary_text_for_ai", "An AI service error occurred, but ticket details were found.")
+        return f"An AI service error occurred. Here's the direct information I found:\n{str(db_query_or_signal)}"
+
+@app.route('/tools/chatbot', methods=['GET'])
+@login_required
+def chatbot_page_render(): 
+    return render_template('tools/chatbot.html', username=current_user.username, title="AI Assistant")
+
+@app.route('/api/chat', methods=['POST'])
+@login_required
+def api_chat():
+    data = request.get_json()
+    if not data: return jsonify({"error": "Invalid JSON payload"}), 400
+    msg = data.get('message','').strip()
+    mode = data.get('mode', 'ticket_assistant')
+    if not msg: return jsonify({"reply": "Please type a message to start the chat."})
+    app.logger.info(f"Chat API: mode='{mode}', message='{msg}' from user: {current_user.username}")
+    final_reply_text = ""; relevant_docs_list = []; is_direct_ai_response = False; research_topic_suggestion = msg 
+    db_result_for_ai_processing = None 
+    if mode == 'general_ai':
+        db_result_for_ai_processing = {"type": DIRECT_AI_SIGNAL_TYPE, "original_query": msg}
+        is_direct_ai_response = True
+    else:
+        db_query_output = query_database_for_chatbot_sqlalchemy(msg.lower())
+        if isinstance(db_query_output, dict):
+            if db_query_output.get("type") == TICKET_DETAILS_TYPE:
+                ticket_info = db_query_output
+                db_result_for_ai_processing = ticket_info 
+                research_topic_suggestion = ticket_info.get("title", msg) 
+                attachments_from_db = ticket_info.get("attachments_info", [])
+                relevant_docs_list.extend(attachments_from_db)
+                is_direct_ai_response = False
+            elif db_query_output.get("type") == DIRECT_AI_SIGNAL_TYPE: 
+                db_result_for_ai_processing = db_query_output    
+                is_direct_ai_response = True
+            else:
+                db_result_for_ai_processing = "Error: Received an unexpected data structure from database query."
+                is_direct_ai_response = False 
+        else:
+            db_result_for_ai_processing = db_query_output
+            is_direct_ai_response = False 
+    final_reply_text = generate_ai_chat_response_gemini(msg, db_result_for_ai_processing)
+    return jsonify({
+        "reply": final_reply_text, "relevant_docs": relevant_docs_list,
+        "is_direct_ai": is_direct_ai_response, "research_topic_suggestion": research_topic_suggestion,
+        "aws_docs": []
+    })
+
+@app.route('/api/aws_doc_search', methods=['POST'])
+@login_required
+def api_aws_doc_search():
+    data = request.get_json()
+    if not data: return jsonify({"error": "Invalid JSON payload"}), 400
+    research_topic = data.get('research_topic', '').strip()
+    if not research_topic: return jsonify({"error": "Research topic is required."}), 400
+    app.logger.info(f"AWS Doc Search API request for topic: '{research_topic}' by {current_user.username}")
+    aws_documentation_links = []
+    if not app.config['GEMINI_API_KEY']:
+        app.logger.warning("AWS Doc Search: Gemini API Key not configured.")
+        return jsonify({"error": "AI service for AWS Doc Search is unavailable."}), 503
+    try:
+        aws_search_prompt = f"""
+        Please find up to 3-4 highly relevant official AWS documentation links related to the following topic: "{research_topic}". 
+        For each link, provide a concise title (max 10 words) and the full URL.
+        Focus on official AWS documentation (docs.aws.amazon.com, aws.amazon.com blogs, whitepapers, workshops.aws).
+        Format your response STRICTLY as a JSON list of objects, where each object has "title" and "url" keys.
+        Example:
+        [
+          {{"title": "Getting Started with Amazon S3", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/GetStartedWithS3.html"}},
+          {{"title": "EC2 Instance Types Overview", "url": "https://aws.amazon.com/ec2/instance-types/"}}
+        ]
+        If no specific official AWS docs are found, return an empty list ([]). Do not invent links. Do not add any other text before or after the JSON list.
+        """
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+        response = model.generate_content(aws_search_prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=1500,temperature=0.2))
+        ai_response_text = "".join(part.text for part in response.candidates[0].content.parts).strip() if response.candidates and response.candidates[0].content.parts else ""
+        if ai_response_text:
+            app.logger.debug(f"AWS Doc Search Gemini Raw Response: {ai_response_text}")
+            try:
+                if ai_response_text.startswith("```json"): ai_response_text = ai_response_text.split("```json\n", 1)[1].rsplit("\n```", 1)[0]
+                elif ai_response_text.startswith("```"): ai_response_text = ai_response_text.split("```\n", 1)[1].rsplit("\n```", 1)[0]
+                parsed_links = json.loads(ai_response_text) 
+                if isinstance(parsed_links, list):
+                    for link_obj in parsed_links:
+                        if isinstance(link_obj, dict) and "title" in link_obj and "url" in link_obj:
+                            if isinstance(link_obj["url"], str) and (link_obj["url"].startswith("http://") or link_obj["url"].startswith("https://")): aws_documentation_links.append({"title": str(link_obj["title"]), "url": link_obj["url"]})
+                            else: app.logger.warning(f"Skipping invalid URL from Gemini for AWS docs: {link_obj.get('url')}")
+                        else: app.logger.warning(f"Gemini returned non-dict or malformed link object for AWS docs: {link_obj}")
+                else: app.logger.warning(f"Gemini did not return a list for AWS docs, got: {type(parsed_links)}. Raw: {ai_response_text}")
+            except json.JSONDecodeError as json_e:
+                app.logger.error(f"Failed to parse Gemini JSON response for AWS docs: {json_e}. Raw response: {ai_response_text}")
+                if "http" not in ai_response_text: aws_documentation_links = []
+            except Exception as e_parse:
+                 app.logger.error(f"Unexpected error processing Gemini response for AWS docs: {e_parse}. Raw response: {ai_response_text}")
+                 aws_documentation_links = [] 
+        if not aws_documentation_links: app.logger.info(f"No valid AWS docs links extracted by AI for topic: {research_topic}")
+        return jsonify({"aws_docs": aws_documentation_links, "message": "AWS documentation search complete." if aws_documentation_links else "No relevant AWS documentation found by AI for this topic."})
+    except Exception as e:
+        app.logger.error(f"Error during AWS doc search API for topic '{research_topic}': {e}", exc_info=True)
+        return jsonify({"error": "Failed to search for AWS documentation due to an internal error."}), 500
+
 # --- CLI Commands ---
 @app.cli.command('init-db')
 def init_db_command():
@@ -1122,9 +1863,9 @@ def init_db_command():
 def create_initial_data_command():
     with app.app_context():
         users_data = [
-            {'username': 'admin', 'email': os.environ.get('ADMIN_USER_EMAIL', 'monish.jodha@cloudkeeper.com'), 'role': 'admin', 'password': os.environ.get('ADMIN_USER_PASSWORD', 'adminpass')},
-            {'username': 'agent', 'email': os.environ.get('AGENT_USER_EMAIL', 'monish.jodha+1@cloudkeeper.com'), 'role': 'agent', 'password': os.environ.get('AGENT_USER_PASSWORD', 'agentpass')},
-            {'username': 'client', 'email': os.environ.get('CLIENT_USER_EMAIL', 'monish.jodha+2@cloudkeeper.com'), 'role': 'client', 'password': os.environ.get('CLIENT_USER_PASSWORD', 'clientpass')}
+            {'username': 'admin', 'email': os.environ.get('ADMIN_USER_EMAIL', 'admin@example.com'), 'role': 'admin', 'password': os.environ.get('ADMIN_USER_PASSWORD', 'adminpass')},
+            {'username': 'agent', 'email': os.environ.get('AGENT_USER_EMAIL', 'agent@example.com'), 'role': 'agent', 'password': os.environ.get('AGENT_USER_PASSWORD', 'agentpass')},
+            {'username': 'client', 'email': os.environ.get('CLIENT_USER_EMAIL', 'client@example.com'), 'role': 'client', 'password': os.environ.get('CLIENT_USER_PASSWORD', 'clientpass')}
         ]
         print("Attempting to create initial users...")
         for u_data in users_data:
@@ -1134,7 +1875,7 @@ def create_initial_data_command():
         
         print("\nEnsuring default options...")
         options_map = {
-            OrganizationOption: ['CloudKeeper (CK)', 'Client Org A', 'Client Org B', 'Default Client Org', 'JIET Jodhpur'], # Added JIET
+            OrganizationOption: ['CloudKeeper (CK)', 'Client Org A', 'Client Org B', 'Default Client Org', 'JIET Jodhpur'],
             Category: ['Technical Support', 'Billing Inquiry', 'General Question', 'Feature Request'],
             CloudProviderOption: ['AWS', 'Azure', 'GCP', 'On-Premise', 'Other'],
             EnvironmentOption: ['Production', 'Staging', 'Development', 'Test', 'QA', 'UAT'],
@@ -1199,11 +1940,16 @@ def create_initial_data_command():
         print("\nInitial data creation process finished.")
 
 if __name__ == '__main__':
-    upload_folder_path_at_startup = app.config.get('UPLOAD_FOLDER')
-    if not os.path.isabs(upload_folder_path_at_startup):
-        upload_folder_path_at_startup = os.path.join(app.root_path, upload_folder_path_at_startup)
-        app.config['UPLOAD_FOLDER'] = upload_folder_path_at_startup 
+    current_upload_folder = app.config.get('UPLOAD_FOLDER')
+    if not os.path.isabs(current_upload_folder):
+        current_upload_folder = os.path.join(app.root_path, current_upload_folder)
+        app.config['UPLOAD_FOLDER'] = current_upload_folder
+    
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        try: os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True); app.logger.info(f"Startup: Upload folder ensured/created at: {app.config['UPLOAD_FOLDER']}")
-        except OSError as e: app.logger.critical(f"CRITICAL: Could not create upload folder {app.config['UPLOAD_FOLDER']}: {e}. Check path and permissions.", exc_info=True)
+        try:
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            app.logger.info(f"Startup: Upload folder ensured/created at: {app.config['UPLOAD_FOLDER']}")
+        except OSError as e:
+            app.logger.critical(f"CRITICAL STARTUP FAILURE: Could not create upload folder {app.config['UPLOAD_FOLDER']}: {e}. Check path and permissions. Application might not work correctly.", exc_info=True)
+    
     app.run(debug=True, host='0.0.0.0', port=5000)

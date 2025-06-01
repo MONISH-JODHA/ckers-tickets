@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% set title = title %} {# Corrected: Use the title variable passed from the route #}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -46,7 +46,7 @@
                         </div>
                         {% endif %}
                         
-                        {% if form.is_active is defined %} {# Check if is_active field exists in the form #}
+                        {% if form.is_active is defined %}
                         <div class="form-group form-check">
                             {{ form.is_active(class="form-check-input") }}
                             {{ form.is_active.label(class="form-check-label") }}

@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }} - Ticket #{{ ticket.id }}{% endblock %}
+{% set title = title %} {# Use the title variable passed from the route #}
 
 {% block head_extra %}
 <style>
@@ -11,7 +10,7 @@
         padding: 1rem;
         border-radius: .25rem;
         border: 1px solid #dee2e6;
-        white-space: pre-wrap; /* Ensures pre-wrap for description */
+        white-space: pre-wrap; 
     }
     .apn-description-area {
         max-height: 150px;
@@ -34,49 +33,51 @@
         position: absolute;
         top: 0;
         bottom: 0;
-        left: 18px;
+        left: 18px; /* Adjusted for icon size */
         width: 2px;
-        background-color: #e9ecef;
+        background-color: #e9ecef; /* Softer line color */
     }
     .timeline-date-group {
         margin: 20px 0 10px 0;
-        padding-left: 0;
+        padding-left: 0; /* No extra padding for the date group itself */
         position: relative;
     }
     .timeline-date-group .badge {
         font-size: 0.8rem;
         font-weight: 600;
         padding: .35em .65em;
-        display: inline-block;
+        display: inline-block; /* Allows margin/padding if needed, fits content */
     }
     .timeline-item {
         margin-bottom: 15px;
         position: relative;
-        padding-left: 45px;
-        min-height: 36px;
+        padding-left: 45px; /* Space for the icon */
+        min-height: 36px; /* Ensure space for icon and a bit of content */
     }
     .timeline-icon {
         position: absolute;
         left: 0;
         top: 0; /* Align icon with top of item */
-        width: 36px;
-        height: 36px;
+        width: 36px;  /* Diameter of the icon circle */
+        height: 36px; /* Diameter of the icon circle */
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        z-index: 10;
-        font-size: 1rem;
-        border: 2px solid white;
-        box-shadow: 0 0 0 1px #dee2e6;
+        z-index: 10; /* Above the timeline bar */
+        font-size: 1rem; /* Icon size within the circle */
+        border: 2px solid white; /* Creates a clean edge */
+        box-shadow: 0 0 0 1px #dee2e6; /* Subtle outer border for light icons */
     }
+    /* Remove box-shadow for icons that have their own background color */
     .timeline-icon.bg-primary, .timeline-icon.bg-success, .timeline-icon.bg-info, .timeline-icon.bg-warning, .timeline-icon.bg-danger, .timeline-icon.bg-purple, .timeline-icon.bg-cyan {
         box-shadow: none;
     }
-    .timeline-icon.bg-light { color: #495057; }
+    .timeline-icon.bg-light { color: #495057; } /* Ensure text visibility on light bg */
+
     .timeline-content {
-        padding: 0px 5px 5px 5px;
+        padding: 0px 5px 5px 5px; /* Minimal padding around content */
         position: relative;
         line-height: 1.4;
     }
@@ -96,9 +97,9 @@
         margin-bottom: 3px;
     }
      .timeline-content .item-description strong {
-        font-weight: 600;
+        font-weight: 600; /* Bootstrap default is 700, 600 is often nicer */
     }
-    .timeline-content .item-meta {
+    .timeline-content .item-meta { /* For extra details like field names in changes */
         font-size: 0.75em;
         color: #6c757d;
     }
@@ -108,7 +109,7 @@
         margin-top: 5px;
         font-size: 0.85em;
         color: #555;
-        max-height: 60px;
+        max-height: 60px; /* Limit preview height */
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -118,25 +119,28 @@
         padding: 0.25rem 0.5rem;
         font-size: 0.8rem;
     }
-    .card-header .btn-outline-secondary i {
-        line-height: 1;
+     .card-header .btn-outline-secondary i {
+        line-height: 1; /* Better vertical alignment for icons in small buttons */
     }
     .card-header .btn-outline-secondary:hover {
         background-color: #e9ecef;
     }
     #interactionHistoryBody {
-        max-height: 500px; /* Increased height a bit */
+        max-height: 500px; 
         overflow-y: auto;
-        padding-top: 10px;
+        padding-top: 10px; /* Add some space from header */
     }
+    /* Custom Scrollbar for Interaction History */
     #interactionHistoryBody::-webkit-scrollbar { width: 6px; }
     #interactionHistoryBody::-webkit-scrollbar-track { background: #f1f1f1; }
     #interactionHistoryBody::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
     #interactionHistoryBody::-webkit-scrollbar-thumb:hover { background: #aaa; }
 
+    /* Additional background colors for timeline icons */
     .bg-purple { background-color: #6f42c1 !important; }
     .bg-cyan { background-color: #17a2b8 !important; } /* Bootstrap info/cyan */
     .bg-teal { background-color: #20c997 !important; } /* Bootstrap teal */
+
 </style>
 {% endblock %}
 
@@ -195,7 +199,7 @@
                         {% endif %}
                         <p><strong>AWS Support Case ID:</strong> {{ ticket.aws_support_case_id or 'N/A' }}</p>
                         <p><strong>Effort Required:</strong>
-                            {% set effort_display = EFFORT_CHOICES | selectattr(0, 'equalto', ticket.effort_required_to_resolve_min) | map(attribute=1) | first %}
+                            {% set effort_display = EFFORT_CHOICES | selectattr(0, 'equalto', ticket.effort_required_to_resolve_min|string) | map(attribute=1) | first %}
                             {{ effort_display if effort_display else (ticket.effort_required_to_resolve_min ~ " min" if ticket.effort_required_to_resolve_min is not none else 'N/A') }}
                         </p>
                         <p><strong>Support Modal by Plan:</strong> {{ ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else 'N/A' }}</p>
@@ -524,13 +528,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (cloudProviderSelectAgent) {
         cloudProviderSelectAgent.addEventListener('change', toggleAwsServiceAgent);
-        toggleAwsServiceAgent();
+        toggleAwsServiceAgent(); // Call on load
     }
+
 
     if(window.location.hash === '#add-comment-form') {
         const element = document.getElementById('add-comment-form');
         if (element) element.scrollIntoView({ behavior: 'smooth' });
+    } else if (window.location.hash === '#comments-section') { // Ensure this ID exists
+        const element = document.getElementById('comments-section');
+        if (element) element.scrollIntoView({ behavior: 'smooth' });
     }
+
 
     var interactionHistoryBody = document.getElementById('interactionHistoryBody');
     var interactionHistoryTogglerButton = document.querySelector('button[data-toggle="collapse"][href="#interactionHistoryBody"]');
@@ -538,18 +547,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (interactionHistoryBody && interactionHistoryTogglerButton) {
         var interactionHistoryTogglerIcon = interactionHistoryTogglerButton.querySelector('i');
         if (interactionHistoryTogglerIcon) {
-            interactionHistoryBody.addEventListener('show.bs.collapse', function () {
+            if (interactionHistoryBody.classList.contains('show')) {
                 interactionHistoryTogglerIcon.classList.remove('fa-chevron-down');
                 interactionHistoryTogglerIcon.classList.add('fa-chevron-up');
-            });
-            interactionHistoryBody.addEventListener('hide.bs.collapse', function () {
-                interactionHistoryTogglerIcon.classList.remove('fa-chevron-up');
-                interactionHistoryTogglerIcon.classList.add('fa-chevron-down');
-            });
-            if (!interactionHistoryBody.classList.contains('show')) {
+            } else {
                  interactionHistoryTogglerIcon.classList.remove('fa-chevron-up');
                  interactionHistoryTogglerIcon.classList.add('fa-chevron-down');
             }
+
+            $(interactionHistoryBody).on('show.bs.collapse', function () { // Using jQuery for Bootstrap events
+                interactionHistoryTogglerIcon.classList.remove('fa-chevron-down');
+                interactionHistoryTogglerIcon.classList.add('fa-chevron-up');
+            });
+            $(interactionHistoryBody).on('hide.bs.collapse', function () {
+                interactionHistoryTogglerIcon.classList.remove('fa-chevron-up');
+                interactionHistoryTogglerIcon.classList.add('fa-chevron-down');
+            });
         }
     }
 });

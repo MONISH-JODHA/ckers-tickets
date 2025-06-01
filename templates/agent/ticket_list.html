@@ -1,25 +1,38 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }} - Agent View{% endblock %}
+{% set title = title %} {# Uses the title variable passed from the agent_ticket_list route #}
 
 {% block content %}
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>{{ title }}</h1>
-        {# Optional: Add a dropdown here to switch views if not using a sidebar #}
+        {# Optional: Add a dropdown here to switch views if not using a sidebar 
+           or if you want additional quick navigation within this page.
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="agentViewSwitcher" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Switch View
+            </button>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="agentViewSwitcher">
+                <a class="dropdown-item {% if current_view == 'my_unsolved' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='my_unsolved') }}">My Unsolved</a>
+                <a class="dropdown-item {% if current_view == 'unassigned' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='unassigned') }}">Unassigned</a>
+                <a class="dropdown-item {% if current_view == 'all_unsolved' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='all_unsolved') }}">All Unsolved</a>
+                <a class="dropdown-item {% if current_view == 'recently_updated' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='recently_updated') }}">Recently Updated</a>
+                <a class="dropdown-item {% if current_view == 'pending' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='pending') }}">Pending Tickets</a>
+                <a class="dropdown-item {% if current_view == 'recently_solved' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='recently_solved') }}">Recently Solved</a>
+                <a class="dropdown-item {% if current_view == 'current_tasks' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='current_tasks') }}">My Current Tasks</a>
+            </div>
+        </div>
+        #}
     </div>
 
     {% if tickets_pagination and tickets_pagination.items %}
         {% for ticket in tickets_pagination.items %}
-            {% include '_ticket_item.html' %} {# Assuming _ticket_item.html is generic enough #}
+            {% include '_ticket_item.html' %} 
         {% endfor %}
 
         <nav aria-label="Ticket navigation" class="mt-4">
             <ul class="pagination justify-content-center">
-                {# Prepare query_params without 'page' for pagination links #}
                 {% set query_params = request.args.to_dict(flat=True) %}
-                {% do query_params.pop('page', None) %} {# Remove 'page' if it exists #}
+                {% do query_params.pop('page', None) %}
 
-                {# Previous Page Link #}
                 {% if tickets_pagination.has_prev %}
                     <li class="page-item">
                         <a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=tickets_pagination.prev_num, **query_params) }}">Previous</a>
@@ -28,7 +41,6 @@
                     <li class="page-item disabled"><span class="page-link">Previous</span></li>
                 {% endif %}
 
-                {# Page Numbers #}
                 {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
                     {% if page_num %}
                         {% if tickets_pagination.page == page_num %}
@@ -41,7 +53,6 @@
                     {% endif %}
                 {% endfor %}
 
-                {# Next Page Link #}
                 {% if tickets_pagination.has_next %}
                     <li class="page-item">
                         <a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=tickets_pagination.next_num, **query_params) }}">Next</a>

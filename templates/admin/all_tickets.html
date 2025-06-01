@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% set title = title %} {# Corrected: Use the title variable passed from the route #}
 
 {% block content %}
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -43,9 +42,9 @@
                         <label for="assigned_to_id">Assigned To</label>
                         <select name="assigned_to_id" id="assigned_to_id" class="form-control">
                             <option value="">Any Agent</option>
-                            <option value="0" {% if current_filters.assigned_to_id == "0" %}selected{% endif %}>Unassigned</option>
+                            <option value="0" {% if current_filters.get('assigned_to_id') == "0" %}selected{% endif %}>Unassigned</option>
                             {% for agent in agents %}
-                            <option value="{{ agent.id }}" {% if current_filters.assigned_to_id == agent.id|string %}selected{% endif %}>{{ agent.username }}</option>
+                            <option value="{{ agent.id }}" {% if current_filters.get('assigned_to_id') == agent.id|string %}selected{% endif %}>{{ agent.username }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -96,6 +95,10 @@
                 {% endif %}
             </ul>
         </nav>
+        <p class="text-center text-muted small">
+            Showing page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}.
+            Total {{ tickets_pagination.total }} tickets.
+        </p>
     {% else %}
         <div class="alert alert-info mt-3">No tickets found matching your criteria.</div>
     {% endif %}

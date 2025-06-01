@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% set title = title or "Import Ticket from Google Doc" %}
+
+{% block head_extra %}
+<style>
+    :root { 
+        --primary-color: #0052CC; 
+        --secondary-color: #0065FF;
+        --cta-color: #00A3BF; 
+        --text-dark: #172B4D; 
+        --text-light: #505F79; 
+        --background-light: #F4F5F7; 
+        --white: #FFFFFF;
+        --border-color: #DFE1E6; 
+        --success-bg: #E3FCEF; 
+        --success-text: #006644; 
+        --error-bg: #FFEBEE; 
+        --error-text: #B00020; 
+        --info-bg: #E7F3FF; 
+        --info-text: #0052CC;
+        --form-label-color: #42526E; 
+    }
+    body { background-color: var(--background-light); }
+    .app-container { max-width: 900px; margin: 2rem auto; padding: 0 20px; }
+
+    .form-card {
+        background-color: var(--white); border-radius: 8px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08); overflow: hidden;
+    }
+    .form-card-header {
+        background-color: var(--primary-color); color: var(--white);
+        padding: 20px; text-align: center;
+    }
+    .form-card-header h3 { margin: 0; font-size: 1.6em; font-weight: 600; }
+    .form-card-body { padding: 30px; }
+
+    .status-message {
+        padding: 15px; border-radius: 6px; margin-bottom: 20px;
+        font-size: 0.95em; text-align: left; display: flex; align-items: center;
+    }
+    .status-message i { margin-right: 10px; font-size: 1.2em; }
+    .status-message.success { background-color: var(--success-bg); color: var(--success-text); border: 1px solid #B2DFDB; }
+    .status-message.error { background-color: var(--error-bg); color: var(--error-text); border: 1px solid #FFCDD2; }
+    .status-message.info { background-color: var(--info-bg); color: var(--info-text); border: 1px solid #B3E5FC; }
+    .d-none { display: none !important; }
+
+    .form-group { margin-bottom: 20px; }
+    .form-label {
+        display: block; margin-bottom: 8px; font-weight: 500;
+        color: var(--form-label-color); font-size: 0.95em;
+    }
+    .form-control, .form-textarea, .custom-select {
+        display: block; width: 100%; padding: .375rem .75rem;
+        font-size: 1rem; line-height: 1.5;
+        color: #495057; background-color: var(--white);
+        background-clip: padding-box;
+        border: 1px solid #ced4da; border-radius: .25rem;
+        transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    }
+    .form-textarea { min-height: 120px; resize: vertical; }
+    .form-control:focus, .form-textarea:focus, .custom-select:focus {
+        border-color: var(--primary-color); outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(0, 82, 204, 0.25);
+    }
+    .gdoc-fetch-section { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 25px; }
+    .gdoc-fetch-section .form-group { flex-grow: 1; margin-bottom: 0; }
+    .btn-fetch-gdoc {
+        background-color: var(--secondary-color); color: var(--white);
+        padding: .375rem 1rem; 
+        height: calc(1.5em + .75rem + 2px); 
+        font-weight: 500; border: none; border-radius: .25rem; cursor: pointer;
+        white-space: nowrap; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn-fetch-gdoc:hover { background-color: var(--primary-color); }
+    .btn-fetch-gdoc:disabled { background-color: #ccc; cursor: not-allowed; }
+    .btn-fetch-gdoc .spinner-border-sm { width: 1em; height: 1em; border-width: .2em; margin-right: .5em;}
+    .btn-fetch-gdoc i:not(.spinner-border-sm) { margin-right: 8px; }
+
+
+    .btn-submit-ticket {
+        background-color: var(--cta-color); color: var(--white); padding: 12px 20px;
+        font-size: 1.1em; font-weight: 600; border: none; border-radius: 6px;
+        width: 100%; cursor: pointer; transition: background-color 0.3s ease;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn-submit-ticket:hover { background-color: #008DAA; }
+    .btn-submit-ticket .spinner-border-sm { width: 1em; height: 1em; border-width: .2em; margin-right: .5em;}
+    .btn-submit-ticket i:not(.spinner-border-sm) { margin-right: 8px; }
+    .btn-submit-ticket:disabled { background-color: #ccc; cursor: not-allowed;}
+
+    hr.section-divider {
+        border: none; height: 1px;
+        background-color: var(--border-color); margin: 30px 0;
+    }
+    .required-asterisk { color: red; }
+
+    @media (max-width: 768px) {
+        .gdoc-fetch-section { flex-direction: column; align-items: stretch;}
+        .btn-fetch-gdoc { width: 100%; margin-top:10px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="app-container">
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3>{{ title }}</h3>
+        </div>
+        <div class="form-card-body">
+            <div id="gdocStatusMessage" class="status-message d-none"></div>
+            <div id="finalStatusMessage" class="status-message d-none"></div>
+
+            <p style="font-size: 0.9em; color: var(--text-light); margin-bottom: 15px;">
+                <i class="fas fa-info-circle"></i> Paste a Google Doc link that has been "Published to the web" (File > Share > Publish to web).
+                The main content of the document will be fetched.
+            </p>
+
+            <div class="gdoc-fetch-section">
+                <div class="form-group" style="width: 100%;">
+                    <label for="gdocUrl" class="form-label">Google Doc Publish Link</label>
+                    <input type="url" id="gdocUrl" name="gdocUrl" class="form-control" placeholder="https://docs.google.com/document/d/e/.../pubhtml">
+                </div>
+                <button type="button" id="fetchGdocContentBtn" class="btn btn-fetch-gdoc">
+                    <i class="fas fa-cloud-download-alt"></i>
+                    <span>Fetch Content</span>
+                </button>
+            </div>
+
+            <hr class="section-divider">
+
+            <form id="ticketFormGdoc">
+                {# CSRF token will be read from meta tag by JS #}
+                
+                <div class="form-group">
+                    <label for="title" class="form-label">Ticket Title <span class="required-asterisk">*</span></label>
+                    <input type="text" id="title" name="title" class="form-control" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="category_id" class="form-label">Issue Category <span class="required-asterisk">*</span></label>
+                        <select id="category_id" name="category_id" class="form-control custom-select" required>
+                            {% for val, display_text in active_category_choices_gdoc %}
+                                <option value="{{ val }}" {% if val == 0 %}disabled selected{% endif %}>{{ display_text }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label for="severity_name" class="form-label">Severity Level <span class="required-asterisk">*</span></label>
+                        <select id="severity_name" name="severity_name" class="form-control custom-select" required>
+                             {% for val, display_text in active_severity_choices_gdoc %}
+                                <option value="{{ val }}" {% if not val %}disabled selected{% endif %}>{{ display_text }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="customer_name" class="form-label">Customer Company Name <span class="required-asterisk">*</span></label>
+                    <input type="text" id="customer_name" name="customer_name" class="form-control" 
+                           value="{{ current_user.get_organization_name() or current_user.username }}" 
+                           {% if current_user.get_organization_name() %}readonly{% endif %} required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="remedies" class="form-label">Description / Content from Google Doc <span class="required-asterisk">*</span></label>
+                    <textarea id="remedies" name="remedies" class="form-textarea" rows="10" placeholder="Content fetched from Google Doc will appear here. This will be saved as the main ticket content." required></textarea>
+                </div>
+                                
+                <button type="submit" id="submitTicketBtnGdoc" class="btn-submit-ticket">
+                    <i class="fas fa-paper-plane"></i>
+                    <span>Create Ticket from GDoc</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const gdocUrlInput = document.getElementById('gdocUrl');
+    const fetchGdocContentBtn = document.getElementById('fetchGdocContentBtn');
+    const fetchBtnText = fetchGdocContentBtn.querySelector('span');
+    const fetchBtnIcon = fetchGdocContentBtn.querySelector('i');
+    const remediesTextarea = document.getElementById('remedies');
+    const titleInput = document.getElementById('title');
+    const gdocStatusMessageEl = document.getElementById('gdocStatusMessage');
+    const finalStatusMessageEl = document.getElementById('finalStatusMessage');
+    const ticketFormGdoc = document.getElementById('ticketFormGdoc');
+    const submitTicketBtnGdoc = document.getElementById('submitTicketBtnGdoc');
+    const submitBtnText = submitTicketBtnGdoc.querySelector('span');
+    const submitBtnIcon = submitTicketBtnGdoc.querySelector('i');
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    function showMessage(element, message, type) {
+        let iconClass = '';
+        switch(type) {
+            case 'success': iconClass = 'fas fa-check-circle'; break;
+            case 'error': iconClass = 'fas fa-times-circle'; break;
+            case 'info': iconClass = 'fas fa-info-circle'; break;
+        }
+        element.innerHTML = `<i class="${iconClass}"></i> ${message}`;
+        element.className = 'status-message'; 
+        if (type) element.classList.add(type);
+        element.classList.remove('d-none');
+    }
+
+    fetchGdocContentBtn.addEventListener('click', async () => {
+        const gdocUrl = gdocUrlInput.value.trim();
+        if (!gdocUrl) {
+            showMessage(gdocStatusMessageEl, "Please enter a Google Doc URL.", "error");
+            gdocUrlInput.focus();
+            return;
+        }
+        if (gdocUrl.includes("/edit")) { 
+            showMessage(gdocStatusMessageEl, "This looks like an editor link. Please use a 'Published to web' link (File > Share > Publish to web).", "error");
+            return;
+        }
+        if (!gdocUrl.includes("/d/e/") && !gdocUrl.includes("/pub")) {
+            showMessage(gdocStatusMessageEl, "The URL does not appear to be a standard 'Published to web' Google Doc link.", "error");
+            return;
+        }
+
+        showMessage(gdocStatusMessageEl, "Fetching content from Google Doc...", "info");
+        const originalButtonText = fetchBtnText.textContent;
+        fetchGdocContentBtn.disabled = true;
+        fetchBtnIcon.className = 'fas fa-spinner fa-spin';
+        fetchBtnText.textContent = 'Fetching...';
+
+        try {
+            const response = await fetch("{{ url_for('api_extract_gdoc_content') }}", {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ gdoc_url: gdocUrl }),
+            });
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) { 
+                throw new Error(data.detail || `HTTP error! Status: ${response.status}`);
+            }
+
+            if (data.content) {
+                remediesTextarea.value = data.content;
+                const lines = data.content.split('\\n'); 
+                if (lines.length > 0 && !titleInput.value.trim()) { 
+                    titleInput.value = lines[0].substring(0, 100).trim();
+                }
+                showMessage(gdocStatusMessageEl, "Content fetched successfully and populated below.", "success");
+            } else {
+                throw new Error(data.detail || "Failed to extract content or content was empty.");
+            }
+        } catch (error) {
+            console.error("Error fetching GDoc content:", error);
+            showMessage(gdocStatusMessageEl, `Error: ${error.message}`, "error");
+        } finally {
+            fetchGdocContentBtn.disabled = false;
+            fetchBtnIcon.className = 'fas fa-cloud-download-alt';
+            fetchBtnText.textContent = originalButtonText;
+        }
+    });
+
+    ticketFormGdoc.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        finalStatusMessageEl.classList.add('d-none'); // Hide previous final messages
+        showMessage(gdocStatusMessageEl, "Submitting ticket...", "info"); // Use gdoc status for submission start
+        
+        const originalButtonText = submitBtnText.textContent;
+        submitTicketBtnGdoc.disabled = true;
+        submitBtnIcon.className = 'fas fa-spinner fa-spin';
+        submitBtnText.textContent = 'Submitting...';
+
+        const formData = new FormData(ticketFormGdoc);
+        const dataToSubmit = {};
+        formData.forEach((value, key) => dataToSubmit[key] = value);
+
+        // Validate required fields client-side (basic)
+        if (!dataToSubmit.title || dataToSubmit.category_id === "0" || !dataToSubmit.severity_name || !dataToSubmit.customer_name || !dataToSubmit.remedies) {
+            showMessage(finalStatusMessageEl, "Please fill all required fields (*).", "error");
+            gdocStatusMessageEl.classList.add('d-none');
+            submitTicketBtnGdoc.disabled = false;
+            submitBtnIcon.className = 'fas fa-paper-plane';
+            submitBtnText.textContent = originalButtonText;
+            return;
+        }
+
+
+        try {
+            const response = await fetch("{{ url_for('api_create_ticket_from_gdoc_data') }}", {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(dataToSubmit)
+            });
+            
+            let result;
+            const responseContentType = response.headers.get("content-type");
+            if (responseContentType && responseContentType.includes("application/json")) {
+                result = await response.json();
+            } else {
+                const textResponse = await response.text();
+                console.error("Server returned non-JSON response:", textResponse);
+                throw new Error(`Server error. Status: ${response.status}.`);
+            }
+
+            if (!response.ok || !result.success) { 
+                 throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
+            }
+            
+            showMessage(finalStatusMessageEl, result.message || "Ticket submitted successfully!", "success");
+            gdocStatusMessageEl.classList.add('d-none');
+            ticketFormGdoc.reset(); 
+            // Reset customer name if it was readonly and prefilled
+            const customerNameInput = document.getElementById('customer_name');
+            if(customerNameInput.hasAttribute('readonly')) {
+                 customerNameInput.value = "{{ current_user.get_organization_name() or current_user.username }}";
+            }
+            // You might want to reset gdocUrlInput here as well
+            // gdocUrlInput.value = '';
+
+        } catch (error) { 
+            console.error("Error submitting ticket:", error);
+            showMessage(finalStatusMessageEl, `Error: ${error.message}`, "error");
+            gdocStatusMessageEl.classList.add('d-none');
+        } finally {
+            submitTicketBtnGdoc.disabled = false;
+            submitBtnIcon.className = 'fas fa-paper-plane';
+            submitBtnText.textContent = originalButtonText;
+        }
+    });
+});
+</script>
+{% endblock %}

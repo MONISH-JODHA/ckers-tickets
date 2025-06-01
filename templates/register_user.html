@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }} - Ticket CMS{% endblock %}
+{% set title = title %} {# Corrected: Use the title variable passed from the route #}
 
 {% block content %}
 <div class="row justify-content-center mt-4">
@@ -13,7 +12,7 @@
                 {% if info_text %}
                     <p class="text-muted text-center mb-4">{{ info_text }}</p>
                 {% endif %}
-                <form method="POST" novalidate> {# Action URL is the current route, handled by Flask #}
+                <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
                     <fieldset>
                         <legend class="border-bottom mb-4 pb-2 h5">Create Your {{ registration_type }} Account</legend>
@@ -33,20 +32,18 @@
                         <div class="form-group mb-3">
                             {{ form.email.label(class="form-control-label") }}
                             {% if form.email.errors %}
-                                {{ form.email(class="form-control form-control-lg is-invalid", placeholder="yourname@cloudkeeper.com") }}
+                                {{ form.email(class="form-control form-control-lg is-invalid", placeholder="yourname@example.com") }}
                                 <div class="invalid-feedback">
                                     {% for error in form.email.errors %}<span>{{ error }}</span>{% endfor %}
                                 </div>
                             {% else %}
-                                {{ form.email(class="form-control form-control-lg", placeholder="yourname@cloudkeeper.com") }}
+                                {{ form.email(class="form-control form-control-lg", placeholder="yourname@example.com") }}
                             {% endif %}
+                            {% if registration_type == 'Client' and 'cloudkeeper.com' in form.email.placeholder %}
                             <small class="form-text text-muted">
-                                {% if registration_type == 'Client' or registration_type == 'Agent' %}
-                                    Must be a <strong>@cloudkeeper.com</strong> email address.
-                                {% else %}
-                                    Enter a valid email address.
-                                {% endif %}
+                                Consider allowing various domains or update placeholder if necessary.
                             </small>
+                            {% endif %}
                         </div>
 
                         <div class="form-group mb-3">
