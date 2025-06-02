@@ -3,100 +3,217 @@
 
 {% block head_extra %}
 <style>
-    :root { 
+    :root {
+        /* Core Palette - Inspired by style.css and gdoc_import specifics */
         --primary-color: #0052CC; 
+        --primary-color-darker: #0041A3;
         --secondary-color: #0065FF;
+        --secondary-color-darker: #0052CC;
         --cta-color: #00A3BF; 
+        --cta-color-darker: #008299;
+
+        /* Text & Backgrounds */
         --text-dark: #172B4D; 
+        --text-medium: #42526E; /* For labels */
         --text-light: #505F79; 
-        --background-light: #F4F5F7; 
-        --white: #FFFFFF;
-        --border-color: #DFE1E6; 
+        --text-on-primary: #FFFFFF;
+        --page-bg: #F4F5F7; 
+        --card-bg: #FFFFFF;
+        
+        /* Borders & States */
+        --border-color-light: #DFE1E6; 
+        --border-color-input: #CED4DA;
+        --input-focus-border-color: var(--primary-color);
+        --input-focus-shadow: 0 0 0 0.2rem rgba(0, 82, 204, 0.25);
+
+        /* Semantic Colors */
         --success-bg: #E3FCEF; 
         --success-text: #006644; 
+        --success-border: #A3E9D2;
         --error-bg: #FFEBEE; 
         --error-text: #B00020; 
+        --error-border: #FFC5C9;
         --info-bg: #E7F3FF; 
         --info-text: #0052CC;
-        --form-label-color: #42526E; 
+        --info-border: #B3D4FF;
+
+        /* UI Elements */
+        --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        --box-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+        --box-shadow-card: 0 4px 15px rgba(23, 43, 77, 0.07), 0 2px 6px rgba(23, 43, 77, 0.05);
+        --border-radius-sm: .25rem; /* 4px */
+        --border-radius-md: .375rem; /* 6px */
+        --border-radius-lg: .5rem; /* 8px */
+        --transition-fast: all 0.15s ease-in-out;
+        --transition-base: all 0.2s ease-in-out;
     }
-    body { background-color: var(--background-light); }
-    .app-container { max-width: 900px; margin: 2rem auto; padding: 0 20px; }
+
+    html {
+        scroll-behavior: smooth;
+    }
+    body { 
+        background-color: var(--page-bg); 
+        font-family: var(--font-family-base);
+        color: var(--text-dark);
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    .app-container { 
+        max-width: 860px; 
+        margin: 2.5rem auto; 
+        padding: 0 15px; 
+        opacity: 0;
+        transform: translateY(20px); /* Initial state for animation */
+        animation: fadeInPage 0.5s 0.2s ease-out forwards;
+    }
+    @keyframes fadeInPage {
+        to { opacity: 1; transform: translateY(0); }
+    }
 
     .form-card {
-        background-color: var(--white); border-radius: 8px;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.08); overflow: hidden;
+        background-color: var(--card-bg); 
+        border-radius: var(--border-radius-lg);
+        box-shadow: var(--box-shadow-card); 
+        overflow: hidden;
+        border: 1px solid var(--border-color-light);
     }
     .form-card-header {
-        background-color: var(--primary-color); color: var(--white);
-        padding: 20px; text-align: center;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: var(--text-on-primary);
+        padding: 25px 30px; 
+        text-align: center;
+        border-bottom: 1px solid transparent; /* for gradient */
     }
-    .form-card-header h3 { margin: 0; font-size: 1.6em; font-weight: 600; }
-    .form-card-body { padding: 30px; }
+    .form-card-header h3 { 
+        margin: 0; 
+        font-size: 1.75em; 
+        font-weight: 600; 
+        letter-spacing: -0.5px;
+    }
+    .form-card-body { padding: 35px; }
 
     .status-message {
-        padding: 15px; border-radius: 6px; margin-bottom: 20px;
-        font-size: 0.95em; text-align: left; display: flex; align-items: center;
+        padding: 12px 18px; 
+        border-radius: var(--border-radius-md); 
+        margin-bottom: 25px;
+        font-size: 0.9em; 
+        text-align: left; 
+        display: flex; 
+        align-items: center;
+        border-width: 1px;
+        border-style: solid;
+        opacity: 0;
+        transform: translateY(-10px);
+        /* animation: slideDownFadeIn 0.3s ease-out forwards; */ /* Animation handled by JS for re-trigger */
     }
-    .status-message i { margin-right: 10px; font-size: 1.2em; }
-    .status-message.success { background-color: var(--success-bg); color: var(--success-text); border: 1px solid #B2DFDB; }
-    .status-message.error { background-color: var(--error-bg); color: var(--error-text); border: 1px solid #FFCDD2; }
-    .status-message.info { background-color: var(--info-bg); color: var(--info-text); border: 1px solid #B3E5FC; }
+    @keyframes slideDownFadeIn {
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .status-message i { margin-right: 12px; font-size: 1.25em; flex-shrink: 0; }
+    .status-message.success { background-color: var(--success-bg); color: var(--success-text); border-color: var(--success-border); }
+    .status-message.error { background-color: var(--error-bg); color: var(--error-text); border-color: var(--error-border); }
+    .status-message.info { background-color: var(--info-bg); color: var(--info-text); border-color: var(--info-border); }
     .d-none { display: none !important; }
 
-    .form-group { margin-bottom: 20px; }
+    .form-group { margin-bottom: 22px; }
     .form-label {
         display: block; margin-bottom: 8px; font-weight: 500;
-        color: var(--form-label-color); font-size: 0.95em;
+        color: var(--text-medium); font-size: 0.9rem;
     }
     .form-control, .form-textarea, .custom-select {
-        display: block; width: 100%; padding: .375rem .75rem;
-        font-size: 1rem; line-height: 1.5;
-        color: #495057; background-color: var(--white);
+        display: block; width: 100%; 
+        padding: .5rem .85rem; /* Increased padding */
+        font-size: 0.95rem; line-height: 1.5;
+        color: var(--text-dark); background-color: var(--card-bg);
         background-clip: padding-box;
-        border: 1px solid #ced4da; border-radius: .25rem;
-        transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+        border: 1px solid var(--border-color-input); 
+        border-radius: var(--border-radius-md);
+        transition: var(--transition-fast);
+        box-shadow: var(--box-shadow-sm);
     }
-    .form-textarea { min-height: 120px; resize: vertical; }
+    .form-textarea { min-height: 130px; resize: vertical; }
     .form-control:focus, .form-textarea:focus, .custom-select:focus {
-        border-color: var(--primary-color); outline: 0;
-        box-shadow: 0 0 0 0.2rem rgba(0, 82, 204, 0.25);
+        border-color: var(--input-focus-border-color); outline: 0;
+        box-shadow: var(--input-focus-shadow), var(--box-shadow-sm); /* Keep inner shadow for depth */
+        background-color: var(--card-bg); /* Ensure bg remains white on focus */
     }
-    .gdoc-fetch-section { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 25px; }
-    .gdoc-fetch-section .form-group { flex-grow: 1; margin-bottom: 0; }
-    .btn-fetch-gdoc {
-        background-color: var(--secondary-color); color: var(--white);
-        padding: .375rem 1rem; 
-        height: calc(1.5em + .75rem + 2px); 
-        font-weight: 500; border: none; border-radius: .25rem; cursor: pointer;
-        white-space: nowrap; display: inline-flex; align-items: center; justify-content: center;
-    }
-    .btn-fetch-gdoc:hover { background-color: var(--primary-color); }
-    .btn-fetch-gdoc:disabled { background-color: #ccc; cursor: not-allowed; }
-    .btn-fetch-gdoc .spinner-border-sm { width: 1em; height: 1em; border-width: .2em; margin-right: .5em;}
-    .btn-fetch-gdoc i:not(.spinner-border-sm) { margin-right: 8px; }
+    .form-control::placeholder, .form-textarea::placeholder { color: #9CA3AF; }
 
+    .form-row { display: flex; flex-wrap: wrap; margin-right: -7.5px; margin-left: -7.5px; }
+    .form-row > .col-md-6 { flex: 0 0 50%; max-width: 50%; padding-right: 7.5px; padding-left: 7.5px; }
+    @media (max-width: 768px) {
+        .form-row > .col-md-6 { flex: 0 0 100%; max-width: 100%; }
+        .form-row > .col-md-6:not(:last-child) { margin-bottom: 22px; }
+    }
+
+
+    .gdoc-fetch-section { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 30px; }
+    .gdoc-fetch-section .form-group { flex-grow: 1; margin-bottom: 0; }
+    
+    .btn { /* Base button style */
+        padding: .5rem 1rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        border: 1px solid transparent;
+        border-radius: var(--border-radius-md);
+        cursor: pointer;
+        transition: var(--transition-base), transform 0.1s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        box-shadow: var(--box-shadow-sm);
+        white-space: nowrap;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .btn:active { transform: translateY(-1px); box-shadow: var(--box-shadow-sm); }
+    .btn:disabled { background-color: #D1D5DB !important; color: #6B7280 !important; cursor: not-allowed !important; box-shadow: none !important; transform: none !important; }
+    .btn .spinner-border-sm { width: 1em; height: 1em; border-width: .2em; margin-right: .6em;}
+    .btn i:not(.spinner-border-sm) { margin-right: 8px; font-size: 0.9em; }
+
+    .btn-fetch-gdoc {
+        background-color: var(--secondary-color); color: var(--text-on-primary);
+        height: calc(1.5em + 1rem + 2px); /* Match input height */
+    }
+    .btn-fetch-gdoc:hover { background-color: var(--secondary-color-darker); color: var(--text-on-primary); }
 
     .btn-submit-ticket {
-        background-color: var(--cta-color); color: var(--white); padding: 12px 20px;
-        font-size: 1.1em; font-weight: 600; border: none; border-radius: 6px;
-        width: 100%; cursor: pointer; transition: background-color 0.3s ease;
-        display: inline-flex; align-items: center; justify-content: center;
+        background-color: var(--cta-color); color: var(--text-on-primary); 
+        padding: .7rem 1.25rem; /* Larger padding for main CTA */
+        font-size: 1.05em; font-weight: 600; width: 100%;
     }
-    .btn-submit-ticket:hover { background-color: #008DAA; }
-    .btn-submit-ticket .spinner-border-sm { width: 1em; height: 1em; border-width: .2em; margin-right: .5em;}
-    .btn-submit-ticket i:not(.spinner-border-sm) { margin-right: 8px; }
-    .btn-submit-ticket:disabled { background-color: #ccc; cursor: not-allowed;}
+    .btn-submit-ticket:hover { background-color: var(--cta-color-darker); color: var(--text-on-primary); }
+
 
     hr.section-divider {
         border: none; height: 1px;
-        background-color: var(--border-color); margin: 30px 0;
+        background-color: var(--border-color-light); margin: 35px 0;
     }
-    .required-asterisk { color: red; }
+    .required-asterisk { color: #E53E3E; font-weight: bold; margin-left: 2px; }
+    .sub-instruction { 
+        font-size: 0.85em; 
+        color: var(--text-light); 
+        margin-bottom: 20px; 
+        padding: 10px 15px;
+        background-color: #f8f9fa;
+        border-radius: var(--border-radius-md);
+        border: 1px solid var(--border-color-light);
+        display: flex;
+        align-items: center;
+    }
+    .sub-instruction i { margin-right: 10px; color: var(--primary-color); font-size: 1.1em; }
 
     @media (max-width: 768px) {
+        .app-container { margin: 1.5rem auto; }
+        .form-card-header { padding: 20px; }
+        .form-card-header h3 { font-size: 1.5em; }
+        .form-card-body { padding: 25px; }
         .gdoc-fetch-section { flex-direction: column; align-items: stretch;}
         .btn-fetch-gdoc { width: 100%; margin-top:10px; }
+        .btn-submit-ticket { font-size: 1em; }
     }
 </style>
 {% endblock %}
@@ -111,13 +228,13 @@
             <div id="gdocStatusMessage" class="status-message d-none"></div>
             <div id="finalStatusMessage" class="status-message d-none"></div>
 
-            <p style="font-size: 0.9em; color: var(--text-light); margin-bottom: 15px;">
+            <p class="sub-instruction">
                 <i class="fas fa-info-circle"></i> Paste a Google Doc link that has been "Published to the web" (File > Share > Publish to web).
                 The main content of the document will be fetched.
             </p>
 
             <div class="gdoc-fetch-section">
-                <div class="form-group" style="width: 100%;">
+                <div class="form-group">
                     <label for="gdocUrl" class="form-label">Google Doc Publish Link</label>
                     <input type="url" id="gdocUrl" name="gdocUrl" class="form-control" placeholder="https://docs.google.com/document/d/e/.../pubhtml">
                 </div>
@@ -168,7 +285,7 @@
                     <textarea id="remedies" name="remedies" class="form-textarea" rows="10" placeholder="Content fetched from Google Doc will appear here. This will be saved as the main ticket content." required></textarea>
                 </div>
                                 
-                <button type="submit" id="submitTicketBtnGdoc" class="btn-submit-ticket">
+                <button type="submit" id="submitTicketBtnGdoc" class="btn btn-submit-ticket">
                     <i class="fas fa-paper-plane"></i>
                     <span>Create Ticket from GDoc</span>
                 </button>
@@ -204,30 +321,48 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'error': iconClass = 'fas fa-times-circle'; break;
             case 'info': iconClass = 'fas fa-info-circle'; break;
         }
-        element.innerHTML = `<i class="${iconClass}"></i> ${message}`;
-        element.className = 'status-message'; 
+        // Sanitize message before inserting as HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.textContent = message; // Safely set text content
+        
+        element.innerHTML = `<i class="${iconClass}"></i> ${tempDiv.innerHTML}`; // Insert sanitized HTML
+        element.className = 'status-message'; // Reset classes
         if (type) element.classList.add(type);
         element.classList.remove('d-none');
+
+        // Trigger reflow for animation restart
+        void element.offsetWidth; 
+        element.style.animation = 'slideDownFadeIn 0.3s ease-out forwards';
     }
 
     fetchGdocContentBtn.addEventListener('click', async () => {
         const gdocUrl = gdocUrlInput.value.trim();
+        gdocStatusMessageEl.classList.add('d-none'); // Hide previous
+        finalStatusMessageEl.classList.add('d-none'); 
+
         if (!gdocUrl) {
             showMessage(gdocStatusMessageEl, "Please enter a Google Doc URL.", "error");
             gdocUrlInput.focus();
             return;
         }
+        // Prevent using editor links directly
         if (gdocUrl.includes("/edit")) { 
             showMessage(gdocStatusMessageEl, "This looks like an editor link. Please use a 'Published to web' link (File > Share > Publish to web).", "error");
             return;
         }
-        if (!gdocUrl.includes("/d/e/") && !gdocUrl.includes("/pub")) {
-            showMessage(gdocStatusMessageEl, "The URL does not appear to be a standard 'Published to web' Google Doc link.", "error");
+
+        // Updated and more robust check for various published Google Doc link formats
+        const isDePublished = /docs\.google\.com\/document\/d\/e\/[^/]+\/(pub|pubhtml)/.test(gdocUrl);
+        const isDPubOrHtmlview = /docs\.google\.com\/document\/d\/[^/]+\/(pub|htmlview)/.test(gdocUrl);
+
+        if (!(isDePublished || isDPubOrHtmlview)) {
+            showMessage(gdocStatusMessageEl, "The URL does not appear to be a standard 'Published to web' Google Doc link. Please ensure it's correctly copied from the 'Publish to web' dialog.", "error");
             return;
         }
 
         showMessage(gdocStatusMessageEl, "Fetching content from Google Doc...", "info");
         const originalButtonText = fetchBtnText.textContent;
+        const originalIconClass = fetchBtnIcon.className;
         fetchGdocContentBtn.disabled = true;
         fetchBtnIcon.className = 'fas fa-spinner fa-spin';
         fetchBtnText.textContent = 'Fetching...';
@@ -249,9 +384,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.content) {
                 remediesTextarea.value = data.content;
-                const lines = data.content.split('\\n'); 
+                const lines = data.content.split(/\r\n|\r|\n/); 
                 if (lines.length > 0 && !titleInput.value.trim()) { 
-                    titleInput.value = lines[0].substring(0, 100).trim();
+                    let firstMeaningfulLine = lines.find(line => line.trim() !== "");
+                    if (firstMeaningfulLine) {
+                        titleInput.value = firstMeaningfulLine.substring(0, 100).trim();
+                    }
                 }
                 showMessage(gdocStatusMessageEl, "Content fetched successfully and populated below.", "success");
             } else {
@@ -262,35 +400,72 @@ document.addEventListener('DOMContentLoaded', function() {
             showMessage(gdocStatusMessageEl, `Error: ${error.message}`, "error");
         } finally {
             fetchGdocContentBtn.disabled = false;
-            fetchBtnIcon.className = 'fas fa-cloud-download-alt';
+            fetchBtnIcon.className = originalIconClass;
             fetchBtnText.textContent = originalButtonText;
         }
     });
 
     ticketFormGdoc.addEventListener('submit', async (event) => {
+        console.log('[DEBUG] Ticket form submission initiated.'); // 1. Check if handler is reached
         event.preventDefault();
-        finalStatusMessageEl.classList.add('d-none'); // Hide previous final messages
-        showMessage(gdocStatusMessageEl, "Submitting ticket...", "info"); // Use gdoc status for submission start
+        console.log('[DEBUG] event.preventDefault() called.'); // 2. Check preventDefault
+
+        finalStatusMessageEl.classList.add('d-none'); 
+        gdocStatusMessageEl.classList.add('d-none'); 
         
         const originalButtonText = submitBtnText.textContent;
+        const originalIconClass = submitBtnIcon.className;
+        
+        console.log('[DEBUG] Original button text:', originalButtonText, 'Original icon:', originalIconClass);
+
         submitTicketBtnGdoc.disabled = true;
         submitBtnIcon.className = 'fas fa-spinner fa-spin';
         submitBtnText.textContent = 'Submitting...';
+        console.log('[DEBUG] Button disabled, text and icon updated for submitting state.');
+
+        // This message should appear if the code reaches this point
+        showMessage(finalStatusMessageEl, "Submitting ticket, please wait...", "info");
+        console.log('[DEBUG] "Submitting ticket, please wait..." message shown.');
 
         const formData = new FormData(ticketFormGdoc);
         const dataToSubmit = {};
         formData.forEach((value, key) => dataToSubmit[key] = value);
 
-        // Validate required fields client-side (basic)
-        if (!dataToSubmit.title || dataToSubmit.category_id === "0" || !dataToSubmit.severity_name || !dataToSubmit.customer_name || !dataToSubmit.remedies) {
-            showMessage(finalStatusMessageEl, "Please fill all required fields (*).", "error");
-            gdocStatusMessageEl.classList.add('d-none');
-            submitTicketBtnGdoc.disabled = false;
-            submitBtnIcon.className = 'fas fa-paper-plane';
-            submitBtnText.textContent = originalButtonText;
-            return;
+        console.log('[DEBUG] Data collected from form:', JSON.stringify(dataToSubmit, null, 2));
+
+        // Detailed validation check
+        let validationFailed = false;
+        if (!dataToSubmit.title) {
+            console.log('[DEBUG] Validation failed: Title is missing.');
+            validationFailed = true;
+        }
+        if (dataToSubmit.category_id === "0" || !dataToSubmit.category_id) { // Also check if category_id is missing/undefined
+            console.log('[DEBUG] Validation failed: Category ID is "0" or missing. Value:', dataToSubmit.category_id);
+            validationFailed = true;
+        }
+        if (!dataToSubmit.severity_name) {
+            console.log('[DEBUG] Validation failed: Severity name is missing. Value:', dataToSubmit.severity_name);
+            validationFailed = true;
+        }
+        if (!dataToSubmit.customer_name) {
+            console.log('[DEBUG] Validation failed: Customer name is missing.');
+            validationFailed = true;
+        }
+        if (!dataToSubmit.remedies) {
+            console.log('[DEBUG] Validation failed: Remedies/Description is missing.');
+            validationFailed = true;
         }
 
+        if (validationFailed) {
+            console.log('[DEBUG] Client-side validation failed. Showing error message.');
+            showMessage(finalStatusMessageEl, "Please fill all required fields (*).", "error");
+            submitTicketBtnGdoc.disabled = false;
+            submitBtnIcon.className = originalIconClass;
+            submitBtnText.textContent = originalButtonText;
+            console.log('[DEBUG] Button re-enabled after validation failure.');
+            return; // Exit the function
+        }
+        console.log('[DEBUG] Client-side validation passed. Proceeding to fetch API.');
 
         try {
             const response = await fetch("{{ url_for('api_create_ticket_from_gdoc_data') }}", {
@@ -301,40 +476,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify(dataToSubmit)
             });
+            console.log('[DEBUG] Fetch API response status:', response.status);
             
             let result;
             const responseContentType = response.headers.get("content-type");
             if (responseContentType && responseContentType.includes("application/json")) {
                 result = await response.json();
+                console.log('[DEBUG] Fetch API JSON response data:', result);
             } else {
                 const textResponse = await response.text();
-                console.error("Server returned non-JSON response:", textResponse);
-                throw new Error(`Server error. Status: ${response.status}.`);
+                console.error("[DEBUG] Server returned non-JSON response:", textResponse);
+                throw new Error(`Server error (non-JSON). Status: ${response.status}.`);
             }
 
             if (!response.ok || !result.success) { 
+                 console.error('[DEBUG] API call was not OK or result.success is false. Error:', result.detail || result.message);
                  throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
             }
             
+            console.log('[DEBUG] API call successful.');
             showMessage(finalStatusMessageEl, result.message || "Ticket submitted successfully!", "success");
-            gdocStatusMessageEl.classList.add('d-none');
             ticketFormGdoc.reset(); 
-            // Reset customer name if it was readonly and prefilled
             const customerNameInput = document.getElementById('customer_name');
             if(customerNameInput.hasAttribute('readonly')) {
                  customerNameInput.value = "{{ current_user.get_organization_name() or current_user.username }}";
             }
-            // You might want to reset gdocUrlInput here as well
-            // gdocUrlInput.value = '';
+            gdocUrlInput.value = ''; 
+            console.log('[DEBUG] Form reset.');
 
         } catch (error) { 
-            console.error("Error submitting ticket:", error);
+            console.error("[DEBUG] Error during ticket submission (in try-catch block):", error);
             showMessage(finalStatusMessageEl, `Error: ${error.message}`, "error");
-            gdocStatusMessageEl.classList.add('d-none');
         } finally {
             submitTicketBtnGdoc.disabled = false;
-            submitBtnIcon.className = 'fas fa-paper-plane';
+            submitBtnIcon.className = originalIconClass;
             submitBtnText.textContent = originalButtonText;
+            console.log('[DEBUG] Button re-enabled in finally block.');
         }
     });
 });

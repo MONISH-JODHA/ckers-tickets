@@ -7,7 +7,7 @@
     <h1 class="content-title">{{ title }}</h1>
     {% block page_actions %}
         {% set new_url_name = 'admin_create_edit_' + model_name %}
-        <a href="{{ url_for(new_url_name) }}" class="btn btn-primary">
+        <a href="{{ url_for(new_url_name) }}" class="btn btn-primary btn-animated">
             <i class="fas fa-plus fa-fw mr-1"></i> New {{ model_name.replace('_', ' ').replace(' option', '').title() }}
         </a>
     {% endblock %}
@@ -15,12 +15,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="admin-section admin-options-list">
+<div class="admin-section admin-options-list animated-list-view">
     {% if items %}
-    <div class="card admin-card">
+    <div class="card admin-card modern-table-card">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover mb-0 align-middle"> 
                     <thead>
                         <tr>
                             <th>Name</th>
@@ -28,47 +28,56 @@
                                 <th>Description</th>
                             {% endif %}
                             {% if model_name == 'severity_option' %}
-                                <th>Order</th>
+                                <th class="text-center">Order</th>
                             {% endif %}
                             
-                            {% set models_with_active_flag = [
-                                'cloud_provider_option', 'severity_option', 'environment_option', 
-                                'organization_option', 'form_type_option', 'apn_opportunity_option', 'support_modal_option'
-                            ] %}
-                            {% if model_name in models_with_active_flag %}
-                                <th>Active</th>
+                            {# MODIFIED CHECK for 'is_active' #}
+                            {% if items and items[0] is defined and items[0].is_active is defined %}
+                                <th class="text-center">Status</th>
                             {% endif %}
-                            <th style="width: 180px;">Actions</th>
+                            <th class="text-right" style="width: 200px;">Actions</th> 
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in items %}
-                        <tr>
-                            <td>{{ item.name }}</td>
+                        <tr class="animated-table-row">
+                            <td>
+                                <strong class="item-name">{{ item.name }}</strong>
+                            </td>
+                            
                             {% if model_name == 'category' or model_name == 'severity_option' %}
-                                <td>{{ item.description | default('N/A', true) | truncate(80) }}</td>
+                                <td class="text-muted item-description">{{ item.description | default('N/A', true) | truncate(70) }}</td>
                             {% endif %}
+
                             {% if model_name == 'severity_option' %}
-                                <td>{{ item.order | default('N/A', true) }}</td>
-                            {% endif %}
-                            {% if model_name in models_with_active_flag %}
-                                <td>
-                                    {% if item.is_active %}
-                                        <span class="badge badge-pill badge-success">Yes</span>
-                                    {% else %}
-                                        <span class="badge badge-pill badge-secondary">No</span>
-                                    {% endif %}
+                                <td class="text-center">
+                                    <span class="badge badge-light border item-order">{{ item.order | default('N/A', true) }}</span>
                                 </td>
                             {% endif %}
-                            <td>
+
+                            {# MODIFIED CHECK for 'is_active' #}
+                            {% if item.is_active is defined %} 
+                                <td class="text-center">
+                                    {% if item.is_active %}
+                                        <span class="badge badge-pill badge-success-light">Active</span>
+                                    {% else %}
+                                        <span class="badge badge-pill badge-secondary-light">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            {% elif items and items[0] is defined and items[0].is_active is defined %} 
+                                {# Add an empty TD if the column exists but this item doesn't have the attr (unlikely with consistent models) #}
+                                <td></td>
+                            {% endif %}
+                            
+                            <td class="text-right action-buttons">
                                 {% set edit_url_name = 'admin_create_edit_' + model_name %}
                                 {% set delete_url_name = 'admin_delete_' + model_name %}
-                                <a href="{{ url_for(edit_url_name, item_id=item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit">
-                                    <i class="fas fa-edit fa-fw"></i> <span class="d-none d-md-inline">Edit</span>
+                                <a href="{{ url_for(edit_url_name, item_id=item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit {{ item.name }}">
+                                    <i class="fas fa-pencil-alt fa-fw"></i> <span class="d-none d-md-inline">Edit</span>
                                 </a>
-                                <form action="{{ url_for(delete_url_name, item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this {{ model_name.replace('_', ' ').replace(' option', '') }}? This cannot be undone.');">
+                                <form action="{{ url_for(delete_url_name, item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete \'{{ item.name }}\'? This action cannot be undone.');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger btn-action-icon" title="Delete {{ item.name }}">
                                         <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
                                     </button>
                                 </form>
@@ -81,11 +90,124 @@
         </div>
     </div>
     {% else %}
-    <div class="alert alert-info text-center p-4">
-        <i class="fas fa-info-circle fa-2x mb-2"></i><br>
-        No {{ model_name.replace('_', ' ').replace(' option', '').lower() }}s found. 
-        <a href="{{ url_for(new_url_name) }}" class="alert-link">Create the first one?</a>
+    <div class="empty-state-card text-center p-5 animated-empty-state">
+        <i class="fas {{ 'fa-tags' if model_name == 'category' else ('fa-layer-group' if model_name == 'severity_option' else 'fa-cubes') }} fa-3x text-muted mb-3"></i>
+        <h4>No {{ model_name.replace('_', ' ').replace(' option', '').lower() }}s found.</h4>
+        <p class="text-muted">Ready to add the first one to the system?</p>
+        <a href="{{ url_for(new_url_name) }}" class="btn btn-success mt-2 btn-animated">
+            <i class="fas fa-plus mr-1"></i> Create First {{ model_name.replace('_', ' ').replace(' option', '').title() }}
+        </a>
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+
+{% block head_extra %}
+{{ super() }}
+<style>
+    .admin-options-list .modern-table-card {
+        box-shadow: var(--box-shadow-md);
+        border: none;
+        border-radius: var(--border-radius); /* Ensure card itself has radius */
+        overflow: hidden; /* To make table corners also appear rounded */
+    }
+    .admin-options-list .table thead th {
+        font-size: 0.75rem; /* Slightly smaller header text */
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background-color: #f8f9fc; 
+        color: var(--text-secondary);
+        font-weight: 600;
+        border-bottom: 2px solid var(--border-color); /* Stronger bottom border for header */
+        padding-top: 0.9rem;
+        padding-bottom: 0.9rem;
+    }
+    .admin-options-list .table tbody td {
+        padding: 0.9rem 1rem; 
+        font-size: 0.875rem;
+        vertical-align: middle;
+    }
+    .admin-options-list .item-name {
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+    .admin-options-list .item-description {
+        font-size: 0.85rem;
+        color: #6b7280; /* Slightly darker than text-muted */
+    }
+    .admin-options-list .item-order {
+        font-size: 0.8rem;
+        padding: .3em .6em;
+        background-color: #e9ecef;
+        border-color: #ced4da !important;
+    }
+    .badge-success-light {
+        background-color: rgba(var(--bs-success-rgb, 40,167,69), 0.15) !important;
+        color: var(--success-color) !important;
+        font-weight: 500;
+    }
+    .badge-secondary-light {
+        background-color: rgba(var(--bs-secondary-rgb, 108,117,125), 0.15) !important;
+        color: var(--secondary-color) !important;
+        font-weight: 500;
+    }
+     .admin-options-list .badge-pill {
+        padding-right: .75em;
+        padding-left: .75em;
+        font-size: 0.75rem;
+    }
+    .admin-options-list .action-buttons .btn-sm {
+        padding: .3rem .65rem;
+        font-size: 0.8rem;
+    }
+    .admin-options-list .action-buttons .btn-action-icon i {
+        /* Icons always visible */
+    }
+
+    .btn-animated { 
+        transition: var(--transition-base), transform 0.2s ease;
+    }
+    .btn-animated:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--box-shadow-sm);
+    }
+    
+    .animated-list-view {
+        animation: fadeInList 0.4s ease-out forwards;
+    }
+    @keyframes fadeInList {
+        from { opacity: 0; transform: scale(0.99); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    .animated-table-row {
+        opacity: 0;
+        transform: translateY(10px);
+        animation: slideUpInRow 0.3s ease-out forwards;
+    }
+    {% for i in range(1, 16) %} 
+    .animated-table-row:nth-child({{i}}) {
+        animation-delay: {{ (i-1) * 0.04 }}s; /* Slightly faster stagger */
+    }
+    {% endfor %}
+
+    @keyframes slideUpInRow {
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .empty-state-card { 
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow-sm);
+    }
+    .animated-empty-state {
+        animation: zoomInEmpty 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    @keyframes zoomInEmpty {
+        to { transform: scale(1); opacity: 1; }
+    }
+</style>
 {% endblock %}

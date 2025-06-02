@@ -708,21 +708,42 @@ def register_agent():
         except Exception as e: db.session.rollback(); flash('Error during agent registration. Please try again.', 'danger'); app.logger.error(f"Admin agent registration error: {e}", exc_info=True)
     return render_template('register_user.html', title='Register New Agent', form=form, registration_type='Agent', info_text='Register new support agents to assist clients.')
 
+# ... (all your existing imports and code above the dashboard route) ...
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
     page_title = "My Dashboard"
+    recent_interactions = [] # Initialize for all users
+
     if current_user.is_admin: 
         page_title = 'Admin Dashboard'
-        stats = {'total_tickets': Ticket.query.count(), 'open_tickets': Ticket.query.filter_by(status='Open').count(), 'inprogress_tickets': Ticket.query.filter_by(status='In Progress').count(), 'resolved_tickets': Ticket.query.filter_by(status='Resolved').count(), 'total_users': User.query.count()}
-        return render_template('dashboard.html', title=page_title, **stats)
+        stats = {
+            'total_tickets': Ticket.query.count(), 
+            'open_tickets': Ticket.query.filter_by(status='Open').count(), 
+            'inprogress_tickets': Ticket.query.filter_by(status='In Progress').count(), 
+            'resolved_tickets': Ticket.query.filter_by(status='Resolved').count(), 
+            'total_users': User.query.count()
+        }
+        # Fetch recent interactions for admin
+        recent_interactions = Interaction.query.order_by(Interaction.timestamp.desc()).limit(5).all()
+        # You might want to pre-process these interactions here if formatting is complex
+        # For example, generate the actor_name and message string
+
+        return render_template('dashboard.html', title=page_title, recent_interactions=recent_interactions, **stats)
     elif current_user.is_agent: 
         page_title = 'Agent Dashboard'
-        agent_data = {'my_assigned_tickets': Ticket.query.filter_by(assigned_to_id=current_user.id).filter(Ticket.status.notin_(['Resolved', 'Closed'])).order_by(Ticket.updated_at.desc()).all(), 'unassigned_tickets': Ticket.query.filter_by(assigned_to_id=None, status='Open').order_by(Ticket.created_at.desc()).limit(10).all()}
+        agent_data = {
+            'my_assigned_tickets': Ticket.query.filter_by(assigned_to_id=current_user.id).filter(Ticket.status.notin_(['Resolved', 'Closed'])).order_by(Ticket.updated_at.desc()).all(), 
+            'unassigned_tickets': Ticket.query.filter_by(assigned_to_id=None, status='Open').order_by(Ticket.created_at.desc()).limit(10).all()
+        }
         return render_template('dashboard.html', title=page_title, **agent_data)
-    else: 
+    else: # Client
+        page_title = 'My Dashboard' # Or "Client Dashboard"
         my_tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).limit(10).all()
         return render_template('dashboard.html', title=page_title, my_tickets=my_tickets)
+
+# ... (rest of your app.py code) ...
     
 @app.route('/tickets/new', methods=['GET', 'POST'])
 @login_required

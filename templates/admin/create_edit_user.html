@@ -2,79 +2,213 @@
 
 {% block title_tag %}{{ legend }} - Ticket CMS{% endblock %}
 
+{% block head_extra %}
+<style>
+    :root {
+        --primary-color: #1f73b7;
+        --border-color: #e5e7eb;
+        --card-bg: #ffffff;
+        --content-bg: #f9fafb;
+        --text-primary: #111827;
+        --text-secondary: #6b7280;
+        --form-label-color: #4a5568; /* Slightly darker for better contrast */
+        --box-shadow-card: 0 4px 12px rgba(0,0,0,0.08);
+        --border-radius-form: .375rem;
+        --input-focus-border: var(--primary-color);
+        --input-focus-shadow: 0 0 0 0.2rem rgba(31, 115, 183, 0.2);
+    }
+
+    .admin-form-container {
+        max-width: 700px; /* Optimal width for forms */
+        margin: 2rem auto;
+        padding: 0 15px;
+        opacity: 0;
+        animation: fadeInForm 0.4s 0.1s ease-out forwards;
+    }
+    @keyframes fadeInForm {
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-card-styled {
+        background-color: var(--card-bg);
+        border-radius: var(--border-radius-lg, .5rem);
+        box-shadow: var(--box-shadow-card);
+        border: 1px solid var(--border-color);
+    }
+    .form-card-header-styled {
+        background-color: #f8f9fa; /* Light header for forms */
+        border-bottom: 1px solid var(--border-color);
+        padding: 1.25rem 1.75rem;
+    }
+    .form-card-header-styled .card-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0;
+    }
+    .form-card-body-styled {
+        padding: 1.75rem;
+    }
+
+    .form-control-label {
+        font-weight: 500;
+        color: var(--form-label-color);
+        font-size: 0.875rem;
+        margin-bottom: 0.4rem;
+    }
+    .form-control, .custom-select {
+        border-radius: var(--border-radius-form);
+        border-color: #d1d5db; /* Slightly darker for input borders */
+        padding: .5rem .85rem;
+        font-size: 0.9rem;
+        transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+    }
+    .form-control:focus, .custom-select:focus {
+        border-color: var(--input-focus-border);
+        box-shadow: var(--input-focus-shadow);
+    }
+    .form-control.is-invalid, .was-validated .form-control:invalid {
+        border-color: var(--danger-color, #dc3545);
+    }
+    .form-control.is-invalid:focus, .was-validated .form-control:invalid:focus {
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    .invalid-feedback.d-block { font-size: 0.8rem; margin-top: .25rem; }
+
+    .form-text.text-muted {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
+        background-color: #f8f9fa;
+        border-radius: var(--border-radius-sm, .25rem);
+        border: 1px solid var(--border-color);
+    }
+    hr.form-divider {
+        margin-top: 1.75rem;
+        margin-bottom: 1.75rem;
+        border-color: var(--border-color);
+    }
+    .form-actions {
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-start; /* Or flex-end */
+        gap: 0.75rem;
+    }
+    .form-actions .btn {
+        padding: 0.5rem 1.25rem;
+        font-size: 0.9rem;
+    }
+     .form-actions .btn-primary {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+    .form-actions .btn-primary:hover {
+        background-color: var(--primary-color-darker, #165a91);
+        border-color: var(--primary-color-darker, #165a91);
+    }
+    .form-actions .btn-outline-secondary {
+        color: var(--text-secondary);
+        border-color: #ced4da;
+    }
+    .form-actions .btn-outline-secondary:hover {
+        background-color: #e9ecef;
+        color: var(--text-primary);
+    }
+
+</style>
+{% endblock %}
+
 {% block content_header %}
-    {# The legend is used as the main title here #}
+    {# The legend is passed from the route, use it for a prominent page title if desired #}
+    {# For this form, the card header will contain the title #}
 {% endblock %}
 
 {% block content %}
-<div class="admin-section admin-form-section">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-7">
-            <div class="card admin-card mt-0"> {# mt-0 as content_header_bar provides spacing #}
-                <div class="card-header">
-                    <h2 class="mb-0 h5">{{ legend }}</h2> {# Using h5 for card header title to be less dominant than page title #}
-                </div>
-                <div class="card-body p-4">
-                    <form method="POST" novalidate>
-                        {{ form.hidden_tag() }}
-                        <fieldset>
-                            <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    {{ form.username.label(class="form-control-label") }}
-                                    {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else "")) }}
-                                    {% for error in form.username.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                </div>
-                                <div class="form-group col-md-6">
-                                    {{ form.email.label(class="form-control-label") }}
-                                    {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
-                                    {% for error in form.email.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                </div>
-                            </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    {{ form.role.label(class="form-control-label") }}
-                                    {{ form.role(class="form-control custom-select" + (" is-invalid" if form.role.errors else "")) }}
-                                    {% for error in form.role.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                </div>
-                                <div class="form-group col-md-6">
-                                    {{ form.organization_id.label(class="form-control-label") }}
-                                    {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
-                                    {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                </div>
-                            </div>
-                             <small class="form-text text-muted d-block mb-3">Assign user to an organization (optional).</small>
-
-
-                            <hr class="my-4">
-                            <p class="text-muted small mb-2">
-                                {% if user %}
-                                    Leave password fields blank to keep the current password.
-                                {% else %}
-                                    Set an initial password for the new user.
-                                {% endif %}
-                            </p>
-                            <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    {{ form.password.label(class="form-control-label") }}
-                                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
-                                    {% for error in form.password.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                </div>
-                                <div class="form-group col-md-6">
-                                    {{ form.password2.label(class="form-control-label") }}
-                                    {{ form.password2(class="form-control" + (" is-invalid" if form.password2.errors else "")) }}
-                                    {% for error in form.password2.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                </div>
-                            </div>
-                        </fieldset>
-                        <div class="form-group mt-4 pt-2 border-top">
-                            {{ form.submit(class="btn btn-primary") }}
-                            <a href="{{ url_for('admin_user_list') }}" class="btn btn-outline-secondary ml-2">Cancel</a>
+<div class="admin-form-container">
+    <div class="card form-card-styled">
+        <div class="form-card-header-styled">
+            <h2 class="card-title">{{ legend }}</h2>
+        </div>
+        <div class="form-card-body-styled">
+            <form method="POST" novalidate>
+                {{ form.hidden_tag() }}
+                <fieldset>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.username.label(class="form-control-label") }}
+                            {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), placeholder="Enter username") }}
+                            {% for error in form.username.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
-                    </form>
+                        <div class="form-group col-md-6">
+                            {{ form.email.label(class="form-control-label") }}
+                            {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), placeholder="user@example.com") }}
+                            {% for error in form.email.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.role.label(class="form-control-label") }}
+                            {{ form.role(class="form-control custom-select" + (" is-invalid" if form.role.errors else "")) }}
+                            {% for error in form.role.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {{ form.organization_id.label(class="form-control-label") }}
+                            {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
+                            {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <small class="form-text text-muted d-block mb-3">
+                        Assign user to an organization (optional). This can restrict their ticket visibility.
+                    </small>
+
+                    <hr class="form-divider">
+                    <p class="text-muted small mb-2" style="font-size: 0.85rem;">
+                        <i class="fas fa-key fa-fw mr-1 text-secondary"></i>
+                        {% if user %}
+                            Leave password fields blank to keep the current password.
+                        {% else %}
+                            Set an initial password for the new user.
+                        {% endif %}
+                    </p>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.password.label(class="form-control-label") }}
+                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="New Password") }}
+                            {% for error in form.password.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {{ form.password2.label(class="form-control-label") }}
+                            {{ form.password2(class="form-control" + (" is-invalid" if form.password2.errors else ""), placeholder="Confirm Password") }}
+                            {% for error in form.password2.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                </fieldset>
+                <div class="form-actions">
+                    {{ form.submit(class="btn btn-primary") }}
+                    <a href="{{ url_for('admin_user_list') }}" class="btn btn-outline-secondary">Cancel</a>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# Add any specific JS for this form if needed, e.g., password strength indicators #}
+<script>
+// Example: Add a little interaction or visual feedback if desired
+document.querySelectorAll('.form-control, .custom-select').forEach(input => {
+    input.addEventListener('focus', () => {
+        // You could add a class to the form-group for focused state styling
+        input.closest('.form-group')?.classList.add('is-focused');
+    });
+    input.addEventListener('blur', () => {
+        input.closest('.form-group')?.classList.remove('is-focused');
+    });
+});
+</script>
 {% endblock %}

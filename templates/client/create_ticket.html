@@ -1,66 +1,36 @@
 {% extends "base.html" %}
-{% set title = title %} {# Use title passed from route #}
 
-{% block head_extra %}
-<style>
-    .form-control-label { font-weight: 600; } 
-    .form-group { margin-bottom: 1.25rem; }
-    .form-row > .col, .form-row > [class*="col-"] { padding-right: 10px; padding-left: 10px; }
-    hr { margin-top: 1.5rem; margin-bottom: 1.5rem; }
-    h5.section-header {
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #e9ecef;
-        color: #007bff;
-    }
-    .readonly-org-display {
-        background-color: #e9ecef; 
-        padding: .375rem .75rem;
-        border-radius: .25rem;
-        border: 1px solid #ced4da;
-        min-height: calc(1.5em + .75rem + 2px);
-        display: flex;
-        align-items: center;
-    }
-    .ai-description-btn {
-        font-size: 0.85rem;
-        padding: 0.25rem 0.5rem;
-    }
-    #aiDescriptionStatus {
-        font-size: 0.8em;
-        margin-top: 5px;
-    }
-    .spinner-border-sm {
-        width: 1rem;
-        height: 1rem;
-        border-width: .2em;
-    }
-</style>
+{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content_header %}
+    {# The main title is already set by the h1 in the content block #}
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-10 col-lg-9">
-        <div class="card mt-4 shadow-sm">
-            <div class="card-header bg-primary text-white"><h2 class="mb-0">{{ title }}</h2></div>
-            <div class="card-body p-4">
-                <form method="POST" action="{{ url_for('create_ticket') }}" novalidate enctype="multipart/form-data" id="createTicketMainForm">
-                    {{ form.hidden_tag() }}
-                    
+<div class="create-ticket-container">
+    <h1 class="content-title mb-4">{{ title }}</h1>
+
+    <div class="card form-card shadow-lg animated-form">
+        <div class="card-body p-lg-5 p-md-4 p-3">
+            <form method="POST" action="{{ url_for('create_ticket') }}" novalidate enctype="multipart/form-data" id="createTicketMainForm">
+                {{ form.hidden_tag() }}
+                
+                <fieldset class="form-section">
+                    <legend class="section-legend">Primary Information</legend>
                     <div class="form-group">
-                        {{ form.title.label(class="form-control-label") }}
-                        {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="A brief summary of your issue", id="ticketTitle") }}
+                        {{ form.title.label(class="form-control-label") }} <span class="text-danger">*</span>
+                        {{ form.title(class="form-control form-control-lg" + (" is-invalid" if form.title.errors else ""), placeholder="e.g., Unable to access S3 bucket", id="ticketTitle") }}
                         {% for error in form.title.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
 
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             {{ form.organization_id.label(class="form-control-label") }}
-                            {% if user_is_client_with_org %}
-                                <p class="form-control-static readonly-org-display" title="Your organization is automatically set based on your registration.">
+                            {% if user_is_client_with_org and user_organization_name %}
+                                <div class="form-control readonly-display" title="Your organization is automatically set.">
                                     {{ user_organization_name }}
-                                </p>
+                                </div>
+                                <input type="hidden" name="{{ form.organization_id.name }}" value="{{ form.organization_id.data if form.organization_id.data else '' }}">
                             {% else %} 
                                 {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
                                 {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
@@ -74,29 +44,32 @@
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        {{ form.category.label(class="form-control-label") }}
-                        {{ form.category(class="form-control custom-select" + (" is-invalid" if form.category.errors else ""), id="ticketCategory") }}
-                        {% for error in form.category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ form.severity.label(class="form-control-label") }}
-                        {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else ""), id="ticketSeverity") }}
-                        {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.category.label(class="form-control-label") }} <span class="text-danger">*</span>
+                            {{ form.category(class="form-control custom-select" + (" is-invalid" if form.category.errors else ""), id="ticketCategory") }}
+                            {% for error in form.category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {{ form.severity.label(class="form-control-label") }} <span class="text-danger">*</span>
+                            {{ form.severity(class="form-control custom-select" + (" is-invalid" if form.severity.errors else ""), id="ticketSeverity") }}
+                            {% for error in form.severity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        {{ form.customer_name.label(class="form-control-label") }}
-                        {% if user_is_client_with_org %}
-                            {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), value=user_organization_name, readonly=True, placeholder="Your Company Name") }}
-                             <small class="form-text text-muted">Company name is set based on your organization.</small>
+                        {{ form.customer_name.label(class="form-control-label") }} <span class="text-danger">*</span>
+                        {% if user_is_client_with_org and user_organization_name %}
+                            {{ form.customer_name(class="form-control readonly-display", value=user_organization_name, readonly=True) }}
                         {% else %}
                             {{ form.customer_name(class="form-control" + (" is-invalid" if form.customer_name.errors else ""), placeholder="Your Company Name") }}
                         {% endif %}
                         {% for error in form.customer_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
+                </fieldset>
 
-                    <h5 class="section-header">Cloud & Environment Details (Optional)</h5>
+                <fieldset class="form-section">
+                    <legend class="section-legend">Cloud & Environment Details <small class="text-muted">(Optional)</small></legend>
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             {{ form.cloud_provider.label(class="form-control-label") }}
@@ -109,7 +82,7 @@
                             {% for error in form.environment.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
                     </div>
-                    <div class="form-group" id="awsServiceGroupCreate" style="display:none;">
+                    <div class="form-group" id="awsServiceGroupCreate" style="display:none;"> {# JS handles visibility #}
                         {{ form.aws_service.label(class="form-control-label") }}
                         {{ form.aws_service(class="form-control custom-select" + (" is-invalid" if form.aws_service.errors else "")) }}
                         {% for error in form.aws_service.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
@@ -119,8 +92,10 @@
                         {{ form.aws_account_id(class="form-control" + (" is-invalid" if form.aws_account_id.errors else ""), placeholder="e.g., 123456789012 (12 digits)") }}
                         {% for error in form.aws_account_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
+                </fieldset>
 
-                    <h5 class="section-header">Contact Information (Optional)</h5>
+                <fieldset class="form-section">
+                    <legend class="section-legend">Contact & Additional Info <small class="text-muted">(Optional)</small></legend>
                      <div class="form-row">
                         <div class="form-group col-md-6">
                             {{ form.request_call_back.label(class="form-control-label") }}
@@ -148,40 +123,166 @@
                         {{ form.additional_recipients(class="form-control" + (" is-invalid" if form.additional_recipients.errors else ""), rows="2", placeholder="john.doe@example.com, jane.doe@example.com") }}
                         {% for error in form.additional_recipients.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
+                </fieldset>
 
-                    <hr>
+                <hr class="my-4">
+                <fieldset class="form-section">
                     <div class="form-group">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            {{ form.description.label(class="form-control-label mb-0") }}
-                            <button type="button" class="btn btn-outline-info btn-sm ai-description-btn" id="generateAiDescriptionBtn">
-                                <i class="fas fa-magic"></i> Generate with AI
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="ticketDescription" class="form-control-label mb-0">{{ form.description.label.text }} <span class="text-danger">*</span></label>
+                            <button type="button" class="btn btn-sm btn-outline-info ai-button" id="generateAiDescriptionBtn" title="Generate description using AI">
+                                <i class="fas fa-magic"></i> AI Assist
                             </button>
                         </div>
-                        {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows="8", placeholder="Please describe your issue in detail...", id="ticketDescription") }}
-                        <div id="aiDescriptionStatus" class="text-muted"></div>
+                        {{ form.description(class="form-control form-control-lg" + (" is-invalid" if form.description.errors else ""), rows="6", placeholder="Please describe your issue in detail, including steps to reproduce, expected vs. actual behavior, and any error messages.", id="ticketDescription") }}
+                        <div id="aiDescriptionStatus" class="form-text text-muted small mt-1"></div>
                         {% for error in form.description.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="form-group">
                         {{ form.attachments.label(class="form-control-label") }}
-                        {{ form.attachments(class="form-control-file" + (" is-invalid" if form.attachments.errors else "")) }}
-                        <small class="form-text text-muted">Max file size: {{ (app.config.MAX_CONTENT_LENGTH / (1000*1000)) | int }}MB. Allowed types: {{ app.config.ALLOWED_EXTENSIONS|join(', ') }}</small>
-                        {% for error in form.attachments.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        <div class="custom-file">
+                            {{ form.attachments(class="custom-file-input" + (" is-invalid" if form.attachments.errors else ""), id="ticketAttachments", multiple="multiple") }}
+                            <label class="custom-file-label" for="ticketAttachments" data-browse="Browse">Choose files...</label>
+                            {% if form.attachments.errors %}<div class="invalid-feedback d-block mt-2">{% for error in form.attachments.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                        </div>
+                         <small class="form-text text-muted mt-1">Max file size: {{ (app.config.MAX_CONTENT_LENGTH / (1000*1000)) | int }}MB. Allowed: {{ app.config.ALLOWED_EXTENSIONS|join(', ') }}</small>
+                         <div id="attachment-filenames" class="mt-2"></div>
                     </div>
-                    <div class="form-group mt-4 text-right">
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-lg mr-2">Cancel</a>
-                        {{ form.submit(class="btn btn-primary btn-lg") }}
-                    </div>
-                </form>
-            </div>
+                </fieldset>
+                <hr class="my-4">
+                <div class="form-group mt-4 d-flex justify-content-end align-items-center form-actions">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-lg mr-3">Cancel</a>
+                    {{ form.submit(class="btn btn-primary btn-lg submit-button") }}
+                </div>
+            </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+    .create-ticket-container {
+        max-width: 900px; /* Limit overall width for better readability */
+        margin: 0 auto;
+        animation: fadeInForm 0.6s ease-out forwards;
+    }
+    @keyframes fadeInForm {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-card {
+        background-color: var(--card-bg);
+        border: none; /* Remove default card border if using shadow mainly */
+        border-radius: var(--border-radius); /* Use global border radius */
+        /* box-shadow: var(--box-shadow-lg); /* More pronounced shadow for main form card */
+    }
+    
+    .section-legend {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 2px solid var(--primary-color-lighter);
+    }
+    .form-section {
+        margin-bottom: 2rem;
+    }
+
+    .form-control-label {
+        font-weight: 500; /* Adjusted from 600 for a softer look */
+        color: var(--text-secondary);
+        font-size: 0.875rem; /* Consistent small label */
+    }
+    .form-control, .custom-select {
+        font-size: 0.9rem; /* Standardize input text size */
+        border-color: var(--border-color); /* Softer border */
+    }
+    .form-control:focus, .custom-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.15rem rgba(var(--bs-primary-rgb, 31,115,183), 0.2); /* Softer focus */
+    }
+    .form-control-lg { /* For subject and description */
+        font-size: 1rem;
+        padding: .6rem 1rem;
+    }
+
+    .readonly-display { /* Enhanced readonly style */
+        background-color: #e9ecef; 
+        padding: .45rem .75rem; /* Match form-control padding */
+        font-size: 0.9rem; /* Match form-control font-size */
+        border-radius: var(--border-radius);
+        border: 1px solid #d1d5db;
+        min-height: calc(1.5em + .9rem + 2px); /* Match form-control height */
+        display: flex;
+        align-items: center;
+        color: var(--text-secondary);
+    }
+
+    .ai-button {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+        border-color: var(--info-color);
+        color: var(--info-color);
+        transition: var(--transition-base);
+    }
+    .ai-button:hover {
+        background-color: var(--info-color);
+        color: white;
+    }
+    .ai-button .spinner-border-sm {
+        width: 0.8rem;
+        height: 0.8rem;
+    }
+    #aiDescriptionStatus {
+        font-size: 0.8rem;
+        min-height: 1.2em; /* Prevent layout jump */
+    }
+    #aiDescriptionStatus.text-success { color: var(--success-color) !important; }
+    #aiDescriptionStatus.text-danger { color: var(--danger-color) !important; }
+    #aiDescriptionStatus.text-info { color: var(--info-color) !important; }
+
+    /* Custom file input styling */
+    .custom-file-input ~ .custom-file-label::after {
+        content: "Browse";
+        background-color: var(--primary-color);
+        color: white;
+        border-left: 1px solid var(--primary-color-darker);
+    }
+    .custom-file-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-color: #d1d5db;
+    }
+    #attachment-filenames span {
+        display: inline-block;
+        background-color: #e9ecef;
+        padding: 0.25rem 0.5rem;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-radius: var(--border-radius);
+        font-size: 0.8rem;
+    }
+    .form-actions {
+        border-top: 1px solid var(--border-color);
+        padding-top: 1.5rem;
+        margin-top: 1rem;
+    }
+    .submit-button {
+        min-width: 150px; /* Give submit button a decent min width */
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // AWS Service toggle script (from original)
     var cloudProviderSelect = document.getElementById('cloudProviderSelectCreate');
     var awsServiceGroup = document.getElementById('awsServiceGroupCreate');
     var awsServiceSelect = awsServiceGroup ? awsServiceGroup.querySelector('select') : null;
@@ -198,12 +299,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-
     if (cloudProviderSelect) {
         cloudProviderSelect.addEventListener('change', toggleAwsService);
         toggleAwsService(); 
     }
 
+    // AI Description button script (from original)
     const generateBtn = document.getElementById('generateAiDescriptionBtn');
     const descriptionTextarea = document.getElementById('ticketDescription');
     const titleInput = document.getElementById('ticketTitle');
@@ -214,6 +315,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (generateBtn) {
         generateBtn.addEventListener('click', async function() {
+            // ... (AI generation logic remains the same as your provided script)
             const title = titleInput.value.trim();
             const currentDescription = descriptionTextarea.value.trim();
             const categoryId = categorySelect.value;
@@ -221,12 +323,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (!title && !currentDescription && (categoryId === "0" || !categoryId) && !severityName) {
                 aiStatusDiv.textContent = 'Please provide a title, description, category, or severity.';
-                aiStatusDiv.className = 'text-danger';
+                aiStatusDiv.className = 'text-danger small mt-1';
                 return;
             }
 
             aiStatusDiv.textContent = 'Generating AI description...';
-            aiStatusDiv.className = 'text-info';
+            aiStatusDiv.className = 'text-info small mt-1';
             generateBtn.disabled = true;
             generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
             
@@ -246,27 +348,51 @@ document.addEventListener('DOMContentLoaded', function() {
                         severity_name: severityName
                     })
                 });
-
                 const data = await response.json();
-
                 if (response.ok && data.generated_description) {
                     descriptionTextarea.value = data.generated_description;
                     aiStatusDiv.textContent = 'AI description generated and populated!';
-                    aiStatusDiv.className = 'text-success';
+                    aiStatusDiv.className = 'text-success small mt-1';
                 } else {
                     throw new Error(data.error || 'Failed to generate description.');
                 }
-
             } catch (error) {
                 console.error('AI Description Error:', error);
                 aiStatusDiv.textContent = 'Error: ' + error.message;
-                aiStatusDiv.className = 'text-danger';
+                aiStatusDiv.className = 'text-danger small mt-1';
             } finally {
                 generateBtn.disabled = false;
-                generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate with AI';
+                generateBtn.innerHTML = '<i class="fas fa-magic"></i> AI Assist';
             }
         });
     }
+
+    // Custom file input label update
+    $('#ticketAttachments').on('change',function(){
+        var files = $(this)[0].files;
+        var fileNamesContainer = $('#attachment-filenames');
+        fileNamesContainer.empty(); // Clear previous filenames
+
+        if (files.length > 1) {
+            $(this).next('.custom-file-label').html(files.length + " files selected");
+            for(var i = 0; i < files.length; i++){
+                fileNamesContainer.append('<span>' + escape(files[i].name) + '</span>');
+            }
+        } else if (files.length == 1) {
+            $(this).next('.custom-file-label').html(files[0].name);
+            fileNamesContainer.append('<span>' + escape(files[0].name) + '</span>');
+        } else {
+            $(this).next('.custom-file-label').html('Choose files...');
+        }
+    });
+    function escape(htmlStr) {
+        return htmlStr.replace(/&/g, "&")
+            .replace(/</g, "<")
+            .replace(/>/g, ">")
+            .replace(/"/g, '"')
+            .replace(/'/g, "'");        
+    }
+
 });
 </script>
 {% endblock %}

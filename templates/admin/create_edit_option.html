@@ -3,56 +3,61 @@
 {% block title_tag %}{{ legend }} - Ticket CMS{% endblock %}
 
 {% block content_header %}
-    {# The legend is used as the main title here #}
+<div class="content-header-bar">
+    <h1 class="content-title">{{ legend }}</h1>
+    {% block page_actions %}
+        <a href="{{ list_url }}" class="btn btn-outline-secondary btn-animated">
+            <i class="fas fa-arrow-left fa-fw mr-1"></i> Back to List
+        </a>
+    {% endblock %}
+</div>
 {% endblock %}
 
 {% block content %}
-<div class="admin-section admin-form-section">
+<div class="admin-section admin-form-section animated-form-view">
     <div class="row justify-content-center">
-        <div class="col-md-7 col-lg-6">
-            <div class="card admin-card mt-0">
-                <div class="card-header">
-                     <h2 class="mb-0 h5">{{ legend }}</h2>
-                </div>
-                <div class="card-body p-4">
+        <div class="col-md-8 col-lg-7"> 
+            <div class="card admin-card modern-form-card">
+                <div class="card-body p-lg-5 p-md-4 p-3">
                     <form method="POST" novalidate>
                         {{ form.hidden_tag() }}
                         <fieldset>
-                            <div class="form-group">
+                            <div class="form-group floating-label-group">
+                                {{ form.name(class="form-control form-control-lg" + (" is-invalid" if form.name.errors else ""), placeholder=" ") }} {# Placeholder is a space for floating label #}
                                 {{ form.name.label(class="form-control-label") }}
-                                {{ form.name(class="form-control " + ("is-invalid" if form.name.errors else ""), placeholder="Enter " + item_type_name + " Name") }}
                                 {% if form.name.errors %}<div class="invalid-feedback d-block">{% for e in form.name.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
                             </div>
 
                             {% if form.description %}
-                            <div class="form-group">
+                            <div class="form-group floating-label-group">
+                                {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), placeholder=" ", rows="3") }}
                                 {{ form.description.label(class="form-control-label") }}
-                                {{ form.description(class="form-control " + ("is-invalid" if form.description.errors else ""), placeholder="Optional description") }}
                                 {% if form.description.errors %}<div class="invalid-feedback d-block">{% for e in form.description.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
                             </div>
                             {% endif %}
 
                             {% if form.order %}
-                            <div class="form-group">
+                            <div class="form-group floating-label-group">
+                                {{ form.order(class="form-control" + (" is-invalid" if form.order.errors else ""), placeholder=" ") }}
                                 {{ form.order.label(class="form-control-label") }}
-                                {{ form.order(class="form-control " + ("is-invalid" if form.order.errors else ""), placeholder="e.g., 1 for highest, for sorting") }}
                                 {% if form.order.errors %}<div class="invalid-feedback d-block">{% for e in form.order.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
+                                <small class="form-text text-muted">Lower numbers typically appear first for sorting.</small>
                             </div>
                             {% endif %}
                             
                             {% if form.is_active is defined %}
-                            <div class="form-group">
-                                <div class="custom-control custom-checkbox">
-                                    {{ form.is_active(class="custom-control-input" + (" is-invalid" if form.is_active.errors else "")) }}
-                                    {{ form.is_active.label(class="custom-control-label") }}
-                                    {% if form.is_active.errors %}<div class="invalid-feedback d-block">{% for e in form.is_active.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
+                            <div class="form-group mt-4 mb-4">
+                                <div class="custom-control custom-switch custom-switch-lg">
+                                    {{ form.is_active(class="custom-control-input" + (" is-invalid" if form.is_active.errors else ""), id="is_active_form_option" ) }}
+                                    {{ form.is_active.label(class="custom-control-label", for="is_active_form_option" ) }}
                                 </div>
+                                {% if form.is_active.errors %}<div class="invalid-feedback d-block mt-1">{% for e in form.is_active.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
                             </div>
                             {% endif %}
                         </fieldset>
-                        <div class="form-group mt-4 pt-2 border-top">
-                            {{ form.submit(class="btn btn-primary") }}
-                            <a href="{{ list_url }}" class="btn btn-outline-secondary ml-2">Cancel</a>
+                        <div class="form-group mt-5 pt-3 border-top form-actions-footer">
+                            {{ form.submit(class="btn btn-primary btn-lg submit-button btn-animated") }}
+                            <a href="{{ list_url }}" class="btn btn-outline-secondary btn-lg ml-2 btn-animated">Cancel</a>
                         </div>
                     </form>
                 </div>
@@ -60,4 +65,135 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+    .admin-form-section .modern-form-card {
+        box-shadow: var(--box-shadow-lg);
+        border: none;
+        border-radius: var(--border-radius);
+        overflow: hidden;
+    }
+    
+    /* Floating Label Styling */
+    .floating-label-group {
+        position: relative;
+        margin-bottom: 2rem; /* Increased margin for floating labels */
+    }
+    .floating-label-group .form-control {
+        height: calc(2.5em + .75rem + 2px); /* Taller inputs for floating labels */
+        padding: 1.25rem .75rem .25rem; /* Padding to make space for label */
+    }
+    .floating-label-group .form-control-label {
+        position: absolute;
+        top: 0.625rem; /* Initial position inside input */
+        left: .75rem;
+        font-size: 0.95rem; /* Label size */
+        color: var(--text-secondary);
+        pointer-events: none;
+        transition: all 0.15s ease-in-out;
+        background-color: transparent; /* For inputs with background */
+        padding: 0 0.25rem; /* Padding for label background effect */
+    }
+    .floating-label-group .form-control:focus ~ .form-control-label,
+    .floating-label-group .form-control:not(:placeholder-shown) ~ .form-control-label { /* :not(:placeholder-shown) requires placeholder=" " */
+        top: -0.6rem; /* Move label up */
+        left: .5rem;
+        font-size: 0.75rem; /* Smaller label when floated */
+        color: var(--primary-color);
+        background-color: var(--card-bg); /* Match card background */
+        z-index: 10;
+    }
+    .floating-label-group .form-control:focus {
+        padding-top: 1.25rem; /* Keep padding when focused */
+        padding-bottom: 0.25rem;
+    }
+     .floating-label-group textarea.form-control {
+        min-height: 120px; /* Keep textarea height */
+        padding-top: 1.25rem;
+    }
+    .floating-label-group textarea.form-control ~ .form-control-label {
+         /* Adjust for textarea if needed */
+    }
+
+
+    .admin-form-section .form-control-lg { /* Applied to name field */
+        font-size: 1rem; /* Slightly smaller than previous for consistency */
+    }
+     .admin-form-section .form-control:focus,
+    .admin-form-section .custom-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb, 31,115,183), 0.2);
+    }
+
+    /* Custom Switch Styling - from previous */
+    .custom-switch-lg {
+        padding-left: 0; 
+        display: flex; 
+        align-items: center;
+    }
+    .custom-switch-lg .custom-control-input {
+        position: absolute; opacity: 0; width: 0; height: 0;
+    }
+    .custom-switch-lg .custom-control-label {
+        position: relative; cursor: pointer;
+        padding-left: calc(2.5rem + .75rem + 0.5rem); 
+        font-weight: 500; 
+        color: var(--text-secondary); 
+        font-size: 0.875rem; 
+        line-height: 1.5rem; 
+        margin-bottom: 0; 
+    }
+    .custom-switch-lg .custom-control-label::before { 
+        content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+        height: 1.5rem; width: calc(2.5rem + .75rem); 
+        background-color: #adb5bd; border-radius: 1.5rem; 
+        transition: background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        border: 1px solid #adb5bd;
+    }
+    .custom-switch-lg .custom-control-label::after { 
+        content: ""; position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
+        width: calc(1.5rem - 4px); height: calc(1.5rem - 4px);
+        background-color: white; border-radius: 50%;
+        transition: transform .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+    }
+    .custom-switch-lg .custom-control-input:checked ~ .custom-control-label::before {
+        background-color: var(--success-color); border-color: var(--success-color);
+    }
+    .custom-switch-lg .custom-control-input:checked ~ .custom-control-label::after {
+        transform: translateY(-50%) translateX(1.75rem); 
+    }
+    .custom-switch-lg .custom-control-input:focus ~ .custom-control-label::before {
+        box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb, 31,115,183), 0.25);
+    }
+    .custom-switch-lg .custom-control-input:disabled ~ .custom-control-label { color: #6c757d; cursor: not-allowed; }
+    .custom-switch-lg .custom-control-input:disabled ~ .custom-control-label::before { background-color: #e9ecef; }
+
+
+    .admin-form-section .form-actions-footer {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center; /* Vertically align buttons */
+    }
+    .admin-form-section .submit-button {
+        min-width: 140px;
+    }
+    .animated-form-view {
+        animation: slideUpForm 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    @keyframes slideUpForm {
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .btn-animated { /* For "New Category/Option" button and form buttons */
+        transition: var(--transition-base), transform 0.2s ease;
+    }
+    .btn-animated:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--box-shadow-sm);
+    }
+</style>
 {% endblock %}

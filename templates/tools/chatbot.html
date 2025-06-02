@@ -4,104 +4,416 @@
 {% block head_extra %}
 <style>
     :root {
-        --primary-color: #0052CC; 
-        --secondary-color: #0065FF;
-        --cta-color: #00A3BF; 
-        --research-color: #FF991F; 
-        --text-dark: #172B4D; 
-        --text-light: #505F79; 
-        --text-on-primary: #FFFFFF;
-        --background-light: #F4F5F7; 
-        --white: #FFFFFF;
-        --border-color: #DFE1E6; 
-        --user-message-bg: #DEEBFF; 
-        --bot-message-bg: #E9F2FF; 
-        --bot-message-alt-bg: #F4F5F7;
-        --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        /* AI Assistant Specific Palette */
+        --ai-primary-color: #0052CC; 
+        --ai-secondary-color: #0065FF;
+        --ai-cta-color: #00A3BF; 
+        --ai-cta-hover-color: #008DAA;
+        --ai-research-color: #FF991F; 
+        --ai-research-hover-bg: #FF991F;
+        --ai-research-hover-text: #FFFFFF;
+
+        /* Text & Backgrounds */
+        --ai-text-dark: #172B4D; 
+        --ai-text-light: #505F79; 
+        --ai-text-on-primary: #FFFFFF;
+        --ai-background-page: #F4F5F7; /* Similar to --content-bg */
+        --ai-background-widget: #FFFFFF; /* Similar to --card-bg */
+        
+        /* Borders & Messages */
+        --ai-border-color: #DFE1E6; /* Similar to --border-color */
+        --ai-user-message-bg: #DEEBFF; 
+        --ai-bot-message-bg: #E9F2FF; 
+        --ai-bot-message-alt-bg: #F7F8FA; /* Slightly different for direct AI */
+        
+        /* Font */
+        --ai-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+        /* Shadows & Radius - inspired by style.css */
+        --ai-box-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --ai-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        --ai-box-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --ai-border-radius: .375rem; /* 6px */
+        --ai-border-radius-lg: .5rem; /* 8px */
+        --ai-border-radius-pill: 50px;
+        --ai-transition-base: all 0.2s ease-in-out;
     }
-    html, body { height: 100%; } 
-    body { display: flex; flex-direction: column; background-color: var(--background-light); }
-    .content-wrapper { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    html, body { 
+        height: 100%; 
+        overflow: hidden; /* Prevent body scroll, content wrapper handles it */
+    } 
+    body { 
+        display: flex; 
+        flex-direction: column; 
+        background-color: var(--ai-background-page); 
+        font-family: var(--ai-font-family);
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--ai-text-dark);
+        margin: 0;
+    }
+    .content-wrapper { /* This will be the main scrollable area if needed by base.html */
+        flex-grow: 1; 
+        display: flex; 
+        flex-direction: column; 
+        overflow: hidden; /* AI assistant itself is self-contained */
+    }
     
     .chat-container-wrapper {
-        flex-grow: 1; display: flex; justify-content: center; align-items: stretch;
+        flex-grow: 1; 
+        display: flex; 
+        justify-content: center; 
+        align-items: stretch; /* Make chat window take full height */
         padding: 20px; 
-        overflow: hidden; width: 100%; margin-top: 0; 
+        overflow: hidden; 
+        width: 100%; 
+        margin-top: 0; 
+        height: 100%; /* Ensure it uses the flex space */
     }
     .chat-window {
-        width: 100%; max-width: 800px; height: 100%;
-        background-color: var(--white); border-radius: 12px;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.12); display: flex; flex-direction: column;
-        overflow: hidden; border: 1px solid var(--border-color);
+        width: 100%; 
+        max-width: 800px; 
+        height: 100%; /* Fill the align-items: stretch */
+        background-color: var(--ai-background-widget); 
+        border-radius: var(--ai-border-radius-lg); /* 8px */
+        box-shadow: var(--ai-box-shadow-md); 
+        display: flex; 
+        flex-direction: column;
+        overflow: hidden; 
+        border: 1px solid var(--ai-border-color);
     }
     .chat-header {
-        background-color: var(--primary-color); color: var(--text-on-primary);
-        padding: 12px 20px; font-size: 1.1em; font-weight: 600;
-        display: flex; justify-content: space-between; align-items: center;
-        border-top-left-radius: 11px; border-top-right-radius: 11px;
+        background-color: var(--ai-primary-color); 
+        color: var(--ai-text-on-primary);
+        padding: 12px 20px; 
+        font-size: 1.15em; 
+        font-weight: 600;
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center;
+        border-top-left-radius: calc(var(--ai-border-radius-lg) - 1px); /* Adjust for border */
+        border-top-right-radius: calc(var(--ai-border-radius-lg) - 1px);
         flex-shrink: 0;
+        box-shadow: var(--ai-box-shadow-sm);
     }
-    .chat-mode-toggle { display: flex; align-items: center; font-size: 0.85em; }
-    .chat-mode-toggle label { margin-right: 8px; cursor: pointer; }
-    .chat-mode-toggle input[type="checkbox"] { height: 0; width: 0; visibility: hidden; position: absolute; }
-    .chat-mode-toggle .switch { cursor: pointer; text-indent: -9999px; width: 40px; height: 20px; background: var(--text-light); display: block; border-radius: 100px; position: relative; }
-    .chat-mode-toggle .switch:after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: var(--white); border-radius: 90px; transition: 0.3s; }
-    .chat-mode-toggle input:checked + .switch { background: var(--cta-color); }
-    .chat-mode-toggle input:checked + .switch:after { left: calc(100% - 2px); transform: translateX(-100%); }
-    .chat-mode-status { margin-left: 10px; font-weight: 500; font-size: 0.9em;}
+    .chat-mode-toggle { 
+        display: flex; 
+        align-items: center; 
+        font-size: 0.85em; 
+    }
+    .chat-mode-toggle label { 
+        margin-right: 8px; 
+        cursor: pointer; 
+        user-select: none;
+        font-weight: 500;
+    }
+    .chat-mode-toggle input[type="checkbox"] { 
+        height: 0; width: 0; visibility: hidden; position: absolute; 
+    }
+    .chat-mode-toggle .switch { 
+        cursor: pointer; 
+        text-indent: -9999px; 
+        width: 44px; /* Slightly wider */
+        height: 22px; /* Slightly taller */
+        background: var(--ai-text-light); 
+        display: block; 
+        border-radius: var(--ai-border-radius-pill); 
+        position: relative; 
+        transition: background-color 0.3s ease;
+    }
+    .chat-mode-toggle .switch:after { 
+        content: ''; 
+        position: absolute; 
+        top: 3px; /* Centered */
+        left: 3px; 
+        width: 16px; 
+        height: 16px; 
+        background: var(--ai-background-widget); 
+        border-radius: 50%; 
+        transition: transform 0.3s ease, left 0.3s ease; 
+    }
+    .chat-mode-toggle input:checked + .switch { 
+        background: var(--ai-cta-color); 
+    }
+    .chat-mode-toggle input:checked + .switch:after { 
+        transform: translateX(22px); /* width - handle_width - 2*padding */
+    }
+    .chat-mode-status { 
+        margin-left: 12px; 
+        font-weight: 500; 
+        font-size: 0.9em;
+        color: rgba(255,255,255,0.85);
+    }
 
     .chat-messages {
-        flex-grow: 1; padding: 20px; overflow-y: auto;
-        display: flex; flex-direction: column; gap: 12px;
+        flex-grow: 1; 
+        padding: 20px; 
+        overflow-y: auto;
+        display: flex; 
+        flex-direction: column; 
+        gap: 15px; /* Increased gap */
+        background-color: #f8f9fc; /* Slightly off-white for message area */
     }
-    .message { padding: 10px 15px; border-radius: 18px; max-width: 75%; line-height: 1.5; word-wrap: break-word; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
-    .message.user { background-color: var(--user-message-bg); color: var(--text-dark); align-self: flex-end; border-bottom-right-radius: 5px; }
-    .message.bot { background-color: var(--bot-message-bg); color: var(--text-dark); align-self: flex-start; border-bottom-left-radius: 5px; }
-    .message.bot.direct-ai { background-color: var(--bot-message-alt-bg); border-left: 3px solid var(--cta-color); }
-    .message.system-notification { text-align: center; font-size: 0.85em; color: var(--text-light); font-style: italic; background: none; box-shadow: none; align-self: center; max-width: 100%;}
-
-    .message strong { font-weight: 600; }
-    .message code { background-color: rgba(0,0,0,0.05); padding: 0.2em 0.4em; border-radius: 3px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 0.9em;}
-    .message pre { white-space: pre-wrap; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; background-color: rgba(0,0,0,0.04); padding: 10px; margin-top: 8px; border-radius: 6px; font-size: 0.9em; overflow-x: auto; border: 1px solid rgba(0,0,0,0.06); }
-    .message pre code { background-color: transparent; padding: 0; border-radius: 0; }
     
-    .message .actions-toolbar { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.08); display: flex; gap: 8px; }
-    .message .btn-deep-research { background-color: transparent; color: var(--research-color); border: 1px solid var(--research-color); padding: 4px 10px; border-radius: 15px; cursor: pointer; font-size: 0.8em; font-weight: 500; transition: background-color 0.2s, color 0.2s; }
-    .message .btn-deep-research:hover { background-color: var(--research-color); color: var(--white); }
-    .message .btn-deep-research .spinner-border-sm { width: 0.8em; height: 0.8em; border-width: .15em; margin-right: .3em; }
-    .message .btn-deep-research i:not(.spinner-border-sm) { margin-right: 5px; }
+    /* Message Animation */
+    @keyframes messageAppear {
+        from { opacity: 0; transform: translateY(10px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .message { 
+        padding: 12px 18px; /* Slightly more padding */
+        border-radius: var(--ai-border-radius); /* Consistent radius */
+        max-width: 78%; 
+        line-height: 1.55; 
+        word-wrap: break-word; 
+        box-shadow: var(--ai-box-shadow-sm); 
+        position: relative; 
+        animation: messageAppear 0.3s ease-out forwards;
+        opacity: 0; /* Initial state for animation */
+        transform: translateY(10px) scale(0.98); /* Initial state for animation */
+    }
+    .message.user { 
+        background-color: var(--ai-user-message-bg); 
+        color: var(--ai-text-dark); 
+        align-self: flex-end; 
+        border-bottom-right-radius: 5px; 
+    }
+    .message.bot { 
+        background-color: var(--ai-bot-message-bg); 
+        color: var(--ai-text-dark); 
+        align-self: flex-start; 
+        border-bottom-left-radius: 5px; 
+    }
+    .message.bot.direct-ai { 
+        background-color: var(--ai-bot-message-alt-bg); 
+        border-left: 4px solid var(--ai-cta-color); 
+        box-shadow: 0 2px 5px rgba(0,163,191,0.1);
+    }
+    .message.system-notification { 
+        text-align: center; 
+        font-size: 0.8em; 
+        color: var(--ai-text-light); 
+        font-style: italic; 
+        background: transparent; 
+        box-shadow: none; 
+        align-self: center; 
+        max-width: 100%;
+        padding: 5px 10px;
+        border-radius: var(--ai-border-radius-pill);
+        background-color: rgba(0,0,0,0.03);
+    }
+
+    .message strong { font-weight: 600; color: var(--ai-primary-color); }
+    .message em { font-style: italic; }
+    .message code { 
+        background-color: rgba(0,0,0,0.06); 
+        padding: 0.2em 0.5em; 
+        border-radius: 4px; 
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; 
+        font-size: 0.88em;
+        color: #c7254e; /* Bootstrap-like code color */
+    }
+    .message pre { 
+        white-space: pre-wrap; 
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; 
+        background-color: #282c34; /* Darker theme for code blocks */
+        color: #abb2bf; /* Light text on dark bg */
+        padding: 12px 15px; 
+        margin-top: 10px; 
+        border-radius: var(--ai-border-radius); 
+        font-size: 0.88em; 
+        overflow-x: auto; 
+        border: 1px solid #21252b;
+    }
+    .message pre code { 
+        background-color: transparent; 
+        padding: 0; 
+        border-radius: 0; 
+        color: inherit; /* Inherit from pre */
+        font-size: 1em; /* Reset to pre's font size */
+    }
+    
+    .message .actions-toolbar { 
+        margin-top: 10px; 
+        padding-top: 10px; 
+        border-top: 1px solid rgba(0,0,0,0.08); 
+        display: flex; 
+        gap: 10px; 
+        align-items: center;
+    }
+    .message .btn-deep-research { 
+        background-color: transparent; 
+        color: var(--ai-research-color); 
+        border: 1px solid var(--ai-research-color); 
+        padding: 5px 12px; 
+        border-radius: var(--ai-border-radius-pill); 
+        cursor: pointer; 
+        font-size: 0.8em; 
+        font-weight: 600; 
+        transition: var(--ai-transition-base); 
+        display: inline-flex;
+        align-items: center;
+    }
+    .message .btn-deep-research:hover { 
+        background-color: var(--ai-research-hover-bg); 
+        color: var(--ai-research-hover-text); 
+        transform: translateY(-1px);
+        box-shadow: var(--ai-box-shadow-sm);
+    }
+    .message .btn-deep-research .spinner-border-sm { 
+        width: 0.8rem; height: 0.8rem; border-width: .18em; margin-right: .4em; 
+    }
+    .message .btn-deep-research i:not(.spinner-border-sm) { 
+        margin-right: 6px; font-size: 0.9em;
+    }
 
 
-    .message .docs-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color); }
-    .message .docs-section h4 { font-size: 0.9em; color: var(--text-light); margin-bottom: 5px; font-weight: 600; }
-    .message .docs-section ul { list-style: none; padding-left: 0; margin-bottom: 0; }
-    .message .docs-section li a { display: flex; align-items:center; padding: 5px 0; font-size: 0.9em; color: var(--primary-color); text-decoration: none; transition: color 0.2s; }
-    .message .docs-section li a:hover { color: var(--secondary-color); text-decoration: underline; }
-    .message .docs-section li a i { margin-right: 8px; width: 16px; text-align: center; color: var(--text-light); }
-    .message .aws-docs h4 { color: var(--research-color); }
-    .message .relevant-docs i { color: var(--primary-color) !important; }
+    .message .docs-section { 
+        margin-top: 12px; 
+        padding-top: 12px; 
+        border-top: 1px dashed var(--ai-border-color); 
+    }
+    .message .docs-section h4 { 
+        font-size: 0.9em; 
+        color: var(--ai-text-light); 
+        margin-bottom: 8px; 
+        font-weight: 600; 
+        display: flex;
+        align-items: center;
+    }
+    .message .docs-section h4 i {
+        margin-right: 8px;
+        font-size: 1.1em;
+    }
+    .message .docs-section ul { 
+        list-style: none; 
+        padding-left: 0; 
+        margin-bottom: 0; 
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .message .docs-section li a { 
+        display: flex; 
+        align-items:center; 
+        padding: 6px 8px; 
+        font-size: 0.88em; 
+        color: var(--ai-primary-color); 
+        text-decoration: none; 
+        transition: var(--ai-transition-base);
+        border-radius: 4px; 
+    }
+    .message .docs-section li a:hover { 
+        color: var(--ai-secondary-color); 
+        background-color: rgba(0, 82, 204, 0.05);
+        text-decoration: none; 
+    }
+    .message .docs-section li a i { 
+        margin-right: 10px; 
+        width: 18px; 
+        text-align: center; 
+        color: var(--ai-text-light); 
+        font-size: 0.9em;
+    }
+    .message .aws-docs h4 { color: var(--ai-research-color); }
+    .message .relevant-docs i { color: var(--ai-primary-color) !important; } /* Override for specific icon */
 
-    .chat-input-area { display: flex; padding: 15px 20px; border-top: 1px solid var(--border-color); background-color: var(--white); flex-shrink: 0; align-items: center; }
-    #userInput { flex-grow: 1; padding: 12px 18px; border: 1px solid var(--border-color); border-radius: 25px; margin-right: 12px; font-size: 1em; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
-    #userInput:focus { border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2); }
-    #sendButton { background-color: var(--cta-color); color: var(--text-on-primary); border: none; padding: 0 22px; height: 46px; border-radius: 25px; cursor: pointer; font-size: 1em; font-weight: 600; display: inline-flex; align-items: center; transition: background-color 0.2s; }
-    #sendButton:hover { background-color: #008DAA; }
-    #sendButton .spinner-border-sm { width: 1em; height: 1em; border-width: .2em; margin-right: .5em;}
-    #sendButton i:not(.spinner-border-sm) { margin-left: 8px; }
-    #sendButton:disabled { background-color: #B3BAC5; color: #7A869A; cursor: not-allowed; }
+    .chat-input-area { 
+        display: flex; 
+        padding: 15px 20px; 
+        border-top: 1px solid var(--ai-border-color); 
+        background-color: var(--ai-background-widget); 
+        flex-shrink: 0; 
+        align-items: center; 
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    }
+    #userInput { 
+        flex-grow: 1; 
+        padding: 12px 18px; 
+        border: 1px solid var(--ai-border-color); 
+        border-radius: var(--ai-border-radius-pill); 
+        margin-right: 12px; 
+        font-size: 1em; 
+        outline: none; 
+        transition: var(--ai-transition-base);
+        background-color: var(--ai-background-page); /* Slightly different bg for input */
+    }
+    #userInput:focus { 
+        border-color: var(--ai-primary-color); 
+        box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.15); 
+        background-color: var(--ai-background-widget);
+    }
+    #sendButton { 
+        background-color: var(--ai-cta-color); 
+        color: var(--ai-text-on-primary); 
+        border: none; 
+        padding: 0 25px; 
+        height: 48px; /* Match input height + border */
+        border-radius: var(--ai-border-radius-pill); 
+        cursor: pointer; 
+        font-size: 1em; 
+        font-weight: 600; 
+        display: inline-flex; 
+        align-items: center; 
+        justify-content: center;
+        transition: var(--ai-transition-base), transform 0.1s ease;
+        box-shadow: var(--ai-box-shadow-sm);
+    }
+    #sendButton:hover { 
+        background-color: var(--ai-cta-hover-color); 
+        box-shadow: var(--ai-box-shadow);
+        transform: translateY(-1px);
+    }
+    #sendButton:active {
+        transform: translateY(0px);
+        box-shadow: var(--ai-box-shadow-sm);
+    }
+    #sendButton .spinner-border-sm { 
+        width: 1.1em; height: 1.1em; border-width: .2em; margin-right: .5em;
+    }
+    #sendButton i:not(.spinner-border-sm) { 
+        margin-left: 8px; font-size: 0.9em;
+    }
+    #sendButton:disabled { 
+        background-color: #B3BAC5; 
+        color: #7A869A; 
+        cursor: not-allowed; 
+        box-shadow: none;
+        transform: none;
+    }
+
+    /* Scrollbar styling from style.css */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.03); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #c1c9d2; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8b0b9; }
 
     @media (max-width: 768px) {
         .chat-container-wrapper { padding: 10px; }
-        .chat-window { max-width: 100%; border-radius: 8px; }
-        .chat-header { padding: 10px 15px; font-size: 1em; flex-direction: column; gap: 5px; align-items: flex-start;}
+        .chat-window { 
+            border-radius: var(--ai-border-radius); /* Smaller radius on mobile */
+            max-width: 100%; 
+        }
+        .chat-header { 
+            padding: 10px 15px; 
+            font-size: 1em; 
+            flex-direction: column; 
+            gap: 8px; 
+            align-items: flex-start;
+            border-top-left-radius: calc(var(--ai-border-radius) - 1px);
+            border-top-right-radius: calc(var(--ai-border-radius) - 1px);
+        }
         .chat-mode-toggle { font-size: 0.8em; }
-        .chat-mode-status { font-size: 0.75em; margin-left: 5px; }
-        .chat-messages { padding: 15px; }
-        .message { max-width: 90%; }
+        .chat-mode-status { font-size: 0.75em; margin-left: 8px; }
+        .chat-messages { padding: 15px; gap: 12px; }
+        .message { max-width: 90%; padding: 10px 15px; }
+        .message pre, .message code { font-size: 0.85em; }
         .chat-input-area { padding: 10px 15px; }
         #userInput { padding: 10px 15px; font-size: 0.95em; }
-        #sendButton { height: 42px; padding: 0 18px; font-size: 0.95em;}
-        .message .btn-deep-research { font-size: 0.75em; padding: 3px 8px; }
+        #sendButton { height: 44px; padding: 0 20px; font-size: 0.95em;}
+        .message .btn-deep-research { font-size: 0.75em; padding: 4px 10px; }
     }
 </style>
 {% endblock %}
@@ -154,7 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let currentChatMode = 'ticket_assistant'; 
     let lastBotQueryContext = null; 
-    let isFetchingAwsDocs = false; // Prevent multiple AWS doc fetches
+    let isFetchingAwsDocs = false;
 
     function updateChatModeStatus() {
         if (aiModeToggleEl.checked) {
@@ -177,41 +489,81 @@ document.addEventListener('DOMContentLoaded', function() {
     function escapeHtml(unsafe) {
         if (typeof unsafe !== 'string') return '';
         return unsafe
-             .replace(/&/g, "&")
+             .replace(/&/g, "&") // Ensure & is escaped first
              .replace(/</g, "<")
              .replace(/>/g, ">")
-             .replace(/"/g, """)
+             .replace(/"/g, '"')
              .replace(/'/g, "'");
     }
 
     function formatBotMessage(text) {
         if (typeof text !== 'string') text = String(text);
-        let-html = escapeHtml(text); // Escape all HTML first
+        let html = escapeHtml(text);
 
-        // Apply markdown-like formatting
+        // Code Blocks (must handle multi-line correctly and come BEFORE inline code)
+        // Ensure the content inside ``` is not further processed for other markdown
+        html = html.replace(/```([\s\S]*?)```/g, (match, codeContent) => {
+            // The codeContent is already HTML-escaped by escapeHtml at the top.
+            // We just need to wrap it in <pre><code>
+            return `<pre><code>${codeContent.trim()}</code></pre>`;
+        });
+        
+        // Apply markdown-like formatting to non-code-block parts
         html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
         html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');       // Italics
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');   // Inline code
         
-        // Code Blocks (must handle multi-line correctly)
-        html = html.replace(/```([\s\S]*?)```/g, (match, codeContent) => {
-            return `<pre><code>${codeContent.trim()}</code></pre>`; // Already escaped
-        });
 
-        // Basic lists (assumes simple lists, no nesting)
-        html = html.replace(/^\s*(\d+)\.\s*(.*)/gm, '<ol><li>$2</li></ol>'); // Numbered list item
-        html = html.replace(/<\/ol>\s*<ol>/g, ''); // Merge adjacent OLs
-
-        html = html.replace(/^\s*[-*+]\s*(.*)/gm, '<ul><li>$1</li></ul>'); // Bullet list item
-        html = html.replace(/<\/ul>\s*<ul>/g, ''); // Merge adjacent ULs
+        // Basic lists (simple, no nesting support with this regex approach)
+        // Convert newlines to <br> first, then process lists line by line
+        // This approach is fragile for complex lists or mixed content.
+        // A more robust Markdown parser would be better for complex cases.
         
-        return html.replace(/\n/g, '<br>'); // Convert remaining newlines to <br>
+        let lines = html.split(/\n|<br\s*\/?>/); // Split by newline or <br>
+        let inOl = false;
+        let inUl = false;
+        let processedHtml = "";
+
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            let olMatch = line.match(/^\s*(\d+)\.\s+(.*)/);
+            let ulMatch = line.match(/^\s*[-*+]\s+(.*)/);
+
+            if (olMatch) {
+                if (!inOl) { processedHtml += "<ol>"; inOl = true; }
+                if (inUl) { processedHtml += "</ul>"; inUl = false; }
+                processedHtml += `<li>${olMatch[2]}</li>`;
+            } else if (ulMatch) {
+                if (!inUl) { processedHtml += "<ul>"; inUl = true; }
+                if (inOl) { processedHtml += "</ol>"; inOl = false; }
+                processedHtml += `<li>${ulMatch[1]}</li>`;
+            } else {
+                if (inOl) { processedHtml += "</ol>"; inOl = false; }
+                if (inUl) { processedHtml += "</ul>"; inUl = false; }
+                processedHtml += line + (i < lines.length -1 && line ? "<br>" : ""); // Add <br> if it's not the last line and line is not empty
+            }
+        }
+        if (inOl) processedHtml += "</ol>";
+        if (inUl) processedHtml += "</ul>";
+        
+        // Remove <br> inside <pre> if any were accidentally added before pre formatting
+        processedHtml = processedHtml.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (match, codeContent) => {
+            return `<pre><code>${codeContent.replace(/<br\s*\/?>/g, '\n')}</code></pre>`;
+        });
+        
+        return processedHtml;
     }
 
 
     function addMessageToChat(text, sender, relevantDocs = null, awsDocs = null, isDirectAiResponse = false, queryContextForResearch = null) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', sender);
+
+        // Delay adding animation class to trigger it after element is in DOM
+        // However, for simplicity, we rely on CSS to handle initial animation state
+        // requestAnimationFrame(() => {
+        //    messageDiv.classList.add('appear');
+        // });
 
         if (sender === 'system-notification') { messageDiv.classList.add('system-notification'); }
         if (isDirectAiResponse && sender === 'bot') { messageDiv.classList.add('direct-ai'); }
@@ -220,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sender === 'bot' || sender === 'system-notification') {
             contentSpan.innerHTML = formatBotMessage(text);
         } else {
-            contentSpan.textContent = text; // User input should be textContent to prevent XSS
+            contentSpan.textContent = text; 
         }
         messageDiv.appendChild(contentSpan);
 
@@ -261,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 a.textContent = doc.title || doc.name; 
                 a.target = '_blank';
                 const icon = document.createElement('i');
-                icon.className = 'fas fa-book-open';
+                icon.className = 'fas fa-book-open'; // Generic book icon
                 a.prepend(icon);
                 li.appendChild(a);
                 ulAws.appendChild(li);
@@ -288,14 +640,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function fetchAwsDocumentation(topic, originalMessageDiv, buttonElement) {
-        if (isFetchingAwsDocs) return; // Prevent concurrent fetches
+        if (isFetchingAwsDocs) return;
         isFetchingAwsDocs = true;
 
         const originalButtonHtml = buttonElement.innerHTML;
         buttonElement.disabled = true;
         buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Searching AWS Docs...';
 
-        addMessageToChat(`Looking for AWS documentation related to: "${topic}"...`, 'system-notification');
+        addMessageToChat(`Looking for AWS documentation related to: "${escapeHtml(topic)}"...`, 'system-notification');
         
         try {
             const payload = { research_topic: topic };
@@ -313,11 +665,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || `Server error: ${response.status}`);
             }
             
-            buttonElement.closest('.actions-toolbar')?.remove(); // Remove the button/toolbar
+            buttonElement.closest('.actions-toolbar')?.remove();
 
             if (data.aws_docs && data.aws_docs.length > 0) {
                 const awsDocsDiv = document.createElement('div');
-                awsDocsDiv.className = 'docs-section aws-docs';
+                awsDocsDiv.className = 'docs-section aws-docs'; // Re-add class for styling
                 const awsDocsHeader = document.createElement('h4');
                 awsDocsHeader.innerHTML = '<i class="fab fa-aws"></i> AWS Documentation Found:';
                 awsDocsDiv.appendChild(awsDocsHeader);
@@ -335,18 +687,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     ulAws.appendChild(li);
                 });
                 awsDocsDiv.appendChild(ulAws);
-                originalMessageDiv.appendChild(awsDocsDiv); // Append docs to the original message
+                originalMessageDiv.appendChild(awsDocsDiv);
                 chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 
             } else {
-                addMessageToChat(`No specific AWS documentation found for "${topic}".`, 'bot');
+                addMessageToChat(`No specific AWS documentation found for "${escapeHtml(topic)}".`, 'bot');
             }
 
         } catch (error) {
             console.error("AWS Doc Search API error:", error);
-            addMessageToChat(`Sorry, I encountered an error while searching AWS docs: ${error.message}`, 'bot');
-            buttonElement.disabled = false; // Re-enable button on error
-            buttonElement.innerHTML = originalButtonHtml;
+            addMessageToChat(`Sorry, I encountered an error while searching AWS docs: ${escapeHtml(error.message)}`, 'bot');
+            // Only re-enable/reset button if it wasn't removed
+            if (buttonElement.parentElement) {
+                buttonElement.disabled = false; 
+                buttonElement.innerHTML = originalButtonHtml;
+            }
         } finally {
             isFetchingAwsDocs = false;
         }
@@ -362,8 +717,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const originalButtonIconClass = sendButtonIconEl.className;
 
         sendButtonEl.disabled = true;
-        sendButtonIconEl.className = 'fas fa-spinner fa-spin';
-        sendButtonTextEl.textContent = 'Sending...';
+        sendButtonIconEl.className = 'spinner-border spinner-border-sm'; // Use Bootstrap spinner class directly
+        sendButtonTextEl.textContent = 'Sending'; // Shorter text
         
         lastBotQueryContext = messageText; 
 
@@ -385,11 +740,17 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 const textResponse = await response.text();
                 console.error("Server returned non-JSON response:", textResponse);
-                throw new Error(`Server error. Status: ${response.status}. Check console for details.`);
+                throw new Error(`Server error (Status: ${response.status}). Please check the console for details.`);
             }
             
             if (!response.ok) {
-                throw new Error(data.reply || data.error || `Server error: ${response.status} ${response.statusText}`);
+                 let errorMsg = data.reply || data.error || `Server error: ${response.status} ${response.statusText}`;
+                // Try to parse if error message itself is JSON
+                try {
+                    const errData = JSON.parse(errorMsg);
+                    if (errData && errData.error) errorMsg = errData.error;
+                } catch(e) { /* ignore if not JSON */ }
+                throw new Error(errorMsg);
             }
             
             let researchContext = data.research_topic_suggestion || messageText;
@@ -397,7 +758,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             console.error("Chat API Error:", error); 
-            addMessageToChat(`Sorry, I encountered an error: ${error.message || 'Unable to connect to the assistant.'}`, 'bot');
+            addMessageToChat(`Sorry, I encountered an error: ${escapeHtml(error.message || 'Unable to connect to the assistant.')}`, 'bot');
         } finally {
             sendButtonEl.disabled = false;
             sendButtonIconEl.className = originalButtonIconClass;

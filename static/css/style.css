@@ -328,6 +328,76 @@ textarea.form-control { min-height: 100px; resize: vertical; }
 .admin-filter-card .card-header { background-color: #f9fafb; }
 
 
+
+
+
+
+
+/* ... existing styles ... */
+
+/* Modal Specific Adjustments */
+#shareCredentialsModal.modal {
+    z-index: 1050; /* Default Bootstrap modal z-index, ensure it's high enough */
+}
+
+.modal-backdrop.show {
+    z-index: 1040; /* Default Bootstrap backdrop z-index, ensure it's below the modal */
+    opacity: 0.5 !important; /* Force opacity if it's an issue */
+    pointer-events: none !important;
+}
+
+.modal-content {
+    /* Ensure modal content itself can receive events */
+    pointer-events: auto !important; 
+    z-index: 1051; /* Ensure content is above backdrop and modal dialog itself */
+}
+
+#modal_recipient_email {
+    /* Ensure the input field can receive pointer events and is visually distinct */
+    pointer-events: auto !important;
+    background-color: #fff !important; /* Force white background if it's greyed out */
+    opacity: 1 !important; /* Force full opacity */
+    z-index: 1052; /* Make sure input is on top */
+}
+
+/* ... rest of your styles ... */
+
+
+
+
+
+.stat-card-link {
+    text-decoration: none; /* Remove underline from the link itself */
+    color: inherit; /* Make text color inherit from children */
+    display: block; /* Make the link take up the card's block space */
+    border-radius: var(--border-radius); /* Ensure link inherits card's border radius for click area */
+}
+
+.stat-card-link:hover,
+.stat-card-link:focus {
+    text-decoration: none; /* No underline on hover/focus */
+    /* The visual hover effect is primarily on the .stat-card child */
+}
+
+.admin-stats-grid .stat-card { /* Existing .stat-card styles */
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    box-shadow: var(--box-shadow);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Keep this transition */
+    border-left: 4px solid transparent; 
+    cursor: pointer; /* Add cursor pointer to the card itself */
+}
+
+.admin-stats-grid .stat-card-link:hover .stat-card, /* Apply hover to card when link is hovered */
+.admin-stats-grid .stat-card:hover { /* Keep direct card hover too */
+    transform: translateY(-4px);
+    box-shadow: var(--box-shadow-md);
+}
+
+
 @media (max-width: 991.98px) { 
     .app-sidebar {
         position: fixed; 

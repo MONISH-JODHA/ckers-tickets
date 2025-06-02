@@ -2,12 +2,179 @@
 
 {% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
 
+{% block head_extra %}
+<style>
+    :root { /* Re-affirming key variables or defining new ones if needed */
+        --primary-color: #1f73b7; 
+        --primary-color-darker: #165a91;
+        --danger-color: #dc3545;
+        --info-color: #17a2b8;
+        --success-color: #28a745;
+        --text-secondary: #6b7280;
+        --border-color: #e5e7eb;
+        --card-bg: #ffffff;
+        --content-bg: #f9fafb;
+        --box-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --border-radius: .375rem;
+    }
+
+    .admin-page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .admin-page-title {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: var(--text-primary, #111827);
+        margin-bottom: 0;
+    }
+    .btn-create-user {
+        box-shadow: var(--box-shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+        transition: all 0.2s ease-in-out;
+    }
+    .btn-create-user:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--box-shadow-md);
+    }
+
+    .users-table-card {
+        border-radius: var(--border-radius-lg, .5rem);
+        box-shadow: var(--box-shadow-md);
+        overflow: hidden; /* Ensures inner table respects card radius */
+        border: 1px solid var(--border-color);
+    }
+
+    .table.users-table {
+        margin-bottom: 0; /* Remove default table margin */
+        font-size: 0.875rem;
+        border-collapse: separate; /* Allows for row hover effects nicely */
+        border-spacing: 0;
+    }
+    .users-table thead th {
+        background-color: #f8f9fa; /* Lighter than content-bg for subtle distinction */
+        color: var(--text-secondary);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border-bottom: 2px solid var(--border-color);
+        border-top: none;
+        padding: 0.9rem 1.25rem;
+        white-space: nowrap;
+        font-size: 0.75rem;
+    }
+    .users-table tbody tr {
+        background-color: var(--card-bg);
+        transition: background-color 0.15s ease-in-out, transform 0.15s ease-in-out;
+        opacity: 0;
+        animation: fadeInRow 0.3s ease-out forwards;
+    }
+    /* Staggered animation for rows */
+    {% for i in range(1, 11) %}
+    .users-table tbody tr:nth-child({{i}}) { animation-delay: {{ i * 0.05 }}s; }
+    {% endfor %}
+
+    @keyframes fadeInRow {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .users-table tbody tr:hover {
+        background-color: #f1f5f9; /* Subtle hover */
+    }
+    .users-table td {
+        padding: 0.9rem 1.25rem;
+        vertical-align: middle;
+        border-top: 1px solid var(--border-color);
+        color: var(--text-primary, #111827);
+    }
+    .users-table td:first-child { border-left: none; }
+    .users-table td:last-child { border-right: none; }
+
+    .user-avatar-cell { display: flex; align-items: center; }
+    .avatar-xs { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+    
+    .badge-role {
+        font-size: 0.7rem;
+        padding: .35em .7em;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+    .badge-role.admin { background-color: var(--danger-color); color: white; }
+    .badge-role.agent { background-color: var(--info-color); color: white; }
+    .badge-role.client { background-color: var(--success-color); color: white; }
+
+    .actions-cell .btn {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.75rem;
+        margin-right: 0.25rem;
+        transition: all 0.15s ease;
+    }
+     .actions-cell .btn:hover {
+        transform: translateY(-1px);
+    }
+    .actions-cell .btn i { margin-right: 0.3em; }
+    .actions-cell .btn .btn-text { display: inline; } /* Show text by default */
+
+    .no-users-placeholder {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-secondary);
+    }
+    .no-users-placeholder i { font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.7; }
+
+    /* Modal Styling - assuming Bootstrap base */
+    .modal-header { border-bottom: 1px solid var(--border-color); }
+    .modal-footer { border-top: 1px solid var(--border-color); }
+    .modal-title strong { color: var(--primary-color); }
+    
+    #shareCredentialsModal.modal {
+        z-index: 1050; 
+    }
+
+    /* --- KEY CHANGE HERE --- */
+    .modal-backdrop.show {
+        z-index: 1040; 
+        opacity: 0.5 !important; 
+        pointer-events: none !important; /* Allow clicks/typing to pass through the backdrop */
+    }
+    /* --- END OF KEY CHANGE --- */
+
+    .modal-content {
+        pointer-events: auto !important; 
+        z-index: 1051; 
+    }
+
+    #modal_recipient_email {
+        pointer-events: auto !important;
+        background-color: #fff !important; 
+        opacity: 1 !important; 
+        z-index: 1052; 
+    }
+    #modal_recipient_email:disabled, #modal_recipient_email[readonly] {
+        background-color: #e9ecef; 
+        opacity: 1; 
+    }
+
+
+    @media (max-width: 768px) {
+        .actions-cell .btn .btn-text { display: none; } 
+        .actions-cell .btn { padding: 0.4rem; }
+        .actions-cell .btn i { margin-right: 0; }
+        .users-table thead th, .users-table td { padding: 0.75rem; }
+    }
+</style>
+{% endblock %}
+
 {% block content_header %}
-<div class="content-header-bar">
-    <h1 class="content-title">{{ title }}</h1>
+<div class="admin-page-header">
+    <h1 class="admin-page-title">{{ title }}</h1>
     {% block page_actions %}
-    <a href="{{ url_for('admin_create_edit_user') }}" class="btn btn-primary">
-        <i class="fas fa-user-plus fa-fw mr-1"></i>Create New User
+    <a href="{{ url_for('admin_create_edit_user') }}" class="btn btn-primary btn-create-user">
+        <i class="fas fa-user-plus fa-fw"></i>Create New User
     </a>
     {% endblock %}
 </div>
@@ -15,113 +182,104 @@
 
 {% block content %}
 <div class="admin-section">
-    <div class="card admin-card">
-        <div class="card-body p-0"> {# p-0 to make table flush with card borders #}
-            <div class="table-responsive">
-                <table class="table table-hover mb-0"> {# Removed table-bordered, table-striped for cleaner look like Zendesk #}
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Created At</th>
-                            <th style="width: 250px;">Actions</th> {# Increased width for more buttons #}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user_item in users %}
-                        <tr>
-                            <td>{{ user_item.id }}</td>
-                            <td>
-                                <img src="https://ui-avatars.com/api/?name={{ user_item.username[0]|upper }}&size=24&background=random&color=fff&rounded=true" class="avatar-xs mr-2" alt="">
+    <div class="card users-table-card">
+        <div class="table-responsive">
+            <table class="table users-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Created At</th>
+                        <th class="actions-cell-header" style="width: 220px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_item in users %}
+                    <tr>
+                        <td>{{ user_item.id }}</td>
+                        <td>
+                            <div class="user-avatar-cell">
+                                <img src="https://ui-avatars.com/api/?name={{ user_item.username[0]|upper }}&size=28&background=random&color=fff&rounded=true&font-size=0.5" class="avatar-xs mr-2" alt="{{ user_item.username[0] }}">
                                 {{ user_item.username }}
-                            </td>
-                            <td>{{ user_item.email }}</td>
-                            <td>
-                                {% if user_item.role == 'admin' %}
-                                    <span class="badge badge-pill badge-danger">{{ user_item.role|capitalize }}</span>
-                                {% elif user_item.role == 'agent' %}
-                                    <span class="badge badge-pill badge-info">{{ user_item.role|capitalize }}</span>
-                                {% else %}
-                                    <span class="badge badge-pill badge-success">{{ user_item.role|capitalize }}</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ user_item.created_at.strftime('%b %d, %Y %H:%M') if user_item.created_at else 'N/A' }}</td>
-                            <td>
-                                <a href="{{ url_for('admin_create_edit_user', user_id=user_item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit User">
-                                    <i class="fas fa-edit fa-fw"></i> <span class="d-none d-md-inline">Edit</span>
-                                </a>
-                                
-                                <button type="button" class="btn btn-sm btn-outline-secondary mr-1" data-toggle="modal" data-target="#shareCredentialsModal" 
-                                        data-userid="{{ user_item.id }}" data-username="{{ user_item.username }}" title="Share Credentials Info">
-                                    <i class="fas fa-share-square fa-fw"></i> <span class="d-none d-md-inline">Share</span>
-                                </button>
+                            </div>
+                        </td>
+                        <td>{{ user_item.email }}</td>
+                        <td>
+                            <span class="badge badge-pill badge-role {{ user_item.role }}">{{ user_item.role|capitalize }}</span>
+                        </td>
+                        <td>{{ user_item.created_at.strftime('%b %d, %Y %H:%M') if user_item.created_at else 'N/A' }}</td>
+                        <td class="actions-cell">
+                            <a href="{{ url_for('admin_create_edit_user', user_id=user_item.id) }}" class="btn btn-sm btn-outline-primary" title="Edit User">
+                                <i class="fas fa-edit"></i> <span class="btn-text">Edit</span>
+                            </a>
+                            
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#shareCredentialsModal" 
+                                    data-userid="{{ user_item.id }}" data-username="{{ user_item.username }}" title="Share Credentials Info">
+                                <i class="fas fa-share-alt"></i> <span class="btn-text">Share</span>
+                            </button>
 
-                                {% if user_item.id != current_user.id and not (user_item.is_admin and users|selectattr('is_admin')|list|length <= 1) %}
-                                <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="POST" class="d-inline"
-                                      onsubmit="return confirm('Are you absolutely sure you want to delete user {{ user_item.username }}? This action cannot be undone.');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete User">
-                                        <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
-                                    </button>
-                                </form>
-                                {% else %}
-                                    <button type="button" class="btn btn-sm btn-outline-danger" disabled title="Cannot delete this user">
-                                        <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
-                                    </button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="6" class="text-center p-4">
-                                <i class="fas fa-users fa-2x text-muted mb-2"></i><br>
-                                No users found.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                            {% if user_item.id != current_user.id and not (user_item.is_admin and users|selectattr('is_admin')|list|length <= 1) %}
+                            <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="POST" class="d-inline"
+                                  onsubmit="return confirm('Are you absolutely sure you want to delete user {{ user_item.username }}? This action cannot be undone.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete User">
+                                    <i class="fas fa-trash-alt"></i> <span class="btn-text">Delete</span>
+                                </button>
+                            </form>
+                            {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-danger" disabled title="Cannot delete this user">
+                                    <i class="fas fa-trash-alt"></i> <span class="btn-text">Delete</span>
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="no-users-placeholder">
+                            <i class="fas fa-users"></i><br>
+                            No users found. You can create one using the button above.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 
-    {# Modal remains largely the same, but ensure it's styled consistently by Bootstrap #}
     <div class="modal fade" id="shareCredentialsModal" tabindex="-1" role="dialog" aria-labelledby="shareCredentialsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
+            <div class="modal-content" style="border-radius: var(--border-radius-lg, .5rem); box-shadow: var(--box-shadow-md);">
                 <form id="shareCredentialsForm" method="POST" action=""> 
                     {{ share_form.hidden_tag() }}
                     <div class="modal-header">
-                        <h5 class="modal-title" id="shareCredentialsModalLabel">Share Credentials Info for <strong id="modalUsername" class="text-primary"></strong></h5>
+                        <h5 class="modal-title" id="shareCredentialsModalLabel">Share Credentials Info for <strong id="modalUsername"></strong></h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">×</span>
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted">This will send an email with the username and instructions for password management.</p>
-                        <div class="form-group">
+                        <p class="text-muted small">This will send an email with the username and instructions for password management. The user's actual password will NOT be sent.</p>
+                        <div class="form-group mt-3">
                             {{ share_form.recipient_email.label(for="modal_recipient_email", class="form-control-label") }}
-                            {{ share_form.recipient_email(class="form-control", id="modal_recipient_email", placeholder="Enter recipient's email") }}
+                            {{ share_form.recipient_email(class="form-control form-control-sm", id="modal_recipient_email", placeholder="Enter recipient's email address") }}
                             {% if share_form.recipient_email.errors %}
                                 <div class="invalid-feedback d-block">
                                     {% for error in share_form.recipient_email.errors %}<span>{{ error }}</span>{% endfor %}
                                 </div>
                             {% endif %}
                         </div>
-                         <div class="alert alert-warning small mt-3">
-                            <strong>Note:</strong> The user's actual password will NOT be sent.
-                        </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Send Email</button>
+                        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane mr-1"></i>Send Email</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -138,9 +296,24 @@ $(document).ready(function() {
         
         var formAction = "{{ url_for('admin_share_credentials', user_id=0) }}".replace('0', userId);
         modal.find('#shareCredentialsForm').attr('action', formAction);
-        modal.find('#modal_recipient_email').val(''); 
+        
+        var emailInput = modal.find('#modal_recipient_email');
+        emailInput.val(''); 
+        emailInput.removeClass('is-invalid');
+        emailInput.prop('disabled', false); 
+        emailInput.prop('readonly', false);
+        
         modal.find('.invalid-feedback').empty().removeClass('d-block');
-        modal.find('.is-invalid').removeClass('is-invalid');
+    });
+
+    $('#shareCredentialsModal').on('shown.bs.modal', function () {
+        var emailInput = $(this).find('#modal_recipient_email');
+        // console.log("Modal shown, attempting to focus email input:", emailInput.length > 0);
+        if (emailInput.length > 0) {
+            emailInput.focus(); 
+            // console.log("Email input is visible:", emailInput.is(':visible'));
+            // console.log("Email input is disabled:", emailInput.is(':disabled'));
+        }
     });
 });
 </script>

@@ -162,15 +162,30 @@
             </div>
         </nav>
    
+        <!-- Main Content Area -->
         <div class="app-main {% if system_options_active %}sidebar-wide-open-main{% endif %}" id="appMain">
             <header class="app-header">
                 <button class="btn btn-icon d-lg-none" id="sidebarMobileToggle" aria-label="Toggle sidebar">
                     <i class="fas fa-bars"></i>
                 </button>
-                <div class="page-actions-placeholder">
-                    {% block page_actions %}{% endblock %}
-                </div>
+                
+                {# This block will be replaced by child templates if they define it #}
+                {# Otherwise, the default structure with page_actions_placeholder is used #}
+                {% block content_header %}
+                    <div class="content-header-bar">
+                        {% if title %} 
+                            <h1 class="content-title">{{ title }}</h1>
+                        {% else %}
+                             <div></div> {# Empty div to help flexbox alignment if no title #}
+                        {% endif %}
+                        <div class="page-actions-placeholder">
+                             {% block page_actions %}{% endblock %} {# Child templates fill this for buttons #}
+                        </div>
+                    </div>
+                {% endblock content_header %}
+
                  <div class="top-right-actions">
+                    {# Future placeholder for global search, notifications, user dropdown etc. #}
                  </div>
             </header>
 
@@ -190,14 +205,8 @@
                     {% endif %}
                 {% endwith %}
                 
-                {% block content_header %}
-                    {% if title %}
-                    <div class="content-header-bar">
-                        <h1 class="content-title">{{ title }}</h1>
-                    </div>
-                    {% endif %}
-                {% endblock %}
-
+                {# If a child template did not override content_header, this is the main content area #}
+                {# If it did, then this block is where the rest of its content goes after its header #}
                 {% block content %}{% endblock %}
             </main>
             
@@ -234,60 +243,67 @@
             }
 
             // Initial state on page load:
-            // If current page is a system options sub-page, sidebar should be wide.
             if (isSystemOptionsPage) {
-                setSidebarWideState(true);
+                setSidebarWideState(true); // Sidebar starts wide if on a system options page
                 systemOptionsToggle.addClass('show-submenu').attr('aria-expanded', 'true').removeClass('collapsed');
-                // adminOptionsCollapse.addClass('show'); // Bootstrap should handle this based on aria-expanded
+                // adminOptionsCollapse should have 'show' class from Jinja
             } else {
-                // If not a system options page, ensure sidebar is normal width and sub-menu is collapsed
-                setSidebarWideState(false);
-                systemOptionsToggle.removeClass('show-submenu').attr('aria-expanded', 'false').addClass('collapsed');
-                adminOptionsCollapse.removeClass('show');
+                // Ensure it's not wide if not a system options page
+                setSidebarWideState(false); 
+                // And ensure toggle reflects collapsed state if submenu isn't shown by Jinja
+                if (!adminOptionsCollapse.hasClass('show')) {
+                    systemOptionsToggle.removeClass('show-submenu').attr('aria-expanded', 'false').addClass('collapsed');
+                }
             }
 
-            // When "System Options" itself is clicked to toggle its sub-menu
             systemOptionsToggle.on('click', function (e) {
-                const isCurrentlyCollapsed = $(this).hasClass('collapsed'); // Check before Bootstrap toggles it
-                if (isCurrentlyCollapsed) { // It's about to open
+                const isCurrentlyOpen = adminOptionsCollapse.hasClass('show');
+                if (!isCurrentlyOpen) { // About to open
                     setSidebarWideState(true);
-                } else { // It's about to close
-                    // If we are NOT on a system options page, then shrink.
-                    // If we ARE on a system options page, it should remain wide.
+                } else { // About to close
+                    // Only shrink if we are NOT currently on a system options page.
+                    // If we are, it should remain wide even if user manually collapses.
                     if (!isSystemOptionsPage) {
                         setSidebarWideState(false);
                     }
                 }
-                // Let Bootstrap handle the actual collapse/expand
             });
             
-            // After Bootstrap finishes showing the collapse (sub-menu)
             adminOptionsCollapse.on('shown.bs.collapse', function () {
                 systemOptionsToggle.addClass('show-submenu');
-                // Ensure sidebar is wide if it was opened by a click and not already wide due to page context
-                if (!appSidebar.hasClass('sidebar-wide-open')) {
-                    setSidebarWideState(true);
-                }
+                // If shown, ensure sidebar is wide (handles cases like direct URL nav to sub-item)
+                setSidebarWideState(true); 
             });
 
-            // After Bootstrap finishes hiding the collapse (sub-menu)
             adminOptionsCollapse.on('hidden.bs.collapse', function () {
                 systemOptionsToggle.removeClass('show-submenu');
-                // Only shrink if the current page is NOT a system options page
+                // If the sub-menu is hidden, AND we are not on a system options page, shrink the sidebar.
                 if (!isSystemOptionsPage) { 
                     setSidebarWideState(false);
                 }
+                // If we ARE on a system options page, the sidebar remains wide due to the Jinja class.
             });
 
-            // When any OTHER top-level nav link is clicked (that is not System Options)
+            // Clicking any sub-menu link will cause navigation.
+            // On the new page, `isSystemOptionsPage` will be re-evaluated.
+            // If the new page IS a system options page, sidebar will be wide due to Jinja.
+            // If the new page IS NOT a system options page, the sidebar will be narrow.
+            $('#adminOptionsCollapse .sub-nav-link').on('click', function() {
+                // No need to call setSidebarWideState(false) here for immediate shrink,
+                // as page navigation will handle the correct state.
+                // The goal is to keep it wide while navigating WITHIN system options.
+            });
+            
+            // For any OTHER top-level nav link (not system options)
             $('.sidebar-nav > .nav-item > .nav-link').not(systemOptionsToggle).on('click', function() {
-                // If the system options menu is open and we're navigating away, collapse it and shrink sidebar
+                // If this click navigates away from system options, the sidebar should shrink.
+                // This happens naturally on page reload as `isSystemOptionsPage` will be false.
+                // For immediate UX, if the system options *was* open, we can trigger its collapse.
                 if (adminOptionsCollapse.hasClass('show')) {
-                    adminOptionsCollapse.collapse('hide'); // This will trigger hidden.bs.collapse
-                    // setSidebarWideState(false); // The hidden.bs.collapse event will handle this
+                    adminOptionsCollapse.collapse('hide'); // This will trigger hidden.bs.collapse, which then shrinks if not on sys page.
                 } else {
-                    // If some other menu was causing a wide state (if you implement more)
-                    setSidebarWideState(false); 
+                     // If some other future menu could make it wide, handle here.
+                    setSidebarWideState(false); // Default to narrow if not system options context.
                 }
             });
             
