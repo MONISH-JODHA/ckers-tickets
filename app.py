@@ -639,7 +639,8 @@ def trigger_priority_call_alert(ticket, old_severity=None):
         flash(f'High priority ticket #{ticket.id} alerted via call to {recipient_phone_number}. ({alert_description})', 'success') 
     except TwilioRestException as e:
         app.logger.error(f"Twilio API error for ticket #{ticket.id}: {e}")
-        flash(f'Error initiating Twilio call for ticket #{ticket.id}: {e.message}', 'danger')
+        error_message_detail = getattr(e, 'msg', str(e)) # Safely get msg or fallback to str(e)
+        flash(f'Error initiating Twilio call for ticket #{ticket.id}: {error_message_detail}', 'danger')
     except Exception as e:
         app.logger.error(f"Unexpected error during Twilio call for ticket #{ticket.id}: {e}", exc_info=True)
         flash(f'An unexpected error occurred while trying to initiate a call for ticket #{ticket.id}.', 'danger')
