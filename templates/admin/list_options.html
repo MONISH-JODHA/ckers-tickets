@@ -1,91 +1,91 @@
 {% extends "base.html" %}
-{% set title = title %} {# Corrected: Use the title variable passed from the route #}
 
-{% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>{{ title }}</h2>
+{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content_header %}
+<div class="content-header-bar">
+    <h1 class="content-title">{{ title }}</h1>
+    {% block page_actions %}
         {% set new_url_name = 'admin_create_edit_' + model_name %}
-        <a href="{{ url_for(new_url_name) }}" class="btn btn-success">
-            <i class="fas fa-plus mr-1"></i> New {{ model_name.replace('_', ' ').title() }}
+        <a href="{{ url_for(new_url_name) }}" class="btn btn-primary">
+            <i class="fas fa-plus fa-fw mr-1"></i> New {{ model_name.replace('_', ' ').replace(' option', '').title() }}
         </a>
-    </div>
-
-    {% if items %}
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <table class="table table-hover mb-0 admin-table">
-                <thead class="thead-light">
-                    <tr>
-                        <th>Name</th>
-                        {% if model_name == 'category' or model_name == 'severity' %}
-                            <th>Description</th>
-                        {% endif %}
-                        {% if model_name == 'severity' %}
-                            <th>Order</th>
-                        {% endif %}
-                        
-                        {% set models_with_active_flag = [
-                            'cloud_provider', 'severity', 'environment', 
-                            'organization', 'form_type', 'apn_opportunity', 'support_modal'
-                        ] %}
-                        {% if model_name in models_with_active_flag %}
-                            <th>Active</th>
-                        {% endif %}
-                        <th style="width: 15%;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr>
-                        <td>{{ item.name }}</td>
-                        
-                        {% if model_name == 'category' or model_name == 'severity' %}
-                            <td>{{ item.description | default('N/A', true) }}</td>
-                        {% endif %}
-
-                        {% if model_name == 'severity' %}
-                            <td>{{ item.order | default('N/A', true) }}</td>
-                        {% endif %}
-
-                        {% if model_name in models_with_active_flag %}
-                            <td>
-                                {% if item.is_active %}
-                                    <span class="badge badge-success">Yes</span>
-                                {% else %}
-                                    <span class="badge badge-danger">No</span>
-                                {% endif %}
-                            </td>
-                        {% endif %}
-                        
-                        <td>
-                            {% set edit_url_name = 'admin_create_edit_' + model_name %}
-                            {% set delete_url_name = 'admin_delete_' + model_name %}
-                            <a href="{{ url_for(edit_url_name, item_id=item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <form action="{{ url_for(delete_url_name, item_id=item.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this {{ model_name.replace('_', ' ') }}? This action cannot be undone.');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                                    <i class="fas fa-trash-alt"></i> Delete
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% else %}
-    <div class="alert alert-info" role="alert">
-        No {{ model_name.replace('_', ' ').lower() }}s found. <a href="{{ url_for(new_url_name) }}">Create the first one?</a>
-    </div>
-    {% endif %}
+    {% endblock %}
 </div>
 {% endblock %}
 
-{% block head_extra %}
-    {# This was already in base.html, so it's redundant here, but keeping if you had it for a reason #}
-    {# <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"> #}
+{% block content %}
+<div class="admin-section admin-options-list">
+    {% if items %}
+    <div class="card admin-card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            {% if model_name == 'category' or model_name == 'severity_option' %}
+                                <th>Description</th>
+                            {% endif %}
+                            {% if model_name == 'severity_option' %}
+                                <th>Order</th>
+                            {% endif %}
+                            
+                            {% set models_with_active_flag = [
+                                'cloud_provider_option', 'severity_option', 'environment_option', 
+                                'organization_option', 'form_type_option', 'apn_opportunity_option', 'support_modal_option'
+                            ] %}
+                            {% if model_name in models_with_active_flag %}
+                                <th>Active</th>
+                            {% endif %}
+                            <th style="width: 180px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            {% if model_name == 'category' or model_name == 'severity_option' %}
+                                <td>{{ item.description | default('N/A', true) | truncate(80) }}</td>
+                            {% endif %}
+                            {% if model_name == 'severity_option' %}
+                                <td>{{ item.order | default('N/A', true) }}</td>
+                            {% endif %}
+                            {% if model_name in models_with_active_flag %}
+                                <td>
+                                    {% if item.is_active %}
+                                        <span class="badge badge-pill badge-success">Yes</span>
+                                    {% else %}
+                                        <span class="badge badge-pill badge-secondary">No</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                            <td>
+                                {% set edit_url_name = 'admin_create_edit_' + model_name %}
+                                {% set delete_url_name = 'admin_delete_' + model_name %}
+                                <a href="{{ url_for(edit_url_name, item_id=item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit">
+                                    <i class="fas fa-edit fa-fw"></i> <span class="d-none d-md-inline">Edit</span>
+                                </a>
+                                <form action="{{ url_for(delete_url_name, item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this {{ model_name.replace('_', ' ').replace(' option', '') }}? This cannot be undone.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center p-4">
+        <i class="fas fa-info-circle fa-2x mb-2"></i><br>
+        No {{ model_name.replace('_', ' ').replace(' option', '').lower() }}s found. 
+        <a href="{{ url_for(new_url_name) }}" class="alert-link">Create the first one?</a>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

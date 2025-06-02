@@ -1,91 +1,106 @@
 {% extends "base.html" %}
-{% set title = title %} {# Corrected: Use the title variable passed from the route #}
+
+{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content_header %}
+<div class="content-header-bar">
+    <h1 class="content-title">{{ title }}</h1>
+    {% block page_actions %}
+    <a href="{{ url_for('admin_create_edit_user') }}" class="btn btn-primary">
+        <i class="fas fa-user-plus fa-fw mr-1"></i>Create New User
+    </a>
+    {% endblock %}
+</div>
+{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>{{ title }}</h1>
-        <a href="{{ url_for('admin_create_edit_user') }}" class="btn btn-success">
-            <i class="fas fa-user-plus mr-1"></i>Create New User
-        </a>
+<div class="admin-section">
+    <div class="card admin-card">
+        <div class="card-body p-0"> {# p-0 to make table flush with card borders #}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0"> {# Removed table-bordered, table-striped for cleaner look like Zendesk #}
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Created At</th>
+                            <th style="width: 250px;">Actions</th> {# Increased width for more buttons #}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user_item in users %}
+                        <tr>
+                            <td>{{ user_item.id }}</td>
+                            <td>
+                                <img src="https://ui-avatars.com/api/?name={{ user_item.username[0]|upper }}&size=24&background=random&color=fff&rounded=true" class="avatar-xs mr-2" alt="">
+                                {{ user_item.username }}
+                            </td>
+                            <td>{{ user_item.email }}</td>
+                            <td>
+                                {% if user_item.role == 'admin' %}
+                                    <span class="badge badge-pill badge-danger">{{ user_item.role|capitalize }}</span>
+                                {% elif user_item.role == 'agent' %}
+                                    <span class="badge badge-pill badge-info">{{ user_item.role|capitalize }}</span>
+                                {% else %}
+                                    <span class="badge badge-pill badge-success">{{ user_item.role|capitalize }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user_item.created_at.strftime('%b %d, %Y %H:%M') if user_item.created_at else 'N/A' }}</td>
+                            <td>
+                                <a href="{{ url_for('admin_create_edit_user', user_id=user_item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit User">
+                                    <i class="fas fa-edit fa-fw"></i> <span class="d-none d-md-inline">Edit</span>
+                                </a>
+                                
+                                <button type="button" class="btn btn-sm btn-outline-secondary mr-1" data-toggle="modal" data-target="#shareCredentialsModal" 
+                                        data-userid="{{ user_item.id }}" data-username="{{ user_item.username }}" title="Share Credentials Info">
+                                    <i class="fas fa-share-square fa-fw"></i> <span class="d-none d-md-inline">Share</span>
+                                </button>
+
+                                {% if user_item.id != current_user.id and not (user_item.is_admin and users|selectattr('is_admin')|list|length <= 1) %}
+                                <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="POST" class="d-inline"
+                                      onsubmit="return confirm('Are you absolutely sure you want to delete user {{ user_item.username }}? This action cannot be undone.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete User">
+                                        <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
+                                    </button>
+                                </form>
+                                {% else %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger" disabled title="Cannot delete this user">
+                                        <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center p-4">
+                                <i class="fas fa-users fa-2x text-muted mb-2"></i><br>
+                                No users found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-hover table-striped table-bordered">
-            <thead class="thead-dark">
-                <tr>
-                    <th>ID</th>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Created At</th>
-                    <th style="width: 220px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user_item in users %}
-                <tr>
-                    <td>{{ user_item.id }}</td>
-                    <td>{{ user_item.username }}</td>
-                    <td>{{ user_item.email }}</td>
-                    <td>
-                        {% if user_item.role == 'admin' %}
-                            <span class="badge badge-danger p-2">{{ user_item.role|capitalize }}</span>
-                        {% elif user_item.role == 'agent' %}
-                            <span class="badge badge-info p-2">{{ user_item.role|capitalize }}</span>
-                        {% else %}
-                            <span class="badge badge-success p-2">{{ user_item.role|capitalize }}</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ user_item.created_at.strftime('%Y-%m-%d %H:%M') if user_item.created_at else 'N/A' }}</td>
-                    <td>
-                        <a href="{{ url_for('admin_create_edit_user', user_id=user_item.id) }}" class="btn btn-sm btn-primary mr-1" title="Edit User">
-                            <i class="fas fa-edit"></i> Edit
-                        </a>
-                        
-                        <button type="button" class="btn btn-sm btn-warning mr-1" data-toggle="modal" data-target="#shareCredentialsModal" 
-                                data-userid="{{ user_item.id }}" data-username="{{ user_item.username }}" title="Share Credentials Info">
-                            <i class="fas fa-share-square"></i> Share
-                        </button>
-
-                        {% if user_item.id != current_user.id and not (user_item.is_admin and users|selectattr('is_admin')|list|length <= 1) %}
-                        <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="POST" style="display:inline;" 
-                              onsubmit="return confirm('Are you absolutely sure you want to delete user {{ user_item.username }}? This action cannot be undone.');">
-                            
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            
-                            <button type="submit" class="btn btn-sm btn-danger" title="Delete User">
-                                <i class="fas fa-trash-alt"></i> Delete
-                            </button>
-                        </form>
-                        {% else %}
-                            <button type="button" class="btn btn-sm btn-danger" disabled title="Cannot delete this user">
-                                <i class="fas fa-trash-alt"></i> Delete
-                            </button>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="6" class="text-center">No users found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
+    {# Modal remains largely the same, but ensure it's styled consistently by Bootstrap #}
     <div class="modal fade" id="shareCredentialsModal" tabindex="-1" role="dialog" aria-labelledby="shareCredentialsModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
+        <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content">
                 <form id="shareCredentialsForm" method="POST" action=""> 
                     {{ share_form.hidden_tag() }}
                     <div class="modal-header">
-                        <h5 class="modal-title" id="shareCredentialsModalLabel">Share Credentials Info for <strong id="modalUsername"></strong></h5>
+                        <h5 class="modal-title" id="shareCredentialsModalLabel">Share Credentials Info for <strong id="modalUsername" class="text-primary"></strong></h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">×</span>
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p>This will send an email with the username and instructions for password management.</p>
+                        <p class="text-muted">This will send an email with the username and instructions for password management.</p>
                         <div class="form-group">
                             {{ share_form.recipient_email.label(for="modal_recipient_email", class="form-control-label") }}
                             {{ share_form.recipient_email(class="form-control", id="modal_recipient_email", placeholder="Enter recipient's email") }}
@@ -95,7 +110,7 @@
                                 </div>
                             {% endif %}
                         </div>
-                         <div class="alert alert-warning small">
+                         <div class="alert alert-warning small mt-3">
                             <strong>Note:</strong> The user's actual password will NOT be sent.
                         </div>
                     </div>

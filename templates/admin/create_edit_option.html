@@ -1,63 +1,61 @@
 {% extends "base.html" %}
-{% set title = title %} {# Corrected: Use the title variable passed from the route #}
+
+{% block title_tag %}{{ legend }} - Ticket CMS{% endblock %}
+
+{% block content_header %}
+    {# The legend is used as the main title here #}
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card mt-4 shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h2 class="mb-0">{{ legend }}</h2>
-            </div>
-            <div class="card-body p-4">
-                <form method="POST" novalidate>
-                    {{ form.hidden_tag() }}
-                    <fieldset class="form-group">
-                        <div class="form-group">
-                            {{ form.name.label(class="form-control-label") }}
-                            {{ form.name(class="form-control " + ("is-invalid" if form.name.errors else ""), placeholder="Enter " + item_type_name + " Name") }}
-                            {% if form.name.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in form.name.errors %}<span>{{ error }}</span>{% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
+<div class="admin-section admin-form-section">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="card admin-card mt-0">
+                <div class="card-header">
+                     <h2 class="mb-0 h5">{{ legend }}</h2>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" novalidate>
+                        {{ form.hidden_tag() }}
+                        <fieldset>
+                            <div class="form-group">
+                                {{ form.name.label(class="form-control-label") }}
+                                {{ form.name(class="form-control " + ("is-invalid" if form.name.errors else ""), placeholder="Enter " + item_type_name + " Name") }}
+                                {% if form.name.errors %}<div class="invalid-feedback d-block">{% for e in form.name.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
+                            </div>
 
-                        {% if form.description %}
-                        <div class="form-group">
-                            {{ form.description.label(class="form-control-label") }}
-                            {{ form.description(class="form-control " + ("is-invalid" if form.description.errors else ""), placeholder="Optional description") }}
-                            {% if form.description.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in form.description.errors %}<span>{{ error }}</span>{% endfor %}
-                                </div>
+                            {% if form.description %}
+                            <div class="form-group">
+                                {{ form.description.label(class="form-control-label") }}
+                                {{ form.description(class="form-control " + ("is-invalid" if form.description.errors else ""), placeholder="Optional description") }}
+                                {% if form.description.errors %}<div class="invalid-feedback d-block">{% for e in form.description.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
+                            </div>
                             {% endif %}
-                        </div>
-                        {% endif %}
 
-                        {% if form.order %}
-                        <div class="form-group">
-                            {{ form.order.label(class="form-control-label") }}
-                            {{ form.order(class="form-control " + ("is-invalid" if form.order.errors else ""), placeholder="e.g., 1 for highest") }}
-                            {% if form.order.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in form.order.errors %}<span>{{ error }}</span>{% endfor %}
-                                </div>
+                            {% if form.order %}
+                            <div class="form-group">
+                                {{ form.order.label(class="form-control-label") }}
+                                {{ form.order(class="form-control " + ("is-invalid" if form.order.errors else ""), placeholder="e.g., 1 for highest, for sorting") }}
+                                {% if form.order.errors %}<div class="invalid-feedback d-block">{% for e in form.order.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
+                            </div>
                             {% endif %}
+                            
+                            {% if form.is_active is defined %}
+                            <div class="form-group">
+                                <div class="custom-control custom-checkbox">
+                                    {{ form.is_active(class="custom-control-input" + (" is-invalid" if form.is_active.errors else "")) }}
+                                    {{ form.is_active.label(class="custom-control-label") }}
+                                    {% if form.is_active.errors %}<div class="invalid-feedback d-block">{% for e in form.is_active.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </fieldset>
+                        <div class="form-group mt-4 pt-2 border-top">
+                            {{ form.submit(class="btn btn-primary") }}
+                            <a href="{{ list_url }}" class="btn btn-outline-secondary ml-2">Cancel</a>
                         </div>
-                        {% endif %}
-                        
-                        {% if form.is_active is defined %}
-                        <div class="form-group form-check">
-                            {{ form.is_active(class="form-check-input") }}
-                            {{ form.is_active.label(class="form-check-label") }}
-                        </div>
-                        {% endif %}
-                    </fieldset>
-                    <div class="form-group mt-4">
-                        {{ form.submit(class="btn btn-primary btn-lg") }}
-                        <a href="{{ list_url }}" class="btn btn-secondary btn-lg">Cancel</a>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

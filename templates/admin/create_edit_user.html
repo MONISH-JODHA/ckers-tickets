@@ -1,103 +1,78 @@
 {% extends "base.html" %}
-{% set title = title %} {# Corrected: Use the title variable passed from the route #}
+
+{% block title_tag %}{{ legend }} - Ticket CMS{% endblock %}
+
+{% block content_header %}
+    {# The legend is used as the main title here #}
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-7">
-        <div class="card mt-4 shadow">
-            <div class="card-header bg-primary text-white">
-                <h2 class="mb-0">{{ legend }}</h2>
-            </div>
-            <div class="card-body p-4">
-                <form method="POST" novalidate>
-                    {{ form.hidden_tag() }}
-                    <fieldset>
-                        <div class="form-group mb-3">
-                            {{ form.username.label(class="form-control-label") }}
-                            {% if form.username.errors %}
-                                {{ form.username(class="form-control form-control-lg is-invalid") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.username.errors %}<span>{{ error }}</span>{% endfor %}
+<div class="admin-section admin-form-section">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+            <div class="card admin-card mt-0"> {# mt-0 as content_header_bar provides spacing #}
+                <div class="card-header">
+                    <h2 class="mb-0 h5">{{ legend }}</h2> {# Using h5 for card header title to be less dominant than page title #}
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" novalidate>
+                        {{ form.hidden_tag() }}
+                        <fieldset>
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    {{ form.username.label(class="form-control-label") }}
+                                    {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else "")) }}
+                                    {% for error in form.username.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                 </div>
-                            {% else %}
-                                {{ form.username(class="form-control form-control-lg") }}
-                            {% endif %}
-                        </div>
+                                <div class="form-group col-md-6">
+                                    {{ form.email.label(class="form-control-label") }}
+                                    {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+                                    {% for error in form.email.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    {{ form.role.label(class="form-control-label") }}
+                                    {{ form.role(class="form-control custom-select" + (" is-invalid" if form.role.errors else "")) }}
+                                    {% for error in form.role.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ form.organization_id.label(class="form-control-label") }}
+                                    {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
+                                    {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                             <small class="form-text text-muted d-block mb-3">Assign user to an organization (optional).</small>
 
-                        <div class="form-group mb-3">
-                            {{ form.email.label(class="form-control-label") }}
-                            {% if form.email.errors %}
-                                {{ form.email(class="form-control form-control-lg is-invalid") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.email.errors %}<span>{{ error }}</span>{% endfor %}
-                                </div>
-                            {% else %}
-                                {{ form.email(class="form-control form-control-lg") }}
-                            {% endif %}
-                             <small class="form-text text-muted">Admin can set any email address.</small>
-                        </div>
 
-                        <div class="form-group mb-3">
-                            {{ form.role.label(class="form-control-label") }}
-                            {% if form.role.errors %}
-                                {{ form.role(class="form-control form-control-lg custom-select is-invalid") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.role.errors %}<span>{{ error }}</span>{% endfor %}
+                            <hr class="my-4">
+                            <p class="text-muted small mb-2">
+                                {% if user %}
+                                    Leave password fields blank to keep the current password.
+                                {% else %}
+                                    Set an initial password for the new user.
+                                {% endif %}
+                            </p>
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    {{ form.password.label(class="form-control-label") }}
+                                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
+                                    {% for error in form.password.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                 </div>
-                            {% else %}
-                                {{ form.role(class="form-control form-control-lg custom-select") }}
-                            {% endif %}
-                        </div>
-
-                        <div class="form-group mb-3">
-                            {{ form.organization_id.label(class="form-control-label") }}
-                            {% if form.organization_id.errors %}
-                                {{ form.organization_id(class="form-control form-control-lg custom-select is-invalid") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.organization_id.errors %}<span>{{ error }}</span>{% endfor %}
+                                <div class="form-group col-md-6">
+                                    {{ form.password2.label(class="form-control-label") }}
+                                    {{ form.password2(class="form-control" + (" is-invalid" if form.password2.errors else "")) }}
+                                    {% for error in form.password2.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                 </div>
-                            {% else %}
-                                {{ form.organization_id(class="form-control form-control-lg custom-select") }}
-                            {% endif %}
-                            <small class="form-text text-muted">Assign this user to an organization (optional). This may affect their default organization when creating tickets if they are a client.</small>
+                            </div>
+                        </fieldset>
+                        <div class="form-group mt-4 pt-2 border-top">
+                            {{ form.submit(class="btn btn-primary") }}
+                            <a href="{{ url_for('admin_user_list') }}" class="btn btn-outline-secondary ml-2">Cancel</a>
                         </div>
-                        <hr>
-                        <p class="text-muted small">
-                            {% if user %}
-                                Leave password fields blank to keep the current password.
-                            {% else %}
-                                Set an initial password for the new user.
-                            {% endif %}
-                        </p>
-                        <div class="form-group mb-3">
-                            {{ form.password.label(class="form-control-label") }}
-                            {% if form.password.errors %}
-                                {{ form.password(class="form-control form-control-lg is-invalid") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
-                                </div>
-                            {% else %}
-                                {{ form.password(class="form-control form-control-lg") }}
-                            {% endif %}
-                        </div>
-
-                        <div class="form-group mb-4">
-                            {{ form.password2.label(class="form-control-label") }}
-                            {% if form.password2.errors %}
-                                {{ form.password2(class="form-control form-control-lg is-invalid") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.password2.errors %}<span>{{ error }}</span>{% endfor %}
-                                </div>
-                            {% else %}
-                                {{ form.password2(class="form-control form-control-lg") }}
-                            {% endif %}
-                        </div>
-                    </fieldset>
-                    <div class="form-group mt-4">
-                        {{ form.submit(class="btn btn-lg btn-primary") }}
-                        <a href="{{ url_for('admin_user_list') }}" class="btn btn-lg btn-secondary">Cancel</a>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

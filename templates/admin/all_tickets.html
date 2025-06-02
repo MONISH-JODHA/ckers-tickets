@@ -1,18 +1,25 @@
 {% extends "base.html" %}
-{% set title = title %}
+
+{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
+
+{% block content_header %}
+<div class="content-header-bar">
+    <h1 class="content-title">{{ title }}</h1>
+    {# No specific page actions here, filters are below #}
+</div>
+{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>{{ title }}</h1>
-    </div>
-
-    <div class="card mb-4 shadow-sm">
-        <div class="card-header">Filter Tickets</div>
+<div class="admin-section">
+    <div class="card admin-filter-card mb-4">
+        <div class="card-header">
+            <i class="fas fa-filter fa-fw mr-1"></i> Filter Tickets
+        </div>
         <div class="card-body">
             <form method="GET" action="{{ url_for('admin_all_tickets') }}">
                 <div class="row">
-                    <div class="col-md-3 form-group">
-                        <label for="status">Status</label>
+                    <div class="col-md-6 col-lg-3 form-group">
+                        <label for="status" class="form-control-label">Status</label>
                         <select name="status" id="status" class="form-control custom-select">
                             <option value="">All Statuses</option>
                             {% for value, display in statuses %}
@@ -20,8 +27,8 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-3 form-group">
-                        <label for="priority">Priority</label>
+                    <div class="col-md-6 col-lg-3 form-group">
+                        <label for="priority" class="form-control-label">Priority</label>
                         <select name="priority" id="priority" class="form-control custom-select">
                             <option value="">All Priorities</option>
                              {% for value, display in priorities %}
@@ -29,8 +36,8 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-3 form-group">
-                        <label for="category_id">Category</label>
+                    <div class="col-md-6 col-lg-3 form-group">
+                        <label for="category_id" class="form-control-label">Category</label>
                         <select name="category_id" id="category_id" class="form-control custom-select">
                             <option value="">All Categories</option>
                             {% for category in categories %}
@@ -38,8 +45,8 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-3 form-group">
-                        <label for="assigned_to_id">Assigned To</label>
+                    <div class="col-md-6 col-lg-3 form-group">
+                        <label for="assigned_to_id" class="form-control-label">Assigned To</label>
                         <select name="assigned_to_id" id="assigned_to_id" class="form-control custom-select">
                             <option value="">Any Agent</option>
                             <option value="0" {% if current_filters.get('assigned_to_id') == "0" %}selected{% endif %}>Unassigned</option>
@@ -50,8 +57,8 @@
                     </div>
                 </div>
                 <div class="row">
-                    <div class="col-md-3 form-group">
-                        <label for="organization_id">Organization</label>
+                    <div class="col-md-6 col-lg-3 form-group">
+                        <label for="organization_id" class="form-control-label">Organization</label>
                         <select name="organization_id" id="organization_id" class="form-control custom-select">
                             <option value="">All Organizations</option>
                             {% for org in organizations_for_filter %}
@@ -59,64 +66,53 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="col-md-6 col-lg-3 form-group d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary btn-block">Apply Filters</button>
+                    </div>
+                     <div class="col-md-6 col-lg-3 form-group d-flex align-items-end">
+                        <a href="{{ url_for('admin_all_tickets') }}" class="btn btn-outline-secondary btn-block">Clear Filters</a>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary mt-2">Apply Filters</button>
-                <a href="{{ url_for('admin_all_tickets') }}" class="btn btn-secondary mt-2">Clear Filters</a>
             </form>
         </div>
     </div>
 
-
     {% if tickets_pagination and tickets_pagination.items %}
         {% for ticket in tickets_pagination.items %}
-            {% include '_ticket_item.html' %}
+            {# Using a slightly modified ticket item for admin view if needed, or just the standard one #}
+            {% include '_ticket_item.html' %} 
         {% endfor %}
 
-        <nav aria-label="Ticket navigation">
+        {% if tickets_pagination.pages > 1 %}
+        <nav aria-label="Ticket navigation" class="mt-4">
             <ul class="pagination justify-content-center">
-                {# Prepare query_params ONCE and remove 'page' #}
-                {% set query_params = request.args.to_dict(flat=True) %}
-                {% do query_params.pop('page', None) %} {# Crucial: Remove 'page' key #}
-
-                {# Previous Page Link #}
-                {% if tickets_pagination.has_prev %}
-                    <li class="page-item">
-                        <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.prev_num, **query_params) }}">Previous</a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
-                {% endif %}
-
-                {# Page Numbers #}
-                {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                {% set query_params = request.args.to_dict(flat=True) %}{% do query_params.pop('page', None) %}
+                <li class="page-item {% if not tickets_pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.prev_num, **query_params) if tickets_pagination.has_prev else '#'}}">Previous</a>
+                </li>
+                {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                     {% if page_num %}
-                        {% if tickets_pagination.page == page_num %}
-                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                        {% else %}
-                            <li class="page-item">
-                                <a class="page-link" href="{{ url_for(request.endpoint, page=page_num, **query_params) }}">{{ page_num }}</a>
-                            </li>
-                        {% endif %}
-                    {% else %}
+                        <li class="page-item {% if tickets_pagination.page == page_num %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for(request.endpoint, page=page_num, **query_params) }}">{{ page_num }}</a>
+                        </li>
+                    {% elif loop.index0 > 0 and loop.index0 < tickets_pagination.pages -1 %}
                         <li class="page-item disabled"><span class="page-link">...</span></li>
                     {% endif %}
                 {% endfor %}
-
-                {# Next Page Link #}
-                {% if tickets_pagination.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.next_num, **query_params) }}">Next</a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled"><span class="page-link">Next</span></li>
-                {% endif %}
+                <li class="page-item {% if not tickets_pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.next_num, **query_params) if tickets_pagination.has_next else '#'}}">Next</a>
+                </li>
             </ul>
         </nav>
-        <p class="text-center text-muted small">
-            Showing page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}.
-            Total {{ tickets_pagination.total }} tickets.
+        {% endif %}
+        <p class="text-center text-muted small mt-2">
+            Page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}. Total {{ tickets_pagination.total }} tickets.
         </p>
     {% else %}
-        <div class="alert alert-info mt-3">No tickets found matching your criteria.</div>
+        <div class="alert alert-info text-center p-4 mt-4">
+            <i class="fas fa-ticket-alt fa-2x text-muted mb-2"></i><br>
+            No tickets found matching your criteria.
+        </div>
     {% endif %}
+</div>
 {% endblock %}
