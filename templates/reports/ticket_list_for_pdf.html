@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report_title or "Ticket Report" }}</title>
+    <style>
+        body { font-family: sans-serif; font-size: 10pt; }
+        h1 { text-align: center; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ccc; padding: 6px; text-align: left; font-size: 9pt; word-wrap: break-word; }
+        th { background-color: #f0f0f0; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .timestamp { white-space: nowrap; }
+        .description-cell { max-width: 200px; } /* Example, adjust as needed */
+    </style>
+</head>
+<body>
+    <h1>{{ report_title or "Ticket Report" }}</h1>
+    <p style="font-size:8pt; text-align:center;">Generated on: {{ generation_time_utc }} UTC</p>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Category</th>
+                <th>Created By</th>
+                <th>Assigned To</th>
+                <th>Organization</th>
+                <th class="timestamp">Created At</th>
+                <th class="timestamp">Updated At</th>
+                <th class="timestamp">Resolved At</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if tickets %}
+                {% for ticket in tickets %}
+                <tr>
+                    <td>{{ ticket.id }}</td>
+                    <td>{{ ticket.title }}</td>
+                    <td>{{ ticket.status }}</td>
+                    <td>{{ ticket.priority }}</td>
+                    <td>{{ ticket.category_ref.name if ticket.category_ref else '' }}</td>
+                    <td>{{ ticket.creator.username if ticket.creator else '' }}</td>
+                    <td>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</td>
+                    <td>{{ ticket.organization_option_ref.name if ticket.organization_option_ref else '' }}</td>
+                    <td class="timestamp">{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else '' }}</td>
+                    <td class="timestamp">{{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') if ticket.updated_at else '' }}</td>
+                    <td class="timestamp">{{ ticket.resolved_at.strftime('%Y-%m-%d %H:%M') if ticket.resolved_at else '' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="11" style="text-align:center; padding: 20px;">No data available for this report.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% set title = title or "Manage KB Articles" %}
+
+{% block head_extra %}
+<style>
+    :root { /* Consistent with category_list.html styles */
+        --kb-primary-color: #007bff; --kb-success-color: #28a745; --kb-danger-color: #dc3545;
+        --kb-warning-color: #ffc107; --kb-info-color: #17a2b8; --kb-light-gray: #f8f9fa;
+        --kb-medium-gray: #e9ecef; --kb-dark-gray: #6c757d; --kb-text-dark: #343a40;
+        --kb-card-border: #dee2e6; --kb-table-hover: #f1f3f5; --kb-radius: 0.3rem;
+        --status-draft-bg: #f0f0f0; --status-draft-text: #555;
+        --status-published-bg: #e8f5e9; --status-published-text: #2e7d32;
+        --status-archived-bg: #e9ecef; --status-archived-text: #6c757d;
+    }
+    .kb-page-header { margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .kb-page-title { font-size: 1.75rem; font-weight: 600; color: var(--kb-text-dark); margin: 0; }
+    .kb-btn { display: inline-flex; align-items: center; justify-content: center; font-weight: 500; padding: 0.5rem 1rem; font-size: 0.9rem; border-radius: var(--kb-radius); text-decoration: none; border: 1px solid transparent; transition: all 0.15s ease-in-out; }
+    .kb-btn i { margin-right: 0.5em; }
+    .kb-btn-success { background-color: var(--kb-success-color); border-color: var(--kb-success-color); color: white; }
+    .kb-btn-success:hover { background-color: #218838; border-color: #1e7e34; }
+    .kb-btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+    .kb-btn-outline-primary { color: var(--kb-primary-color); border-color: var(--kb-primary-color); background-color: transparent; }
+    .kb-btn-outline-primary:hover { background-color: var(--kb-primary-color); color: white; }
+    .kb-btn-outline-danger { color: var(--kb-danger-color); border-color: var(--kb-danger-color); background-color: transparent; }
+    .kb-btn-outline-danger:hover { background-color: var(--kb-danger-color); color: white; }
+    .kb-btn-outline-info { color: var(--kb-info-color); border-color: var(--kb-info-color); background-color: transparent; }
+    .kb-btn-outline-info:hover { background-color: var(--kb-info-color); color: white; }
+    
+    .kb-card { border: 1px solid var(--kb-card-border); border-radius: var(--kb-radius); box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); background-color: white; }
+    .kb-card-header { background-color: var(--kb-light-gray); padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--kb-card-border); display: flex; justify-content: space-between; align-items: center; }
+    .kb-card-title { margin-bottom: 0; font-size: 1.1rem; font-weight: 600; color: var(--kb-text-dark); }
+    .kb-card-body { padding: 0; }
+    .kb-card-body.padded { padding: 1.25rem; }
+
+    .kb-table { width: 100%; margin-bottom: 0; color: var(--kb-text-dark); border-collapse: collapse; }
+    .kb-table th, .kb-table td { padding: 0.75rem; vertical-align: middle; border-top: 1px solid var(--kb-card-border); text-align: left; }
+    .kb-table thead th { vertical-align: bottom; border-bottom: 2px solid var(--kb-card-border); font-weight: 600; background-color: var(--kb-light-gray); }
+    .kb-table tbody tr:hover { background-color: var(--kb-table-hover); }
+    .kb-table-striped tbody tr:nth-of-type(odd) { background-color: rgba(0,0,0,0.025); }
+    .kb-table-actions .kb-btn { margin-right: 0.3rem; }
+    .kb-table-actions form { display: inline-block; margin:0; }
+    .kb-text-muted { color: var(--kb-dark-gray) !important; }
+    .kb-p-3 { padding: 1rem !important; }
+    .kb-text-center { text-align: center !important; }
+
+    .kb-status-badge { font-size: 0.75rem; font-weight: 600; padding: 0.25em 0.6em; border-radius: var(--kb-radius); text-transform: capitalize; }
+    .status-Draft { background-color: var(--status-draft-bg); color: var(--status-draft-text); }
+    .status-Published { background-color: var(--status-published-bg); color: var(--status-published-text); }
+    .status-Archived { background-color: var(--status-archived-bg); color: var(--status-archived-text); }
+
+    .kb-filter-bar { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-end; }
+    .kb-filter-bar .form-group { margin-bottom: 0; flex-grow:1; }
+    .kb-filter-bar label { font-size: 0.8rem; font-weight: 500; color: var(--kb-dark-gray); margin-bottom:0.25rem; display:block;}
+    .kb-filter-bar select { padding: 0.4rem 0.75rem; font-size:0.9rem; border-radius:var(--kb-radius); border:1px solid var(--kb-card-border); }
+
+    .pagination { display: flex; padding-left: 0; list-style: none; border-radius: var(--kb-radius); margin-top: 1.5rem; justify-content: center; }
+    .page-item .page-link { position: relative; display: block; padding: .5rem .75rem; margin-left: -1px; line-height: 1.25; color: var(--kb-primary-color); background-color: #fff; border: 1px solid var(--kb-card-border); }
+    .page-item:first-child .page-link { margin-left: 0; border-top-left-radius: var(--kb-radius); border-bottom-left-radius: var(--kb-radius); }
+    .page-item:last-child .page-link { border-top-right-radius: var(--kb-radius); border-bottom-right-radius: var(--kb-radius); }
+    .page-item.active .page-link { z-index: 3; color: #fff; background-color: var(--kb-primary-color); border-color: var(--kb-primary-color); }
+    .page-item.disabled .page-link { color: var(--kb-dark-gray); pointer-events: none; cursor: auto; background-color: #fff; border-color: var(--kb-card-border); }
+    .page-link:hover { z-index: 2; color: #0056b3; text-decoration: none; background-color: var(--kb-medium-gray); border-color: var(--kb-card-border); }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('admin_create_edit_kb_article', category_id=current_category_slug if current_category_slug else None) }}" class="kb-btn kb-btn-success">
+        <i class="fas fa-plus"></i> New KB Article
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="kb-filter-bar">
+    <div class="form-group">
+        <label for="categoryFilter">Filter by Category:</label>
+        <select id="categoryFilter" class="form-control custom-select" onchange="if (this.value) window.location.href=this.value === 'all' ? '{{ url_for('admin_kb_article_list') }}' : '{{ url_for('admin_kb_article_list', slug='_SLUG_') }}'.replace('_SLUG_', this.value);">
+            <option value="all" {% if not current_category_slug %}selected{% endif %}>All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat.slug }}" {% if current_category_slug == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="kb-card">
+    <div class="kb-card-header">
+        <h3 class="kb-card-title">KB Articles {% if current_category_slug %}in <span style="color:var(--kb-primary-color);">{{ articles_pagination.items[0].kb_category_ref.name if articles_pagination.items else 'Selected Category' }}</span>{% endif %}</h3>
+    </div>
+    <div class="kb-card-body">
+        {% if articles_pagination.items %}
+        <table class="kb-table kb-table-striped kb-table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th style="text-align:center;">Views</th>
+                    <th>Author</th>
+                    <th>Last Updated</th>
+                    <th style="text-align:center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for article in articles_pagination.items %}
+                <tr>
+                    <td>{{ article.id }}</td>
+                    <td>
+                        <a href="{{ url_for('kb_article_view', slug=article.slug) }}" target="_blank" style="font-weight:500; color:var(--kb-primary-color);" title="View Public Article">{{ article.title|truncate(60, true) }}</a>
+                    </td>
+                    <td>{{ article.kb_category_ref.name }}</td>
+                    <td><span class="kb-status-badge status-{{article.status}}">{{ article.status }}</span></td>
+                    <td style="text-align:center;">{{ article.views }}</td>
+                    <td>{{ article.author.username if article.author else 'N/A' }}</td>
+                    <td>{{ article.updated_at.strftime('%b %d, %Y %H:%M') }}</td>
+                    <td class="kb-table-actions" style="text-align:center;">
+                        <a href="{{ url_for('admin_create_edit_kb_article', article_id=article.id) }}" class="kb-btn kb-btn-sm kb-btn-outline-primary" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('admin_delete_kb_article', article_id=article.id) }}" 
+                            onsubmit="return confirm('Are you sure you want to delete article \'' + {{ article.title|tojson }} + '\'? This cannot be undone.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="kb-btn kb-btn-sm kb-btn-outline-danger" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="kb-card-body padded kb-text-center kb-text-muted">
+            No KB articles found {% if current_category_slug %} in this category{% endif %}. 
+            <a href="{{ url_for('admin_create_edit_kb_article', category_id=current_category_slug if current_category_slug else None) }}" style="color:var(--kb-primary-color);">Create one now?</a>
+        </div>
+        {% endif %}
+    </div>
+    {% if articles_pagination.pages > 1 %}
+    <div class="kb-card-footer" style="padding: 0.75rem 1.25rem; background-color: var(--kb-light-gray); border-top: 1px solid var(--kb-card-border);">
+        <nav aria-label="Article navigation">
+            <ul class="pagination" style="margin-bottom:0; justify-content:flex-end;">
+                <li class="page-item {% if not articles_pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin_kb_article_list', slug=current_category_slug, page=articles_pagination.prev_num) }}">Previous</a>
+                </li>
+                {% for page_num in articles_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if articles_pagination.page == page_num %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin_kb_article_list', slug=current_category_slug, page=page_num) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not articles_pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin_kb_article_list', slug=current_category_slug, page=articles_pagination.next_num) }}">Next</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

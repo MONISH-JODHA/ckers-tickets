@@ -142,6 +142,7 @@
         font-weight: 500;
         font-size: 0.7rem;
     }
+    
     .card-meta .assignee-avatar {
         width: 20px; height: 20px; border-radius: 50%;
         margin-left: 5px;
@@ -228,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ghostClass: 'sortable-ghost', // Class name for the drop placeholder
             chosenClass: 'sortable-chosen', // Class name for the chosen item
             dragClass: 'sortable-drag', // Class name for the dragging item
-
+            filter: 'a, button', 
             onEnd: function (evt) {
                 const itemEl = evt.item;  // Dragged HTMLElement
                 const ticketId = itemEl.dataset.ticketId;

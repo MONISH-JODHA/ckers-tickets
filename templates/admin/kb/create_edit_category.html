@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% set form_title = title or ('New KB Category' if not category else 'Edit KB Category: ' ~ category.name) %}
+{% set title = form_title %} {# For the browser tab title #}
+
+{% block head_extra %}
+<style>
+    :root { /* Re-declare for clarity, ideally from a base CSS */
+        --kb-primary-color: #007bff; --kb-success-color: #28a745; --kb-danger-color: #dc3545;
+        --kb-light-gray: #f8f9fa; --kb-medium-gray: #e9ecef; --kb-dark-gray: #6c757d;
+        --kb-text-dark: #343a40; --kb-card-border: #dee2e6; --kb-radius: 0.3rem;
+        --kb-input-bg: #fff; --kb-input-border: #ced4da; --kb-input-focus-border: #80bdff;
+        --kb-input-focus-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+    .kb-form-page-header { margin-bottom: 1.5rem; }
+    .kb-form-title { font-size: 1.75rem; font-weight: 600; color: var(--kb-text-dark); margin: 0; }
+    .kb-card { border: 1px solid var(--kb-card-border); border-radius: var(--kb-radius); box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); background-color: white; }
+    .kb-card-header { background-color: var(--kb-light-gray); padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--kb-card-border); border-top-left-radius: calc(var(--kb-radius) - 1px); border-top-right-radius: calc(var(--kb-radius) - 1px); }
+    .kb-card-title { margin-bottom: 0; font-size: 1.1rem; font-weight: 600; color: var(--kb-text-dark); }
+    .kb-card-body { padding: 1.5rem; }
+
+    .kb-form-group { margin-bottom: 1.25rem; }
+    .kb-form-label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--kb-text-dark); font-size: 0.9rem; }
+    .kb-form-control { display: block; width: 100%; padding: 0.5rem 0.75rem; font-size: 1rem; line-height: 1.5; color: var(--kb-text-dark); background-color: var(--kb-input-bg); background-clip: padding-box; border: 1px solid var(--kb-input-border); border-radius: var(--kb-radius); transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out; }
+    .kb-form-control:focus { color: var(--kb-text-dark); background-color: var(--kb-input-bg); border-color: var(--kb-input-focus-border); outline: 0; box-shadow: var(--kb-input-focus-shadow); }
+    textarea.kb-form-control { min-height: 100px; }
+    .kb-form-control.is-invalid { border-color: var(--kb-danger-color); }
+    .kb-invalid-feedback { display: none; width: 100%; margin-top: 0.25rem; font-size: .875em; color: var(--kb-danger-color); }
+    .kb-form-control.is-invalid ~ .kb-invalid-feedback, .kb-form-group .kb-field-errors .kb-invalid-feedback { display: block; } /* Show errors */
+    .kb-field-errors li { list-style: none; margin:0; padding:0; }
+
+
+    .kb-btn { display: inline-flex; align-items: center; justify-content: center; font-weight: 500; padding: 0.5rem 1rem; font-size: 0.9rem; border-radius: var(--kb-radius); text-decoration: none; border: 1px solid transparent; transition: all 0.15s ease-in-out; cursor:pointer; }
+    .kb-btn i { margin-right: 0.5em; }
+    .kb-btn-primary { background-color: var(--kb-primary-color); border-color: var(--kb-primary-color); color: white; }
+    .kb-btn-primary:hover { background-color: #0069d9; border-color: #0062cc; }
+    .kb-btn-secondary { background-color: var(--kb-dark-gray); border-color: var(--kb-dark-gray); color: white; }
+    .kb-btn-secondary:hover { background-color: #5a6268; border-color: #545b62; }
+    .kb-form-actions { margin-top: 1.5rem; display: flex; gap: 0.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kb-form-page-header">
+    <h1 class="kb-form-title">{{ form_title }}</h1>
+</div>
+
+<div class="kb-card">
+    <div class="kb-card-body">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="kb-form-group">
+                {{ form.name.label(class="kb-form-label") }}
+                {{ form.name(class="kb-form-control" + (" is-invalid" if form.name.errors else "")) }}
+                {% if form.name.errors %}
+                    <ul class="kb-field-errors">
+                        {% for error in form.name.errors %}<li><small class="kb-invalid-feedback">{{ error }}</small></li>{% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+
+            <div class="kb-form-group">
+                {{ form.parent_id.label(class="kb-form-label") }}
+                {{ form.parent_id(class="kb-form-control custom-select" + (" is-invalid" if form.parent_id.errors else "")) }}
+                {% if form.parent_id.errors %}
+                     <ul class="kb-field-errors">
+                        {% for error in form.parent_id.errors %}<li><small class="kb-invalid-feedback">{{ error }}</small></li>{% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            
+            <div class="kb-form-group">
+                {{ form.description.label(class="kb-form-label") }}
+                {{ form.description(class="kb-form-control" + (" is-invalid" if form.description.errors else ""), rows=4) }}
+                {% if form.description.errors %}
+                     <ul class="kb-field-errors">
+                        {% for error in form.description.errors %}<li><small class="kb-invalid-feedback">{{ error }}</small></li>{% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+
+            <div class="kb-form-actions">
+                {{ form.submit(class="kb-btn kb-btn-primary") }}
+                <a href="{{ url_for('admin_kb_category_list') }}" class="kb-btn kb-btn-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -22,7 +22,8 @@
     --header-bg: #ffffff;
     --header-border-color: #e5e7eb; 
 
-    --content-bg: #f9fafb; 
+    --content-bg-page: #f9fafb; /* Overall page background */
+    --content-bg-main: #f9fafb; /* Background for the main scrollable content area */
     --card-bg: #ffffff;
     --text-primary: #111827; 
     --text-secondary: #6b7280; 
@@ -37,45 +38,54 @@
     --border-radius: .375rem;
     --transition-base: all 0.2s ease-in-out;
 
-    --sidebar-width: 260px; /* Normal width */
-    --sidebar-width-wide-open: 470px; /* Width when System Options sub-menu is open */
+    --sidebar-width: 260px;
     
     --app-header-height: 60px;
     --app-footer-height: 50px;
 }
 
 /* --- Reset & Base --- */
-html { box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; height: 100%; overflow: hidden; }
+html { 
+    box-sizing: border-box; 
+    -webkit-font-smoothing: antialiased; 
+    -moz-osx-font-smoothing: grayscale; 
+    height: 100%; 
+}
 *, *::before, *::after { box-sizing: inherit; }
-body { font-family: var(--font-family-sans-serif); background-color: var(--content-bg); color: var(--text-primary); line-height: 1.6; margin: 0; padding: 0; display: flex; height: 100%; overflow: hidden; font-size: 14px; }
+
+body { 
+    font-family: var(--font-family-sans-serif); 
+    background-color: var(--content-bg-page); 
+    color: var(--text-primary); 
+    line-height: 1.6; 
+    margin: 0; 
+    padding: 0; 
+    height: 100%; 
+    overflow: hidden; /* Prevent body scrollbars, specific areas will scroll */
+    font-size: 14px; 
+}
 a { color: var(--primary-color); text-decoration: none; transition: var(--transition-base); }
 a:hover { color: var(--primary-color-darker); text-decoration: none; }
 
 /* --- App Layout Structure --- */
-.app-layout { display: flex; width: 100%; height: 100%; overflow: hidden; background-color: var(--content-bg); }
+.app-layout { 
+    display: flex; 
+    width: 100%; 
+    height: 100%; 
+}
 
 .app-sidebar {
-    width: var(--sidebar-width); /* Default width */
+    width: var(--sidebar-width);
     background-color: var(--sidebar-bg);
     color: var(--sidebar-text-color);
-    position: fixed; 
-    top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 1001;
+    z-index: 1001; 
     display: flex;
     flex-direction: column;
-    flex-shrink: 0;
-    /* Ensure transition applies to width and left (for mobile) */
+    flex-shrink: 0; 
+    height: 100%; 
     transition: width 0.25s ease-in-out, left 0.25s ease-in-out; 
     box-shadow: var(--box-shadow-md);
-    overflow: hidden; 
 }
-/* Class added by JS/Jinja when "System Options" group is active or its toggle is clicked */
-.app-sidebar.sidebar-wide-open {
-    width: var(--sidebar-width-wide-open);
-}
-
 
 .sidebar-header {
     height: var(--app-header-height);
@@ -115,18 +125,16 @@ a:hover { color: var(--primary-color-darker); text-decoration: none; }
     text-overflow: ellipsis;
     position: relative;
     padding-right: 2.5rem; 
+    cursor: pointer; 
 }
 .sidebar-nav .nav-link i.fa-fw { width: 1.75em; font-size: 0.9em; opacity: 0.8; text-align: center; flex-shrink: 0; }
 .sidebar-nav .nav-link .sidebar-item-text { margin-left: 0.25rem; flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Allow text in ALL nav links to wrap if sidebar is in its wide state */
-.app-sidebar.sidebar-wide-open .sidebar-nav .nav-link .sidebar-item-text {
-    white-space: normal; 
-}
 
 .sidebar-nav .nav-link:hover { background-color: var(--sidebar-hover-bg); color: #ffffff; border-left-color: var(--primary-color-lighter); }
+
 .sidebar-nav .nav-link.active, 
 .sidebar-nav .nav-link.active-parent,
-.sidebar-nav .nav-link.show-submenu { /* .show-submenu is added by JS */
+.sidebar-nav .accordion-toggle.open { 
     background-color: var(--sidebar-active-bg);
     color: var(--sidebar-active-text-color) !important;
     font-weight: 600;
@@ -134,28 +142,64 @@ a:hover { color: var(--primary-color-darker); text-decoration: none; }
 }
 .sidebar-nav .nav-link.active i, 
 .sidebar-nav .nav-link.active-parent i,
-.sidebar-nav .nav-link.show-submenu i { 
+.sidebar-nav .accordion-toggle.open i { 
     opacity: 1; 
 }
 
-/* Sub-menu specific styling */
-.sidebar-nav .nav-item.has-submenu .sub-nav-collapse {
+.sidebar-nav .nav-item.accordion-item .sub-nav-collapse { 
     background-color: rgba(0,0,0,0.2); 
     padding: 0.25rem 0; 
     margin-left: 0; 
     border-left: none; 
 }
-.sidebar-nav .nav-item.has-submenu .sub-nav-collapse:not(.show) { display: none; }
-.sidebar-nav .sub-nav-link { font-size: 0.8rem; padding: 0.5rem 1.25rem 0.5rem 2.75rem; color: var(--sidebar-text-color); opacity: 0.85; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid transparent; transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease; }
-/* Allow sub-menu items to wrap ONLY when sidebar is in its wide state */
-.app-sidebar.sidebar-wide-open .sidebar-nav .sub-nav-link {
-    white-space: normal; 
-}
-.sidebar-nav .sub-nav-link:hover { color: #ffffff; background-color: var(--sidebar-hover-bg); opacity: 1; border-left-color: var(--primary-color-lighter); }
-.sidebar-nav .sub-nav-link.active { color: var(--sidebar-active-text-color); font-weight: 500; background-color: rgba(var(--bs-primary-rgb, 31,115,183), 0.15); border-left-color: var(--primary-color); opacity: 1; }
+.sidebar-nav .nav-item.accordion-item .sub-nav-collapse:not(.show) { display: none; } 
 
-.sidebar-nav .nav-link .expand-icon { margin-left: auto; transition: transform 0.2s ease-in-out; font-size: 0.65em; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); }
-.sidebar-nav .nav-link[aria-expanded="true"] .expand-icon { transform: translateY(-50%) rotate(180deg); }
+.sidebar-nav .sub-nav-link { 
+    font-size: 0.8rem; 
+    padding: 0.5rem 1.25rem 0.5rem 1.75rem; 
+    color: var(--sidebar-text-color); 
+    opacity: 0.85; 
+    display: flex; 
+    align-items: center;
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    border-left: 3px solid transparent; 
+    transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease; 
+}
+.sidebar-nav .sub-nav-link .sub-icon { 
+    width: 1.5em;
+    font-size: 0.85em;
+    opacity: 0.7;
+    text-align: center;
+    margin-right: 0.5rem; 
+    flex-shrink: 0;
+}
+
+.sidebar-nav .sub-nav-link:hover { color: #ffffff; background-color: var(--sidebar-hover-bg); opacity: 1; border-left-color: var(--primary-color-lighter); }
+.sidebar-nav .sub-nav-link.active { 
+    color: var(--sidebar-active-text-color); 
+    font-weight: 500; 
+    background-color: rgba(255,255,255,0.1); 
+    border-left-color: var(--primary-color); 
+    opacity: 1; 
+}
+
+.sidebar-nav .nav-link .expand-icon { 
+    margin-left: auto; 
+    transition: transform 0.2s ease-in-out; 
+    font-size: 0.65em; 
+    position: absolute; 
+    right: 1rem; 
+    top: 50%; 
+    transform: translateY(-50%); 
+}
+.sidebar-nav .accordion-toggle.open .expand-icon {
+    transform: translateY(-50%) rotate(180deg);
+}
+.sidebar-nav .accordion-toggle:not(.open) .expand-icon {
+    transform: translateY(-50%) rotate(0deg);
+}
 
 .sidebar-footer { padding: 0.75rem 1.25rem; border-top: 1px solid var(--sidebar-border-color); background-color: rgba(0,0,0,0.1); flex-shrink: 0; }
 .sidebar-footer .user-info { display: flex; align-items: center; margin-bottom: 0.75rem; color: #fff; font-size: 0.875rem; }
@@ -165,22 +209,15 @@ a:hover { color: var(--primary-color-darker); text-decoration: none; }
 .sidebar-footer .logout-btn:hover { background-color: var(--sidebar-hover-bg); color: #fff; border-color: var(--sidebar-hover-bg); }
 
 .app-main {
-    margin-left: var(--sidebar-width); /* Default margin */
     flex-grow: 1; 
     display: flex;
     flex-direction: column;
-    height: 100vh; 
-    overflow: hidden; 
+    height: 100%; 
+    overflow: hidden; /* This ensures header/footer are fixed, content scrolls */
     position: relative; 
     z-index: 1; 
-    /* Transition for margin-left when sidebar width changes */
-    transition: margin-left 0.25s ease-in-out; 
+    background-color: var(--content-bg-page); /* Background for the entire main area */
 }
-/* Style for main content when sidebar is in its wider state */
-.app-main.sidebar-wide-open-main {
-    margin-left: var(--sidebar-width-wide-open);
-}
-
 
 .app-header {
     height: var(--app-header-height);
@@ -199,15 +236,15 @@ a:hover { color: var(--primary-color-darker); text-decoration: none; }
 .app-header .btn-icon:hover { color: var(--text-primary); }
 
 .app-content {
-    flex-grow: 1; 
-    overflow-y: auto; 
+    flex-grow: 1; /* Takes up remaining vertical space */
+    overflow-y: auto; /* Allows only vertical scroll for content */
+    overflow-x: hidden;
     padding: 1.5rem;
-    background-color: var(--content-bg);
-    height: calc(100% - var(--app-header-height) - var(--app-footer-height)); 
+    background-color: var(--content-bg-main); /* Specific background for the scrollable content area */
     position: relative; 
     z-index: 1;
     animation: fadeInContent 0.3s ease-out forwards;
-    opacity: 0;
+    opacity: 1; /* Make sure it's visible by default now */
 }
 @keyframes fadeInContent { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -220,7 +257,7 @@ a:hover { color: var(--primary-color-darker); text-decoration: none; }
 
 .app-footer {
     height: var(--app-footer-height);
-    background-color: var(--content-bg);
+    background-color: var(--header-bg); /* Often same as header or a light gray */
     border-top: 1px solid var(--header-border-color);
     display: flex;
     align-items: center;
@@ -295,7 +332,7 @@ textarea.form-control { min-height: 100px; resize: vertical; }
 .timeline-date-group { margin: 20px 0 10px 0; }
 .timeline-date-group .badge { font-size: 0.75rem; font-weight: 600; padding: .35em .7em; border-radius: 50px; box-shadow: var(--box-shadow-sm); }
 .timeline-item { margin-bottom: 15px; position: relative; padding-left: 50px; min-height: 40px; }
-.timeline-icon { position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; z-index: 100; font-size: 1rem; border: 2px solid var(--content-bg); box-shadow: var(--box-shadow-sm); }
+.timeline-icon { position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; z-index: 100; font-size: 1rem; border: 2px solid var(--content-bg-page); box-shadow: var(--box-shadow-sm); }
 .timeline-item:hover .timeline-icon { transform: scale(1.05); }
 .timeline-content { background-color: var(--card-bg); padding: 8px 12px; border-radius: var(--border-radius); border: 1px solid var(--border-color); position: relative; box-shadow: var(--box-shadow-sm); }
 .timeline-content .item-timestamp { font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.2rem; }
@@ -327,77 +364,17 @@ textarea.form-control { min-height: 100px; resize: vertical; }
 .admin-filter-card { background-color: var(--card-bg); box-shadow: var(--box-shadow-sm); }
 .admin-filter-card .card-header { background-color: #f9fafb; }
 
+#shareCredentialsModal.modal { z-index: 1050; }
+.modal-backdrop.show { z-index: 1040; opacity: 0.5 !important; pointer-events: none !important; }
+.modal-content { pointer-events: auto !important; z-index: 1051; }
+#modal_recipient_email { pointer-events: auto !important; background-color: #fff !important; opacity: 1 !important; z-index: 1052; }
 
+.stat-card-link { text-decoration: none; color: inherit; display: block; border-radius: var(--border-radius); }
+.stat-card-link:hover, .stat-card-link:focus { text-decoration: none; }
+.admin-stats-grid .stat-card { background-color: var(--card-bg); border-radius: var(--border-radius); padding: 1.25rem; display: flex; align-items: center; box-shadow: var(--box-shadow); transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; border-left: 4px solid transparent; cursor: pointer; }
+.admin-stats-grid .stat-card-link:hover .stat-card, .admin-stats-grid .stat-card:hover { transform: translateY(-4px); box-shadow: var(--box-shadow-md); }
 
-
-
-
-
-/* ... existing styles ... */
-
-/* Modal Specific Adjustments */
-#shareCredentialsModal.modal {
-    z-index: 1050; /* Default Bootstrap modal z-index, ensure it's high enough */
-}
-
-.modal-backdrop.show {
-    z-index: 1040; /* Default Bootstrap backdrop z-index, ensure it's below the modal */
-    opacity: 0.5 !important; /* Force opacity if it's an issue */
-    pointer-events: none !important;
-}
-
-.modal-content {
-    /* Ensure modal content itself can receive events */
-    pointer-events: auto !important; 
-    z-index: 1051; /* Ensure content is above backdrop and modal dialog itself */
-}
-
-#modal_recipient_email {
-    /* Ensure the input field can receive pointer events and is visually distinct */
-    pointer-events: auto !important;
-    background-color: #fff !important; /* Force white background if it's greyed out */
-    opacity: 1 !important; /* Force full opacity */
-    z-index: 1052; /* Make sure input is on top */
-}
-
-/* ... rest of your styles ... */
-
-
-
-
-
-.stat-card-link {
-    text-decoration: none; /* Remove underline from the link itself */
-    color: inherit; /* Make text color inherit from children */
-    display: block; /* Make the link take up the card's block space */
-    border-radius: var(--border-radius); /* Ensure link inherits card's border radius for click area */
-}
-
-.stat-card-link:hover,
-.stat-card-link:focus {
-    text-decoration: none; /* No underline on hover/focus */
-    /* The visual hover effect is primarily on the .stat-card child */
-}
-
-.admin-stats-grid .stat-card { /* Existing .stat-card styles */
-    background-color: var(--card-bg);
-    border-radius: var(--border-radius);
-    padding: 1.25rem;
-    display: flex;
-    align-items: center;
-    box-shadow: var(--box-shadow);
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Keep this transition */
-    border-left: 4px solid transparent; 
-    cursor: pointer; /* Add cursor pointer to the card itself */
-}
-
-.admin-stats-grid .stat-card-link:hover .stat-card, /* Apply hover to card when link is hovered */
-.admin-stats-grid .stat-card:hover { /* Keep direct card hover too */
-    transform: translateY(-4px);
-    box-shadow: var(--box-shadow-md);
-}
-
-
+/* Mobile Sidebar Styles */
 @media (max-width: 991.98px) { 
     .app-sidebar {
         position: fixed; 
@@ -410,26 +387,10 @@ textarea.form-control { min-height: 100px; resize: vertical; }
         left: 0;
         width: var(--sidebar-width); 
     }
-    /* Ensure temporarily expanded sidebar is also hidden on mobile if not active */
-    .app-sidebar.sidebar-wide-open:not(.sidebar-mobile-active) {
-        left: calc(-1 * var(--sidebar-width)); 
-        width: var(--sidebar-width); /* Revert to normal width if hidden on mobile */
-    }
-     .app-sidebar.sidebar-wide-open.sidebar-mobile-active {
-        /* If mobile sidebar is active AND wide, still use normal width for consistency on mobile */
-        width: 470px;
-    }
-    
     .app-main {
-        margin-left: 0 !important; 
+        /* margin-left: 0 !important; /* Not needed if sidebar is fixed */
         width: 100% !important;     
     }
-    /* Ensure temporarily expanded main content margin is also reset for mobile */
-    .app-main.sidebar-wide-open-main {
-        margin-left: 0 !important;
-        
-    }
-
     .sidebar-backdrop {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background-color: rgba(0,0,0,0.5); z-index: 1004; 
@@ -444,7 +405,8 @@ textarea.form-control { min-height: 100px; resize: vertical; }
 .app-header #sidebarMobileToggle { display: none; }
 .app-sidebar .sidebar-header #sidebarMobileClose { display: none; }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 3px; }
-::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
+/* Scrollbar Styles */
+::-webkit-scrollbar { width: 8px; height: 8px; } /* Slightly wider scrollbar */
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.03); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 4px; } /* Lighter thumb */
+::-webkit-scrollbar-thumb:hover { background: #95a5a6; } /* Darker on hover */

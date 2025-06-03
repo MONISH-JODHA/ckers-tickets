@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% set title = title or "Manage KB Categories" %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --kb-primary-color: #007bff; /* Blue */
+        --kb-success-color: #28a745; /* Green */
+        --kb-danger-color: #dc3545;  /* Red */
+        --kb-warning-color: #ffc107; /* Yellow */
+        --kb-info-color: #17a2b8;   /* Teal */
+        --kb-light-gray: #f8f9fa;
+        --kb-medium-gray: #e9ecef;
+        --kb-dark-gray: #6c757d;
+        --kb-text-dark: #343a40;
+        --kb-card-border: #dee2e6;
+        --kb-table-hover: #f1f3f5;
+        --kb-radius: 0.3rem;
+    }
+    .kb-page-header { margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .kb-page-title { font-size: 1.75rem; font-weight: 600; color: var(--kb-text-dark); margin: 0; }
+    .kb-btn { display: inline-flex; align-items: center; justify-content: center; font-weight: 500; padding: 0.5rem 1rem; font-size: 0.9rem; border-radius: var(--kb-radius); text-decoration: none; border: 1px solid transparent; transition: all 0.15s ease-in-out; }
+    .kb-btn i { margin-right: 0.5em; }
+    .kb-btn-success { background-color: var(--kb-success-color); border-color: var(--kb-success-color); color: white; }
+    .kb-btn-success:hover { background-color: #218838; border-color: #1e7e34; }
+    .kb-btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+    .kb-btn-outline-primary { color: var(--kb-primary-color); border-color: var(--kb-primary-color); background-color: transparent; }
+    .kb-btn-outline-primary:hover { background-color: var(--kb-primary-color); color: white; }
+    .kb-btn-outline-danger { color: var(--kb-danger-color); border-color: var(--kb-danger-color); background-color: transparent; }
+    .kb-btn-outline-danger:hover { background-color: var(--kb-danger-color); color: white; }
+    .kb-btn-outline-info { color: var(--kb-info-color); border-color: var(--kb-info-color); background-color: transparent; }
+    .kb-btn-outline-info:hover { background-color: var(--kb-info-color); color: white; }
+
+    .kb-card { border: 1px solid var(--kb-card-border); border-radius: var(--kb-radius); box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); background-color: white; }
+    .kb-card-header { background-color: var(--kb-light-gray); padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--kb-card-border); border-top-left-radius: calc(var(--kb-radius) - 1px); border-top-right-radius: calc(var(--kb-radius) - 1px); }
+    .kb-card-title { margin-bottom: 0; font-size: 1.1rem; font-weight: 600; color: var(--kb-text-dark); }
+    .kb-card-body { padding: 0; /* For table to fit edge to edge */ }
+    .kb-card-body.padded { padding: 1.25rem; }
+
+    .kb-table { width: 100%; margin-bottom: 0; color: var(--kb-text-dark); border-collapse: collapse; }
+    .kb-table th, .kb-table td { padding: 0.75rem; vertical-align: middle; border-top: 1px solid var(--kb-card-border); text-align: left; }
+    .kb-table thead th { vertical-align: bottom; border-bottom: 2px solid var(--kb-card-border); font-weight: 600; background-color: var(--kb-light-gray); }
+    .kb-table tbody tr:hover { background-color: var(--kb-table-hover); }
+    .kb-table-striped tbody tr:nth-of-type(odd) { background-color: rgba(0,0,0,0.025); }
+    .kb-table-actions .kb-btn { margin-right: 0.3rem; }
+    .kb-table-actions form { display: inline-block; margin:0; }
+    .kb-text-muted { color: var(--kb-dark-gray) !important; }
+    .kb-p-3 { padding: 1rem !important; }
+    .kb-text-center { text-align: center !important; }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('admin_create_edit_kb_category') }}" class="kb-btn kb-btn-success">
+        <i class="fas fa-plus"></i> New KB Category
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="kb-card">
+    <div class="kb-card-header">
+        <h3 class="kb-card-title">KB Categories</h3>
+    </div>
+    <div class="kb-card-body">
+        {% if categories %}
+        <table class="kb-table kb-table-striped kb-table-hover">
+            <thead>
+                <tr>
+                    <th style="width: 5%;">ID</th>
+                    <th>Name</th>
+                    <th>Slug</th>
+                    <th style="width: 25%;">Description</th>
+                    <th>Parent</th>
+                    <th style="width: 8%; text-align:center;">Articles</th>
+                    <th style="width: 18%; text-align:center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category in categories %}
+                <tr>
+                    <td>{{ category.id }}</td>
+                    <td>
+                        <a href="{{ url_for('admin_kb_article_list', slug=category.slug) }}" style="font-weight:500; color:var(--kb-primary-color);">{{ category.name }}</a>
+                    </td>
+                    <td><code>{{ category.slug }}</code></td>
+                    <td>{{ category.description|truncate(50, true) }}</td>
+                    <td>{{ category.parent.name if category.parent else '—' }}</td>
+                    <td style="text-align:center;">{{ category.articles.count() }}</td>
+                    <td class="kb-table-actions" style="text-align:center;">
+                        <a href="{{ url_for('admin_create_edit_kb_category', category_id=category.id) }}" class="kb-btn kb-btn-sm kb-btn-outline-primary" title="Edit">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <form method="POST" action="{{ url_for('admin_delete_kb_category', category_id=category.id) }}" 
+                            onsubmit="return confirm('Are you sure you want to delete category \'' + {{ category.name|tojson }} + '\'? This cannot be undone and might affect articles if not handled.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="kb-btn kb-btn-sm kb-btn-outline-danger" title="Delete">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="kb-card-body padded kb-text-center kb-text-muted">
+            No KB categories found. <a href="{{ url_for('admin_create_edit_kb_category') }}" style="color:var(--kb-primary-color);">Create one now?</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

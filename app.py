@@ -20,6 +20,13 @@ import sys
 from itertools import groupby
 from sqlalchemy import func, Date, cast # For date-based aggregation
 from sqlalchemy.orm import aliased # 
+from wtforms import SelectField, TextAreaField, StringField, SubmitField # Ensure these are imported
+from wtforms.validators import DataRequired, Length, Optional
+import csv
+import io # For in-memory file handling
+from flask import make_response # For sending files
+import openpyxl # For XLSX
+from openpyxl.utils import get_column_letter #
 
 # --- New Imports for Integrated Features ---
 import google.generativeai as genai
@@ -27,6 +34,10 @@ import requests
 from bs4 import BeautifulSoup
 import json 
 from sqlalchemy import or_ 
+
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate # Add this import
+
 
 # Twilio Integration
 from twilio.rest import Client as TwilioClient
@@ -43,6 +54,12 @@ AWS_SERVICE_CHOICES = [
 ]
 TICKET_STATUS_CHOICES = [('Open', 'Open'), ('In Progress', 'In Progress'), ('On Hold', 'On Hold'), ('Resolved', 'Resolved'), ('Closed', 'Closed')]
 TICKET_PRIORITY_CHOICES = [('Low', 'Low'), ('Medium', 'Medium'), ('High', 'High'), ('Urgent', 'Urgent')]
+PRIORITY_ORDER_MAP = {
+    'Urgent': 0,
+    'High': 1,
+    'Medium': 2,
+    'Low': 3
+}
 
 TICKET_STATUS_CHOICES_FLAT = [s[0].lower() for s in TICKET_STATUS_CHOICES]
 
@@ -123,6 +140,10 @@ class Config:
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+db = SQLAlchemy(app) 
+migrate = Migrate(app, db) # Initialize Flask-Migrate
+
 app.jinja_env.add_extension('jinja2.ext.do')
 
 logging.basicConfig(level=logging.INFO)
@@ -147,7 +168,6 @@ if not app.config['SQLALCHEMY_DATABASE_URI']:
 
 csrf = CSRFProtect(app)
 mail = Mail(app)
-db = SQLAlchemy(app)
 
 if not app.config['GEMINI_API_KEY']:
     app.logger.warning("CRITICAL WARNING: GOOGLE_API_KEY (GEMINI_API_KEY in Config) environment variable not set. AI features will fail.")
@@ -484,6 +504,8 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 login_manager.login_message = "Please log in to access this page."
+
+
 
 
 
@@ -941,43 +963,202 @@ def register_agent():
         except Exception as e: db.session.rollback(); flash('Error during agent registration. Please try again.', 'danger'); app.logger.error(f"Admin agent registration error: {e}", exc_info=True)
     return render_template('register_user.html', title='Register New Agent', form=form, registration_type='Agent', info_text='Register new support agents to assist clients.')
 
-# ... (all your existing imports and code above the dashboard route) ...
+
+# ... (other imports and code) ...
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
     page_title = "My Dashboard"
-    recent_interactions = [] # Initialize for all users
-
+    
     if current_user.is_admin: 
         page_title = 'Admin Dashboard'
+        # ... (Admin dashboard logic as previously defined) ...
+        total_tickets_count = Ticket.query.count()
+        open_tickets_count = Ticket.query.filter_by(status='Open').count()
+        inprogress_tickets_count = Ticket.query.filter_by(status='In Progress').count()
+        resolved_tickets_count = Ticket.query.filter_by(status='Resolved').count()
+        on_hold_tickets_count = Ticket.query.filter_by(status='On Hold').count()
+        closed_tickets_count = Ticket.query.filter_by(status='Closed').count()
+        unassigned_tickets_count = Ticket.query.filter_by(assigned_to_id=None, status='Open').count()
         stats = {
-            'total_tickets': Ticket.query.count(), 
-            'open_tickets': Ticket.query.filter_by(status='Open').count(), 
-            'inprogress_tickets': Ticket.query.filter_by(status='In Progress').count(), 
-            'resolved_tickets': Ticket.query.filter_by(status='Resolved').count(), 
-            'total_users': User.query.count()
+            'total_tickets': total_tickets_count, 
+            'open_tickets': open_tickets_count, 
+            'inprogress_tickets': inprogress_tickets_count, 
+            'resolved_tickets': resolved_tickets_count,
+            'on_hold_tickets': on_hold_tickets_count, 
+            'closed_tickets': closed_tickets_count,   
+            'unassigned_open_tickets': unassigned_tickets_count, 
+            'total_users': User.query.count(),
+            'total_agents': User.query.filter(User.role.in_(['agent', 'admin'])).count(), 
+            'total_clients': User.query.filter_by(role='client').count(), 
+            'active_categories_count': Category.query.count() 
         }
-        # Fetch recent interactions for admin
-        recent_interactions = Interaction.query.order_by(Interaction.timestamp.desc()).limit(5).all()
-        # You might want to pre-process these interactions here if formatting is complex
-        # For example, generate the actor_name and message string
-
+        recent_interactions = Interaction.query.order_by(Interaction.timestamp.desc()).limit(7).all()
         return render_template('dashboard.html', title=page_title, recent_interactions=recent_interactions, **stats)
+
     elif current_user.is_agent: 
         page_title = 'Agent Dashboard'
+        agent_id = current_user.id
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+
+        # Agent's Personal Stats
+        resolved_today_count = Ticket.query.filter(
+            Ticket.assigned_to_id == agent_id,
+            Ticket.status.in_(['Resolved', 'Closed']),
+            Ticket.resolved_at >= today_start 
+        ).count()
+        resolved_week_count = Ticket.query.filter(
+            Ticket.assigned_to_id == agent_id,
+            Ticket.status.in_(['Resolved', 'Closed']),
+            Ticket.resolved_at >= week_start
+        ).count()
+
+        responded_today_ticket_ids = db.session.query(Comment.ticket_id).distinct().filter(
+            Comment.user_id == agent_id,
+            Comment.is_internal == False,
+            Comment.created_at >= today_start,
+            Comment.ticket_id.in_(db.session.query(Ticket.id).filter(Ticket.assigned_to_id == agent_id))
+        ).all()
+        responded_week_ticket_ids = db.session.query(Comment.ticket_id).distinct().filter(
+            Comment.user_id == agent_id,
+            Comment.is_internal == False,
+            Comment.created_at >= week_start,
+            Comment.ticket_id.in_(db.session.query(Ticket.id).filter(Ticket.assigned_to_id == agent_id))
+        ).all()
+        responded_today_count = len(responded_today_ticket_ids)
+        responded_week_count = len(responded_week_ticket_ids)
+
+        agent_stats = {
+            'resolved_today': resolved_today_count,
+            'resolved_week': resolved_week_count,
+            'responded_today': responded_today_count,
+            'responded_week': responded_week_count,
+        }
+
+        # Recent Client Replies on Agent's Tickets
+        LatestCommentSubquery = db.session.query(
+            Comment.ticket_id,
+            func.max(Comment.created_at).label('latest_comment_at')
+        ).filter(
+            Comment.ticket_id.in_(
+                db.session.query(Ticket.id).filter(Ticket.assigned_to_id == agent_id)
+            )
+        ).group_by(Comment.ticket_id).subquery()
+
+        tickets_with_client_reply_data = db.session.query(
+            Ticket, 
+            User.username.label('last_commenter_username'),
+            Comment.created_at.label('last_comment_created_at') # Fetch the timestamp of the specific comment
+        ) \
+            .join(LatestCommentSubquery, Ticket.id == LatestCommentSubquery.c.ticket_id) \
+            .join(Comment, (Comment.ticket_id == LatestCommentSubquery.c.ticket_id) & \
+                           (Comment.created_at == LatestCommentSubquery.c.latest_comment_at)) \
+            .join(User, Comment.user_id == User.id) \
+            .filter(Ticket.assigned_to_id == agent_id) \
+            .filter(User.role == 'client') \
+            .filter(Ticket.status.notin_(['Resolved', 'Closed'])) \
+            .order_by(LatestCommentSubquery.c.latest_comment_at.desc()) \
+            .limit(5).all() # This returns Row objects (like tuples)
+
         agent_data = {
-            'my_assigned_tickets': Ticket.query.filter_by(assigned_to_id=current_user.id).filter(Ticket.status.notin_(['Resolved', 'Closed'])).order_by(Ticket.updated_at.desc()).all(), 
-            'unassigned_tickets': Ticket.query.filter_by(assigned_to_id=None, status='Open').order_by(Ticket.created_at.desc()).limit(10).all()
+            'my_assigned_tickets': Ticket.query.filter_by(assigned_to_id=agent_id).filter(Ticket.status.notin_(['Resolved', 'Closed'])).order_by(Ticket.updated_at.desc()).limit(5).all(), 
+            'unassigned_tickets': Ticket.query.filter_by(assigned_to_id=None, status='Open').order_by(Ticket.created_at.desc()).limit(5).all(),
+            'agent_stats': agent_stats,
+            'tickets_with_client_reply_data': tickets_with_client_reply_data # Use the new variable
         }
         return render_template('dashboard.html', title=page_title, **agent_data)
+    
     else: # Client
-        page_title = 'My Dashboard' # Or "Client Dashboard"
+        page_title = 'My Dashboard'
         my_tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).limit(10).all()
         return render_template('dashboard.html', title=page_title, my_tickets=my_tickets)
 
-# ... (rest of your app.py code) ...
+
+
+
+
+
+
+@app.route('/reports/overview') # Or @reports_bp.route('/overview') if using a blueprint
+@admin_required # Or @agent_required if agents can also see some reports
+def reports_overview():
+    # For now, this page will list available predefined reports.
+    # Data for each report will be fetched via AJAX or on sub-pages.
     
+    # We can pass filter options similar to the analytics dashboard
+    all_statuses_data = [{'value': s[0], 'display': s[1]} for s in TICKET_STATUS_CHOICES]
+    all_priorities_data = [{'value': p[0], 'display': p[1]} for p in TICKET_PRIORITY_CHOICES]
+    all_categories_data = Category.query.order_by(Category.name).all()
+    all_organizations_data = OrganizationOption.query.filter_by(is_active=True).order_by(OrganizationOption.name).all()
+    all_agents_data = User.query.filter(User.role.in_(['agent', 'admin'])).order_by(User.username).all()
+
+    return render_template('reports/overview.html', 
+                           title="Reports Overview",
+                           all_statuses=all_statuses_data,
+                           all_priorities=all_priorities_data,
+                           all_categories=all_categories_data,
+                           all_organizations=all_organizations_data,
+                           all_agents=all_agents_data)
+
+# Example: API endpoint for a specific predefined report (Ticket List Report)
+@app.route('/api/reports/ticket_list_data')
+@admin_required
+def api_report_ticket_list_data():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 25, type=int) # Allow dynamic per_page
+
+    query = Ticket.query
+    
+    # Apply common filters from request.args (date, status, priority, category, org, agent)
+    query = _apply_common_filters(query, request.args, model_to_filter=Ticket) # Reuse existing helper
+
+    # Add more specific sorting for reports if needed
+    sort_by = request.args.get('sort_by', 'created_at')
+    sort_order = request.args.get('sort_order', 'desc')
+
+    if hasattr(Ticket, sort_by):
+        column_to_sort = getattr(Ticket, sort_by)
+        if sort_order == 'asc':
+            query = query.order_by(column_to_sort.asc())
+        else:
+            query = query.order_by(column_to_sort.desc())
+    else: # Default sort
+        query = query.order_by(Ticket.created_at.desc())
+
+    tickets_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    tickets_data = []
+    for ticket in tickets_pagination.items:
+        tickets_data.append({
+            'id': ticket.id,
+            'title': ticket.title,
+            'status': ticket.status,
+            'priority': ticket.priority,
+            'category': ticket.category_ref.name if ticket.category_ref else 'N/A',
+            'created_at': ticket.created_at.strftime('%Y-%m-%d %H:%M'),
+            'updated_at': ticket.updated_at.strftime('%Y-%m-%d %H:%M'),
+            'resolved_at': ticket.resolved_at.strftime('%Y-%m-%d %H:%M') if ticket.resolved_at else 'N/A',
+            'created_by': ticket.creator.username if ticket.creator else 'N/A',
+            'assigned_to': ticket.assignee.username if ticket.assignee else 'Unassigned',
+            'organization': ticket.organization_option_ref.name if ticket.organization_option_ref else 'N/A'
+        })
+
+    return jsonify({
+        'tickets': tickets_data,
+        'total': tickets_pagination.total,
+        'pages': tickets_pagination.pages,
+        'current_page': tickets_pagination.page,
+        'has_next': tickets_pagination.has_next,
+        'has_prev': tickets_pagination.has_prev,
+        'per_page': tickets_pagination.per_page
+    })
+
+
+
+
+
 @app.route('/tickets/new', methods=['GET', 'POST'])
 @login_required
 def create_ticket():
@@ -1329,37 +1510,68 @@ def view_ticket(ticket_id):
 #kanban
 # ... (near other agent_required routes) ...
 
-@app.route('/agent/kanban_board')
-@agent_required
-def agent_kanban_board():
-    # Fetch all tickets that are not 'Closed' for a start, or filter as needed
-    # For a true Kanban, you'd typically show active work.
-    # We'll group them by status in the template.
-    
-    # TICKET_STATUS_CHOICES = [('Open', 'Open'), ('In Progress', 'In Progress'), ('On Hold', 'On Hold'), ('Resolved', 'Resolved'), ('Closed', 'Closed')]
-    # We need the statuses in a specific order for the board
-    kanban_statuses_ordered = [s[0] for s in TICKET_STATUS_CHOICES] # ['Open', 'In Progress', ..., 'Closed']
+# app.py
 
-    tickets_query = Ticket.query.order_by(Ticket.priority, Ticket.updated_at.desc())
+# ... (other imports and code) ...
+
+@app.route('/agent/kanban_board')
+@agent_required # This decorator ensures only users with 'agent' or 'admin' role can access
+def agent_kanban_board():
+    kanban_statuses_ordered = [s[0] for s in TICKET_STATUS_CHOICES]
     
-    # For simplicity in this phase, fetch all and group in template.
-    # Later, you might pre-group here or fetch tickets per status.
+    tickets_query = Ticket.query
+    is_admin_only_view = False # Flag to determine if this is an admin seeing all tickets
+
+    # If the user is an admin AND NOT also an agent, they see all.
+    # OR if they are an admin and specifically want an "all tickets" view (future enhancement).
+    # For now, if they are an admin, they see all. If they are *only* an agent, they see their own.
+    # If they are both admin AND agent, the current logic implies they might want to see their own
+    # when accessing this specific "agent" kanban. This can be made configurable later.
+
+    if current_user.is_admin:
+        # Admins see all tickets by default on this board
+        # No additional filtering needed here for assigned_to_id
+        is_admin_only_view = True 
+        # If an admin *also* wants to see *only their own* tickets on this board,
+        # you'd need another parameter or a separate route, e.g., /my_kanban_board
+    elif current_user.is_agent: # This will catch users who are agents but not admins
+        tickets_query = tickets_query.filter(Ticket.assigned_to_id == current_user.id)
+        # Optionally, filter out closed tickets for agents:
+        # tickets_query = tickets_query.filter(Ticket.status != 'Closed')
+    # else:
+        # This case should not be reached due to @agent_required, 
+        # but good for robustness if decorator changes.
+        # return redirect(url_for('dashboard')) 
+
+
+    tickets_query = tickets_query.order_by(
+        db.case(
+            PRIORITY_ORDER_MAP, 
+            value=Ticket.priority, 
+            else_=len(PRIORITY_ORDER_MAP) 
+        ).asc(), 
+        Ticket.updated_at.desc()
+    )
+    
     all_tickets_for_board = tickets_query.all()
 
     tickets_by_status = {status: [] for status in kanban_statuses_ordered}
     for ticket in all_tickets_for_board:
         if ticket.status in tickets_by_status:
             tickets_by_status[ticket.status].append(ticket)
-        # else: # Handle tickets with unknown statuses if necessary
-        #     if 'Other' not in tickets_by_status: tickets_by_status['Other'] = []
-        #     tickets_by_status['Other'].append(ticket)
+
+    page_title = "Kanban Board"
+    if not is_admin_only_view and current_user.is_agent: # If it's an agent's filtered view
+        page_title += " (My Tickets)"
 
     return render_template('agent/kanban_board.html', 
-                           title="Kanban Board",
+                           title=page_title,
                            tickets_by_status=tickets_by_status,
                            kanban_statuses=kanban_statuses_ordered,
-                           TICKET_PRIORITY_CHOICES_DICT=dict(TICKET_PRIORITY_CHOICES) # Pass for easy lookup
+                           TICKET_PRIORITY_CHOICES_DICT=dict(TICKET_PRIORITY_CHOICES) 
                           )
+
+# ... (rest of your app.py) ...
 
 # API Endpoint for status updates (Phase 2 will use this)
 @app.route('/api/ticket/<int:ticket_id>/update_status_kanban', methods=['POST'])
@@ -2263,6 +2475,574 @@ def api_aws_doc_search():
         return jsonify({"error": "Failed to search for AWS documentation due to an internal error."}), 500
     
     
+#kb diagnostic
+
+# app.py (add to your Models section)
+
+class KBCategory(db.Model):
+    __tablename__ = 'kb_categories'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    slug = db.Column(db.String(120), unique=True, nullable=False) # For user-friendly URLs
+    parent_id = db.Column(db.Integer, db.ForeignKey('kb_categories.id'), nullable=True) # For subcategories
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    articles = db.relationship('KBArticle', backref='kb_category_ref', lazy='dynamic')
+    parent = db.relationship('KBCategory', remote_side=[id], backref='children')
+
+    def __init__(self, *args, **kwargs):
+        if not kwargs.get('slug') and kwargs.get('name'):
+            kwargs['slug'] = self._generate_slug(kwargs['name'])
+        super().__init__(*args, **kwargs)
+
+    def _generate_slug(self, name):
+        # Basic slug generation, consider a more robust library for production
+        slug = name.lower().strip().replace(' ', '-')
+        slug = re.sub(r'[^\w-]', '', slug) # Remove non-alphanumeric except hyphens
+        # Ensure uniqueness (simple append number if not unique)
+        original_slug = slug
+        count = 1
+        while KBCategory.query.filter_by(slug=slug).first() and (not self.id or KBCategory.query.filter_by(slug=slug).first().id != self.id):
+            slug = f"{original_slug}-{count}"
+            count += 1
+        return slug
+    
+    def set_name(self, name):
+        self.name = name
+        self.slug = self._generate_slug(name)
+
+
+    def __repr__(self):
+        return f'<KBCategory {self.name}>'
+
+class KBArticle(db.Model):
+    __tablename__ = 'kb_articles'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(220), unique=True, nullable=False) # For user-friendly URLs
+    content = db.Column(db.Text, nullable=False) # Store as Markdown or HTML
+    kb_category_id = db.Column(db.Integer, db.ForeignKey('kb_categories.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True) # Agent/Admin who wrote it
+    status = db.Column(db.String(20), default='Draft', nullable=False)  # Draft, Published, Archived
+    views = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    published_at = db.Column(db.DateTime, nullable=True)
+    tags = db.Column(db.Text, nullable=True) # Comma-separated tags
+
+    author = db.relationship('User', backref='kb_articles_authored')
+
+    def __init__(self, *args, **kwargs):
+        if not kwargs.get('slug') and kwargs.get('title'):
+            kwargs['slug'] = self._generate_slug(kwargs['title'])
+        super().__init__(*args, **kwargs)
+
+    def _generate_slug(self, title):
+        # Basic slug generation
+        slug = title.lower().strip().replace(' ', '-')
+        slug = re.sub(r'[^\w-]', '', slug)
+        original_slug = slug
+        count = 1
+        # Check for uniqueness, making sure to exclude self during an update
+        while KBArticle.query.filter_by(slug=slug).first() and (not self.id or KBArticle.query.filter_by(slug=slug).first().id != self.id):
+            slug = f"{original_slug}-{count}"
+            count += 1
+        return slug
+
+    def set_title(self, title):
+        self.title = title
+        self.slug = self._generate_slug(title)
+
+    def __repr__(self):
+        return f'<KBArticle {self.title}>'
+
+
+
+class KBCategoryForm(FlaskForm):
+    name = StringField('Category Name', validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField('Description', validators=[Optional(), Length(max=255)])
+    parent_id = SelectField('Parent Category (Optional)', coerce=int, validators=[Optional()])
+    submit = SubmitField('Save Category')
+
+    def __init__(self, *args, **kwargs):
+        super(KBCategoryForm, self).__init__(*args, **kwargs)
+        self.parent_id.choices = [(0, '--- No Parent ---')] + \
+                                 [(c.id, c.name) for c in KBCategory.query.order_by('name').all()]
+                                 # Add logic to prevent self-parenting if editing
+
+class KBArticleForm(FlaskForm):
+    title = StringField('Title', validators=[DataRequired(), Length(max=200)])
+    content = TextAreaField('Content (Markdown supported)', validators=[DataRequired()], render_kw={'rows': 15})
+    kb_category_id = SelectField('Category', coerce=int, validators=[DataRequired(message="Please select a category.")])
+    status = SelectField('Status', choices=[('Draft', 'Draft'), ('Published', 'Published'), ('Archived', 'Archived')],
+                         validators=[DataRequired()])
+    tags = StringField('Tags (comma-separated)', validators=[Optional(), Length(max=255)])
+    submit = SubmitField('Save Article')
+
+    def __init__(self, *args, **kwargs):
+        super(KBArticleForm, self).__init__(*args, **kwargs)
+        self.kb_category_id.choices = [(0, '--- Select Category ---')] + \
+                                      [(c.id, c.name) for c in KBCategory.query.order_by('name').all()]
+
+
+
+
+
+
+
+
+
+# report download
+
+def get_filtered_report_tickets(args):
+    query = Ticket.query
+    query = _apply_common_filters(query, args, model_to_filter=Ticket) 
+    
+    sort_by = args.get('sort_by', 'created_at')
+    sort_order = args.get('sort_order', 'desc')
+    if hasattr(Ticket, sort_by):
+        column_to_sort = getattr(Ticket, sort_by)
+        if sort_order == 'asc':
+            query = query.order_by(column_to_sort.asc())
+        else:
+            query = query.order_by(column_to_sort.desc())
+    else:
+        query = query.order_by(Ticket.created_at.desc())
+    return query.all()
+
+
+
+@app.route('/reports/download/<format>')
+@admin_required
+def download_report_file(format):
+    # request.args will contain the filters applied on the reports page
+    tickets = get_filtered_report_tickets(request.args)
+    
+    filename_base = f"ticket_report_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    if not tickets:
+        flash("No data found for the selected filters to download.", "warning")
+        return redirect(url_for('reports_overview', **request.args))
+
+    if format == 'csv':
+        si = io.StringIO()
+        cw = csv.writer(si)
+        # Header
+        headers = ['ID', 'Title', 'Status', 'Priority', 'Category', 'Created By', 'Assigned To', 'Organization', 'Created At', 'Updated At', 'Resolved At']
+        cw.writerow(headers)
+        # Data
+        for ticket in tickets:
+            cw.writerow([
+                ticket.id, ticket.title, ticket.status, ticket.priority,
+                ticket.category_ref.name if ticket.category_ref else '',
+                ticket.creator.username if ticket.creator else '',
+                ticket.assignee.username if ticket.assignee else 'Unassigned',
+                ticket.organization_option_ref.name if ticket.organization_option_ref else '',
+                ticket.created_at.strftime('%Y-%m-%d %H:%M:%S') if ticket.created_at else '',
+                ticket.updated_at.strftime('%Y-%m-%d %H:%M:%S') if ticket.updated_at else '',
+                ticket.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if ticket.resolved_at else ''
+            ])
+        output = make_response(si.getvalue())
+        output.headers["Content-Disposition"] = f"attachment; filename={filename_base}.csv"
+        output.headers["Content-type"] = "text/csv"
+        return output
+
+    elif format == 'xlsx':
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Ticket Report"
+        
+        headers = ['ID', 'Title', 'Status', 'Priority', 'Category', 'Created By', 'Assigned To', 'Organization', 'Created At', 'Updated At', 'Resolved At']
+        ws.append(headers)
+        for col_num, header_title in enumerate(headers, 1): # Bold headers
+            cell = ws.cell(row=1, column=col_num)
+            cell.font = openpyxl.styles.Font(bold=True)
+            # Auto-adjust column width (basic)
+            column_letter = get_column_letter(col_num)
+            ws.column_dimensions[column_letter].width = max(len(str(header_title)) + 2, 15)
+
+
+        for ticket in tickets:
+            ws.append([
+                ticket.id, ticket.title, ticket.status, ticket.priority,
+                ticket.category_ref.name if ticket.category_ref else '',
+                ticket.creator.username if ticket.creator else '',
+                ticket.assignee.username if ticket.assignee else 'Unassigned',
+                ticket.organization_option_ref.name if ticket.organization_option_ref else '',
+                ticket.created_at.replace(tzinfo=None) if ticket.created_at else '', # openpyxl prefers naive datetimes
+                ticket.updated_at.replace(tzinfo=None) if ticket.updated_at else '',
+                ticket.resolved_at.replace(tzinfo=None) if ticket.resolved_at else ''
+            ])
+        
+        # Save to an in-memory stream
+        xlsx_stream = io.BytesIO()
+        wb.save(xlsx_stream)
+        xlsx_stream.seek(0)
+        
+        output = make_response(xlsx_stream.getvalue())
+        output.headers["Content-Disposition"] = f"attachment; filename={filename_base}.xlsx"
+        output.headers["Content-type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return output
+
+    elif format == 'pdf':
+        # This is a simplified example using WeasyPrint.
+        # You'd need to install WeasyPrint and its dependencies (Pango, Cairo, etc.)
+        # `pip install WeasyPrint`
+        try:
+            from weasyprint import HTML, CSS # Keep import local to this block
+            # Render a simple HTML table for the PDF
+            # You might create a dedicated template: 'reports/pdf_ticket_list.html'
+            html_string = render_template('reports/ticket_list_for_pdf.html', tickets=tickets, report_title=f"Ticket Report - {datetime.utcnow().strftime('%Y-%m-%d')}")
+            
+            # Optional: Add some basic CSS for the PDF
+            # css_string = """ body { font-family: sans-serif; } table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ccc; padding: 4px; text-align: left; } th { background-color: #f0f0f0;} """
+            # pdf_file = HTML(string=html_string).write_pdf(stylesheets=[CSS(string=css_string)])
+            
+            pdf_file = HTML(string=html_string).write_pdf()
+
+
+            output = make_response(pdf_file)
+            output.headers["Content-Disposition"] = f"attachment; filename={filename_base}.pdf"
+            output.headers["Content-type"] = "application/pdf"
+            return output
+        except ImportError:
+            flash("PDF generation library (WeasyPrint) not installed or configured.", "danger")
+            app.logger.error("WeasyPrint not found for PDF generation.")
+            return redirect(url_for('reports_overview', **request.args))
+        except Exception as e:
+            flash(f"Error generating PDF: {str(e)}", "danger")
+            app.logger.error(f"PDF generation error: {e}", exc_info=True)
+            return redirect(url_for('reports_overview', **request.args))
+
+
+    else:
+        flash("Invalid download format requested.", "danger")
+        return redirect(url_for('reports_overview'))
+
+@app.route('/reports/share_email', methods=['POST'])
+@admin_required
+def share_report_by_email():
+    data = request.get_json()
+    recipient_emails_str = data.get('recipient_email')
+    subject = data.get('email_subject') or "Ticket System Report"
+    message_body = data.get('email_message') or "Please find the attached ticket report."
+    attachment_format = data.get('email_format', 'csv')
+    report_filters_str = data.get('report_filters', '')
+
+    # Parse report_filters_str back into a dict-like structure for get_filtered_report_tickets
+    from urllib.parse import parse_qs
+    filter_args_dict = {k: v[0] for k, v in parse_qs(report_filters_str).items()}
+
+    if not recipient_emails_str:
+        return jsonify({'success': False, 'message': 'Recipient email is required.'}), 400
+    
+    recipient_list = [email.strip() for email in recipient_emails_str.split(',') if email.strip()]
+    if not recipient_list:
+        return jsonify({'success': False, 'message': 'No valid recipient emails provided.'}), 400
+
+    tickets = get_filtered_report_tickets(filter_args_dict)
+    if not tickets:
+         return jsonify({'success': False, 'message': 'No data found for the selected filters to share.'}), 400
+
+    # Generate attachment in memory
+    attachment_content = None
+    attachment_filename = f"ticket_report_{datetime.utcnow().strftime('%Y%m%d')}.{attachment_format}"
+    mimetype = 'application/octet-stream'
+
+    if attachment_format == 'csv':
+        si = io.StringIO()
+        cw = csv.writer(si)
+        headers = ['ID', 'Title', 'Status', 'Priority', 'Category', 'Created By', 'Assigned To', 'Organization', 'Created At', 'Updated At', 'Resolved At']
+        cw.writerow(headers)
+        for ticket in tickets: cw.writerow([ticket.id, ticket.title, ticket.status, ticket.priority, ticket.category_ref.name if ticket.category_ref else '', ticket.creator.username if ticket.creator else '', ticket.assignee.username if ticket.assignee else 'Unassigned', ticket.organization_option_ref.name if ticket.organization_option_ref else '', ticket.created_at.strftime('%Y-%m-%d %H:%M:%S') if ticket.created_at else '', ticket.updated_at.strftime('%Y-%m-%d %H:%M:%S') if ticket.updated_at else '', ticket.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if ticket.resolved_at else ''])
+        attachment_content = si.getvalue().encode('utf-8')
+        mimetype = 'text/csv'
+    elif attachment_format == 'xlsx':
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Ticket Report"
+        headers = ['ID', 'Title', 'Status', 'Priority', 'Category', 'Created By', 'Assigned To', 'Organization', 'Created At', 'Updated At', 'Resolved At']
+        ws.append(headers)
+        for ticket in tickets: ws.append([ticket.id, ticket.title, ticket.status, ticket.priority, ticket.category_ref.name if ticket.category_ref else '', ticket.creator.username if ticket.creator else '', ticket.assignee.username if ticket.assignee else 'Unassigned', ticket.organization_option_ref.name if ticket.organization_option_ref else '', ticket.created_at.replace(tzinfo=None) if ticket.created_at else '', ticket.updated_at.replace(tzinfo=None) if ticket.updated_at else '', ticket.resolved_at.replace(tzinfo=None) if ticket.resolved_at else ''])
+        xlsx_stream = io.BytesIO(); wb.save(xlsx_stream); xlsx_stream.seek(0)
+        attachment_content = xlsx_stream.getvalue()
+        mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    elif attachment_format == 'pdf':
+        try:
+            from weasyprint import HTML # Local import
+            html_string = render_template('reports/ticket_list_for_pdf.html', tickets=tickets, report_title=subject)
+            attachment_content = HTML(string=html_string).write_pdf()
+            mimetype = 'application/pdf'
+        except ImportError:
+            return jsonify({'success': False, 'message': 'PDF generation library not available on server.'}), 500
+        except Exception as e_pdf:
+            app.logger.error(f"PDF generation for email error: {e_pdf}")
+            return jsonify({'success': False, 'message': f'Error generating PDF for email: {str(e_pdf)}'}), 500
+    else:
+        return jsonify({'success': False, 'message': 'Invalid attachment format.'}), 400
+
+    if attachment_content:
+        try:
+            msg = Message(subject=subject, recipients=recipient_list, body=message_body)
+            msg.attach(attachment_filename, mimetype, attachment_content)
+            mail.send(msg)
+            return jsonify({'success': True, 'message': 'Report shared successfully!'})
+        except Exception as e:
+            app.logger.error(f"Failed to send report email: {e}", exc_info=True)
+            return jsonify({'success': False, 'message': f'Failed to send email: {str(e)}'}), 500
+    else:
+        return jsonify({'success': False, 'message': 'Could not generate report attachment.'}), 500
+
+
+
+
+# --- KB Category Management ---
+@app.route('/admin/kb/categories')
+@admin_required
+def admin_kb_category_list():
+    categories = KBCategory.query.order_by('name').all()
+    return render_template('admin/kb/category_list.html', title='Manage KB Categories', categories=categories)
+
+@app.route('/admin/kb/category/new', methods=['GET', 'POST'])
+@app.route('/admin/kb/category/<int:category_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_create_edit_kb_category(category_id=None):
+    category = KBCategory.query.get_or_404(category_id) if category_id else None
+    form = KBCategoryForm(obj=category)
+    
+    # Prevent selecting self or descendant as parent if editing
+    if category:
+        form.parent_id.choices = [(0, '--- No Parent ---')]
+        # Simple exclusion: exclude self. More complex for descendants.
+        form.parent_id.choices += [(c.id, c.name) for c in KBCategory.query.filter(KBCategory.id != category.id).order_by('name').all()]
+    
+    if form.validate_on_submit():
+        is_new = category is None
+        if is_new:
+            category = KBCategory()
+        
+        # Check for name uniqueness (slug will be generated)
+        existing_cat = KBCategory.query.filter(KBCategory.name == form.name.data, KBCategory.id != (category.id if category.id else -1) ).first()
+        if existing_cat:
+            form.name.errors.append("A category with this name already exists.")
+        else:
+            category.set_name(form.name.data) # This will also update slug
+            category.description = form.description.data
+            parent_id_val = form.parent_id.data
+            category.parent_id = parent_id_val if parent_id_val != 0 else None
+            
+            if is_new:
+                db.session.add(category)
+            try:
+                db.session.commit()
+                flash(f'KB Category "{category.name}" saved.', 'success')
+                return redirect(url_for('admin_kb_category_list'))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Error saving KB Category: {e}")
+                flash(f'Error saving KB category: {str(e)}', 'danger')
+    
+    return render_template('admin/kb/create_edit_category.html', 
+                           title='Edit KB Category' if category else 'New KB Category', 
+                           form=form, category=category)
+
+@app.route('/admin/kb/category/<int:category_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_kb_category(category_id):
+    category = KBCategory.query.get_or_404(category_id)
+    if category.articles.count() > 0 or KBCategory.query.filter_by(parent_id=category.id).count() > 0:
+        flash(f'Cannot delete category "{category.name}" as it contains articles or subcategories.', 'danger')
+    else:
+        try:
+            db.session.delete(category)
+            db.session.commit()
+            flash(f'KB Category "{category.name}" deleted.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error deleting KB Category: {e}")
+            flash(f'Error deleting KB category: {str(e)}', 'danger')
+    return redirect(url_for('admin_kb_category_list'))
+
+
+# --- KB Article Management ---
+@app.route('/admin/kb/articles')
+@app.route('/admin/kb/articles/category/<slug>')
+@admin_required
+def admin_kb_article_list(slug=None):
+    page = request.args.get('page', 1, type=int)
+    query = KBArticle.query
+    category_filter = None
+    if slug:
+        category_filter = KBCategory.query.filter_by(slug=slug).first_or_404()
+        query = query.filter_by(kb_category_id=category_filter.id)
+        
+    articles_pagination = query.order_by(KBArticle.updated_at.desc()).paginate(page=page, per_page=15)
+    categories = KBCategory.query.order_by('name').all()
+    return render_template('admin/kb/article_list.html', 
+                           title='Manage KB Articles' + (f' in {category_filter.name}' if category_filter else ''), 
+                           articles_pagination=articles_pagination,
+                           categories=categories,
+                           current_category_slug=slug)
+
+@app.route('/admin/kb/article/new', methods=['GET', 'POST'])
+@app.route('/admin/kb/article/<int:article_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_create_edit_kb_article(article_id=None):
+    article = KBArticle.query.get_or_404(article_id) if article_id else None
+    form = KBArticleForm(obj=article)
+
+    if form.validate_on_submit():
+        is_new = article is None
+        if is_new:
+            article = KBArticle(author_id=current_user.id)
+        
+        # Check for title uniqueness (slug will be generated)
+        existing_article = KBArticle.query.filter(KBArticle.title == form.title.data, KBArticle.id != (article.id if article.id else -1)).first()
+        if existing_article:
+            form.title.errors.append("An article with this title already exists.")
+        else:
+            article.set_title(form.title.data) # This will also update slug
+            article.content = form.content.data
+            article.kb_category_id = form.kb_category_id.data
+            article.status = form.status.data
+            article.tags = form.tags.data.strip() if form.tags.data else None
+            
+            if article.status == 'Published' and not article.published_at:
+                article.published_at = datetime.utcnow()
+            elif article.status != 'Published':
+                 article.published_at = None # Clear if moved from published
+
+            if is_new:
+                db.session.add(article)
+            try:
+                db.session.commit()
+                flash(f'KB Article "{article.title}" saved.', 'success')
+                return redirect(url_for('admin_kb_article_list'))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Error saving KB Article: {e}")
+                flash(f'Error saving KB article: {str(e)}', 'danger')
+    elif request.method == "GET" and not article: # For new article, if category_id is passed in URL
+        category_id_from_url = request.args.get('category_id', type=int)
+        if category_id_from_url:
+            form.kb_category_id.data = category_id_from_url
+
+
+    return render_template('admin/kb/create_edit_article.html', 
+                           title='Edit KB Article' if article else 'New KB Article', 
+                           form=form, article=article)
+
+@app.route('/admin/kb/article/<int:article_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_kb_article(article_id):
+    article = KBArticle.query.get_or_404(article_id)
+    try:
+        db.session.delete(article)
+        db.session.commit()
+        flash(f'KB Article "{article.title}" deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting KB Article: {e}")
+        flash(f'Error deleting KB article: {str(e)}', 'danger')
+    return redirect(url_for('admin_kb_article_list'))
+
+
+
+# app.py (add to your public/client-facing routes)
+import markdown # For rendering Markdown content
+
+# Initialize Markdown extension (once, globally or in app factory)
+md = markdown.Markdown(extensions=['fenced_code', 'tables', 'attr_list', 'nl2br', 'toc'])
+
+
+@app.context_processor
+def inject_kb_categories_for_layout():
+    # Makes categories available to base layout for KB navigation
+    # Fetch top-level categories with their published articles count, or all published articles if no hierarchy needed now
+    # For simplicity now, let's get all categories with at least one published article
+    # A more complex query would be needed for hierarchical display with counts.
+    top_level_categories = KBCategory.query.filter(KBCategory.parent_id.is_(None))\
+        .join(KBArticle, KBCategory.id == KBArticle.kb_category_id)\
+        .filter(KBArticle.status == 'Published')\
+        .distinct()\
+        .order_by(KBCategory.name).all()
+    return dict(kb_nav_categories=top_level_categories)
+
+
+@app.route('/kb')
+@app.route('/kb/category/<slug>')
+@login_required # Or remove login_required if KB is public
+def kb_category_view(slug=None):
+    page = request.args.get('page', 1, type=int)
+    search_query = request.args.get('q', '').strip()
+    current_category = None
+    query = KBArticle.query.filter_by(status='Published')
+
+    if slug:
+        current_category = KBCategory.query.filter_by(slug=slug).first_or_404()
+        # Include articles from subcategories as well for a better UX
+        category_ids_to_include = [current_category.id]
+        # Simple one-level deep subcategory fetching for now
+        # For deeper hierarchies, a recursive CTE or SQLAlchemy-Utils might be better
+        children_cats = KBCategory.query.filter_by(parent_id=current_category.id).all()
+        for child_cat in children_cats:
+            category_ids_to_include.append(child_cat.id)
+        query = query.filter(KBArticle.kb_category_id.in_(category_ids_to_include))
+        
+    if search_query:
+        query = query.filter(
+            or_(
+                KBArticle.title.ilike(f'%{search_query}%'),
+                KBArticle.content.ilike(f'%{search_query}%'),
+                KBArticle.tags.ilike(f'%{search_query}%')
+            )
+        )
+
+    articles_pagination = query.order_by(KBArticle.published_at.desc(), KBArticle.views.desc()).paginate(page=page, per_page=10)
+    
+    # For breadcrumbs or category list display
+    all_display_categories = KBCategory.query.order_by('name').all()
+
+
+    return render_template('kb/category_view.html', 
+                           title=current_category.name if current_category else "Knowledge Base",
+                           articles_pagination=articles_pagination,
+                           current_category=current_category,
+                           all_display_categories=all_display_categories,
+                           search_query=search_query)
+
+@app.route('/kb/article/<slug>')
+@login_required # Or remove login_required
+def kb_article_view(slug):
+    article = KBArticle.query.filter_by(slug=slug, status='Published').first_or_404()
+    article.views += 1 # Simple view counter
+    db.session.commit()
+    
+    # Convert Markdown content to HTML
+    html_content = Markup(md.convert(article.content))
+
+    # For breadcrumbs: find path to root category
+    breadcrumbs = []
+    cat_temp = article.kb_category_ref
+    while cat_temp:
+        breadcrumbs.append(cat_temp)
+        cat_temp = cat_temp.parent
+    breadcrumbs.reverse()
+
+
+    return render_template('kb/article_view.html', 
+                           title=article.title, 
+                           article=article, 
+                           html_content=html_content,
+                           breadcrumbs=breadcrumbs)
+
+# Helper to convert Markdown in Jinja templates if needed for other parts
+@app.template_filter('markdown_to_html')
+def markdown_to_html_filter(s):
+    return Markup(md.convert(s)) if s else ''
+
+
+
 
 # In app.py
 

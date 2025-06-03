@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% set form_title = title or ('New KB Article' if not article else 'Edit KB Article: ' ~ article.title|truncate(40,true)) %}
+{% set title = form_title %}
+
+{% block head_extra %}
+<style>
+    :root { /* Consistent styles */
+        --kb-primary-color: #007bff; --kb-success-color: #28a745; --kb-danger-color: #dc3545;
+        --kb-light-gray: #f8f9fa; --kb-medium-gray: #e9ecef; --kb-dark-gray: #6c757d;
+        --kb-text-dark: #343a40; --kb-card-border: #dee2e6; --kb-radius: 0.3rem;
+        --kb-input-bg: #fff; --kb-input-border: #ced4da; --kb-input-focus-border: #80bdff;
+        --kb-input-focus-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+    .kb-form-page-header { margin-bottom: 1.5rem; }
+    .kb-form-title { font-size: 1.75rem; font-weight: 600; color: var(--kb-text-dark); margin: 0; }
+    .kb-card { border: 1px solid var(--kb-card-border); border-radius: var(--kb-radius); box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); background-color: white; }
+    .kb-card-header { background-color: var(--kb-light-gray); padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--kb-card-border); border-top-left-radius: calc(var(--kb-radius) - 1px); border-top-right-radius: calc(var(--kb-radius) - 1px); }
+    .kb-card-title { margin-bottom: 0; font-size: 1.1rem; font-weight: 600; color: var(--kb-text-dark); }
+    .kb-card-body { padding: 1.5rem; }
+
+    .kb-form-group { margin-bottom: 1.25rem; }
+    .kb-form-label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--kb-text-dark); font-size: 0.9rem; }
+    .kb-form-control { display: block; width: 100%; padding: 0.5rem 0.75rem; font-size: 1rem; line-height: 1.5; color: var(--kb-text-dark); background-color: var(--kb-input-bg); background-clip: padding-box; border: 1px solid var(--kb-input-border); border-radius: var(--kb-radius); transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out; }
+    .kb-form-control:focus { color: var(--kb-text-dark); background-color: var(--kb-input-bg); border-color: var(--kb-input-focus-border); outline: 0; box-shadow: var(--kb-input-focus-shadow); }
+    textarea.kb-form-control { min-height: 250px; font-family: monospace; font-size:0.95rem; } /* Good for Markdown */
+    .kb-form-control.is-invalid { border-color: var(--kb-danger-color); }
+    .kb-invalid-feedback { display: none; width: 100%; margin-top: 0.25rem; font-size: .875em; color: var(--kb-danger-color); }
+    .kb-form-control.is-invalid ~ .kb-invalid-feedback, .kb-form-group .kb-field-errors .kb-invalid-feedback { display: block; }
+    .kb-field-errors li { list-style: none; margin:0; padding:0; }
+
+    .kb-btn { display: inline-flex; align-items: center; justify-content: center; font-weight: 500; padding: 0.5rem 1rem; font-size: 0.9rem; border-radius: var(--kb-radius); text-decoration: none; border: 1px solid transparent; transition: all 0.15s ease-in-out; cursor:pointer; }
+    .kb-btn i { margin-right: 0.5em; }
+    .kb-btn-primary { background-color: var(--kb-primary-color); border-color: var(--kb-primary-color); color: white; }
+    .kb-btn-primary:hover { background-color: #0069d9; border-color: #0062cc; }
+    .kb-btn-secondary { background-color: var(--kb-dark-gray); border-color: var(--kb-dark-gray); color: white; }
+    .kb-btn-secondary:hover { background-color: #5a6268; border-color: #545b62; }
+    .kb-form-actions { margin-top: 1.5rem; display: flex; gap: 0.5rem; }
+    .kb-form-row { display: flex; gap: 1rem; }
+    .kb-form-row .kb-form-group { flex: 1; }
+    .kb-content-preview-area { margin-top: 1rem; padding: 1rem; border: 1px dashed var(--kb-medium-gray); border-radius: var(--kb-radius); background-color: var(--kb-light-gray); max-height: 400px; overflow-y: auto;}
+    .kb-content-preview-area h5 { font-size: 0.9rem; color: var(--kb-dark-gray); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom:0.5rem;}
+</style>
+{# Consider adding a JS Markdown editor like SimpleMDE or EasyMDE here #}
+{# <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css"> #}
+{# <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script> #}
+{% endblock %}
+
+{% block content %}
+<div class="kb-form-page-header">
+    <h1 class="kb-form-title">{{ form_title }}</h1>
+</div>
+
+<div class="kb-card">
+    <div class="kb-card-body">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="kb-form-group">
+                {{ form.title.label(class="kb-form-label") }}
+                {{ form.title(class="kb-form-control" + (" is-invalid" if form.title.errors else ""), placeholder="Enter a clear and concise title") }}
+                {% if form.title.errors %}
+                    <ul class="kb-field-errors">{% for e in form.title.errors %}<li><small class="kb-invalid-feedback">{{e}}</small></li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+
+            <div class="kb-form-group">
+                {{ form.content.label(class="kb-form-label") }}
+                {{ form.content(class="kb-form-control" + (" is-invalid" if form.content.errors else ""), id="kbContentMarkdown") }}
+                <small class="kb-text-muted">Use Markdown for formatting (e.g., # Heading, *italic*, **bold**, `code`, lists, [links](url)).</small>
+                {% if form.content.errors %}
+                    <ul class="kb-field-errors">{% for e in form.content.errors %}<li><small class="kb-invalid-feedback">{{e}}</small></li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+             {# Optional: Live Preview for Markdown #}
+            <div class="kb-form-group">
+                <button type="button" class="kb-btn kb-btn-sm kb-btn-outline-info" id="togglePreviewBtn" style="font-size:0.8rem; padding: 0.3rem 0.6rem;">
+                    <i class="fas fa-eye"></i> Toggle Live Preview
+                </button>
+            </div>
+            <div class="kb-content-preview-area" id="kbContentPreview" style="display:none;">
+                <h5>Live Preview:</h5>
+                <div id="kbPreviewOutput"></div>
+            </div>
+
+
+            <div class="kb-form-row">
+                <div class="kb-form-group">
+                    {{ form.kb_category_id.label(class="kb-form-label") }}
+                    {{ form.kb_category_id(class="kb-form-control custom-select" + (" is-invalid" if form.kb_category_id.errors else "")) }}
+                    {% if form.kb_category_id.errors %}
+                        <ul class="kb-field-errors">{% for e in form.kb_category_id.errors %}<li><small class="kb-invalid-feedback">{{e}}</small></li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+
+                <div class="kb-form-group">
+                    {{ form.status.label(class="kb-form-label") }}
+                    {{ form.status(class="kb-form-control custom-select" + (" is-invalid" if form.status.errors else "")) }}
+                    {% if form.status.errors %}
+                        <ul class="kb-field-errors">{% for e in form.status.errors %}<li><small class="kb-invalid-feedback">{{e}}</small></li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="kb-form-group">
+                {{ form.tags.label(class="kb-form-label") }}
+                {{ form.tags(class="kb-form-control" + (" is-invalid" if form.tags.errors else ""), placeholder="e.g., setup, troubleshooting, aws-s3") }}
+                {% if form.tags.errors %}
+                    <ul class="kb-field-errors">{% for e in form.tags.errors %}<li><small class="kb-invalid-feedback">{{e}}</small></li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+
+            <div class="kb-form-actions">
+                {{ form.submit(class="kb-btn kb-btn-primary") }}
+                <a href="{{ url_for('admin_kb_article_list') }}" class="kb-btn kb-btn-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{super()}}
+{# SimpleMDE/EasyMDE initialization if you uncomment the CDN links
+<script>
+    document.addEventListener('DOMContentLoaded', function(){
+        // var simplemde = new SimpleMDE({
+        //     element: document.getElementById("kbContentMarkdown"),
+        //     spellChecker: false,
+        //     autosave: {
+        //         enabled: true,
+        //         uniqueId: "kbContentMarkdown_{{ article.id if article else 'new' }}",
+        //         delay: 1000,
+        //     },
+        //     toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "|", "preview", "side-by-side", "fullscreen", "|", "guide"]
+        // });
+
+        // For live preview without a full editor
+        const contentArea = document.getElementById('kbContentMarkdown');
+        const previewArea = document.getElementById('kbPreviewOutput');
+        const toggleBtn = document.getElementById('togglePreviewBtn');
+        const previewContainer = document.getElementById('kbContentPreview');
+
+        if (contentArea && previewArea && toggleBtn && previewContainer) {
+            toggleBtn.addEventListener('click', function() {
+                const isHidden = previewContainer.style.display === 'none';
+                previewContainer.style.display = isHidden ? 'block' : 'none';
+                if (isHidden) {
+                    renderPreview();
+                }
+            });
+
+            let debounceTimer;
+            contentArea.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(renderPreview, 300);
+            });
+            
+            function renderPreview() {
+                if (previewContainer.style.display === 'none') return;
+                // This requires a client-side markdown parser or an AJAX call to a backend endpoint
+                // For simplicity, using 'marked.js' (add CDN to head_extra if you use this)
+                // <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+                if (typeof marked !== 'undefined') {
+                    previewArea.innerHTML = marked.parse(contentArea.value);
+                } else {
+                    previewArea.innerHTML = "<p><em>Live preview requires 'marked.js' library. For now, save to see formatted content.</em></p>" + escapeHtml(contentArea.value).replace(/\n/g, '<br>');
+                }
+            }
+             function escapeHtml(unsafe) {
+                return unsafe
+                     .replace(/&/g, "&")
+                     .replace(/</g, "<")
+                     .replace(/>/g, ">")
+                     .replace(/"/g, '"')
+                     .replace(/'/g, "'");
+             }
+        }
+    });
+</script>
+#}
+{% endblock %}

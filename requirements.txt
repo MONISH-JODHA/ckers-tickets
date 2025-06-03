@@ -16,3 +16,6 @@ Flask-SocketIO
 requests 
 beautifulsoup4 
 google-generativeai 
+markdown
+openpyxl
+WeasyPrint

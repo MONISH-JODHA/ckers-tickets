@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{# title is set in the route #}
+
+{% block head_extra %}
+<style>
+    .kb-search-form { margin-bottom: 1.5rem; }
+    .kb-article-item {
+        border: 1px solid #eee;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0.3rem;
+        background-color: #fff;
+    }
+    .kb-article-item h4 a { color: var(--primary-color); text-decoration: none; }
+    .kb-article-item h4 a:hover { text-decoration: underline; }
+    .kb-article-meta { font-size: 0.85rem; color: #777; margin-top: 0.5rem; }
+    .kb-article-excerpt { margin-top: 0.5rem; color: #555; font-size: 0.9rem; }
+    .kb-sidebar .list-group-item.active { background-color: var(--primary-color); border-color: var(--primary-color); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-3 kb-sidebar">
+            <h4>Categories</h4>
+            <form method="GET" action="{{ url_for('kb_category_view', slug=current_category.slug if current_category else None) }}" class="kb-search-form input-group mb-3">
+                <input type="text" name="q" class="form-control" placeholder="Search articles..." value="{{ search_query or '' }}">
+                <div class="input-group-append">
+                    <button class="btn btn-outline-secondary" type="submit"><i class="fas fa-search"></i></button>
+                </div>
+            </form>
+            <div class="list-group">
+                <a href="{{ url_for('kb_category_view') }}" class="list-group-item list-group-item-action {% if not current_category %}active{% endif %}">
+                    All Articles
+                </a>
+                {% for cat in all_display_categories %}
+                    {# Basic list, for hierarchy you'd need recursive macro #}
+                    {% if not cat.parent_id %} {# Display top-level categories #}
+                    <a href="{{ url_for('kb_category_view', slug=cat.slug) }}" 
+                       class="list-group-item list-group-item-action {% if current_category and current_category.id == cat.id %}active{% endif %}">
+                        {{ cat.name }}
+                    </a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <h2>
+                {% if current_category %}
+                    {{ current_category.name }}
+                {% elif search_query %}
+                    Search Results for "{{ search_query }}"
+                {% else %}
+                    Knowledge Base
+                {% endif %}
+            </h2>
+            <hr>
+
+            {% if articles_pagination.items %}
+                {% for article in articles_pagination.items %}
+                <div class="kb-article-item">
+                    <h4><a href="{{ url_for('kb_article_view', slug=article.slug) }}">{{ article.title }}</a></h4>
+                    <p class="kb-article-excerpt">
+                        {{ article.content | striptags | truncate(250) }}
+                    </p>
+                    <div class="kb-article-meta">
+                        <i class="fas fa-folder-open"></i> {{ article.kb_category_ref.name }}
+                          <i class="fas fa-clock"></i> Published: {{ article.published_at.strftime('%b %d, %Y') if article.published_at else 'N/A' }}
+                          <i class="fas fa-eye"></i> Views: {{ article.views }}
+                        {% if article.tags %}
+                             <i class="fas fa-tags"></i> {{ article.tags.split(',')|join(', ') }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+
+                {# Pagination #}
+                {% if articles_pagination.pages > 1 %}
+                <nav aria-label="Article navigation">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item {% if not articles_pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('kb_category_view', slug=current_category.slug if current_category else None, q=search_query, page=articles_pagination.prev_num) }}">Previous</a>
+                        </li>
+                        {% for page_num in articles_pagination.iter_pages() %}
+                            {% if page_num %}
+                                <li class="page-item {% if articles_pagination.page == page_num %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('kb_category_view', slug=current_category.slug if current_category else None, q=search_query, page=page_num) }}">{{ page_num }}</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        <li class="page-item {% if not articles_pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('kb_category_view', slug=current_category.slug if current_category else None, q=search_query, page=articles_pagination.next_num) }}">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+                {% endif %}
+
+            {% else %}
+                <p class="text-muted">No articles found matching your criteria.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
