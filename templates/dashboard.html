@@ -1,384 +1,470 @@
 {% extends "base.html" %}
 
-{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
+{% block head_extra %}
+<style>
+    :root {
+        --primary-color: {{ app.config.get('THEME_PRIMARY_COLOR', '#4A90E2') }};
+        --primary-rgb: {{ app.config.get('THEME_PRIMARY_RGB', '74, 144, 226') }};
+        --text-dark: #34495e;
+        --text-medium: #7f8c8d;
+        --text-light: #bdc3c7;
+        --page-bg: #f4f7f9; /* Light background */
+        --card-bg: #ffffff;
+        --card-border: #e3e8ee;
+        --card-shadow: 0 3px 15px rgba(0,0,0,0.05);
+        --radius-md: 6px;
+        --radius-lg: 10px;
 
-{% block content_header %}
-    {# The main title for the dashboard is handled by the h1 below in the content block #}
+        --status-open-bg: #e6fffa; --status-open-text: #00796b; --status-open-dot: #00bfa5;
+        --status-inprogress-bg: #e3f2fd; --status-inprogress-text: #1976d2; --status-inprogress-dot: #2196f3;
+        --status-onhold-bg: #fff8e1; --status-onhold-text: #f57f17; --status-onhold-dot: #ffab00;
+        --status-resolved-bg: #e8f5e9; --status-resolved-text: #2e7d32; --status-resolved-dot: #4caf50;
+        --status-closed-bg: #f5f5f5; --status-closed-text: #757575; --status-closed-dot: #9e9e9e;
+
+        --priority-urgent-border: #e53935; /* Red */
+        --priority-high-border: #fb8c00;   /* Orange */
+        --priority-medium-border: #1e88e5; /* Blue */
+        --priority-low-border: #43a047;    /* Green */
+    }
+
+    .dashboard-welcome {
+        padding: 1.5rem 0;
+        margin-bottom: 1.5rem;
+    }
+    .dashboard-welcome h2 {
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+    .dashboard-welcome p {
+        color: var(--text-medium);
+        font-size: 1.1rem;
+    }
+
+    .ticket-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        box-shadow: var(--card-shadow);
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        position: relative; /* For priority indicator */
+        overflow: hidden; /* For priority indicator */
+    }
+    .ticket-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    }
+
+    .ticket-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start; /* Align items to top for multiline titles */
+        margin-bottom: 0.75rem;
+    }
+    .ticket-card-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 0.25rem;
+        line-height: 1.3;
+    }
+    .ticket-card-title a {
+        color: inherit;
+        text-decoration: none;
+    }
+    .ticket-card-title a:hover {
+        text-decoration: underline;
+    }
+    .ticket-id {
+        font-size: 0.8rem;
+        color: var(--text-light);
+        font-weight: 500;
+    }
+
+    .ticket-status-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.3em 0.8em;
+        border-radius: 20px; /* Pill shape */
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: inline-flex;
+        align-items: center;
+    }
+    .ticket-status-badge .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    .status-open { background-color: var(--status-open-bg); color: var(--status-open-text); }
+    .status-open .status-dot { background-color: var(--status-open-dot); }
+    .status-in-progress { background-color: var(--status-inprogress-bg); color: var(--status-inprogress-text); }
+    .status-in-progress .status-dot { background-color: var(--status-inprogress-dot); }
+    .status-on-hold { background-color: var(--status-onhold-bg); color: var(--status-onhold-text); }
+    .status-on-hold .status-dot { background-color: var(--status-onhold-dot); }
+    .status-resolved { background-color: var(--status-resolved-bg); color: var(--status-resolved-text); }
+    .status-resolved .status-dot { background-color: var(--status-resolved-dot); }
+    .status-closed { background-color: var(--status-closed-bg); color: var(--status-closed-text); }
+    .status-closed .status-dot { background-color: var(--status-closed-dot); }
+
+    .ticket-priority-indicator {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 6px;
+        height: 100%;
+    }
+    .priority-urgent { background-color: var(--priority-urgent-border); }
+    .priority-high { background-color: var(--priority-high-border); }
+    .priority-medium { background-color: var(--priority-medium-border); }
+    .priority-low { background-color: var(--priority-low-border); }
+
+
+    .ticket-meta {
+        font-size: 0.85rem;
+        color: var(--text-medium);
+        margin-bottom: 0.3rem;
+    }
+    .ticket-meta .fas {
+        margin-right: 0.4em;
+        width: 1em; /* Ensure alignment */
+    }
+    .ticket-meta strong {
+        color: var(--text-dark);
+        font-weight: 500;
+    }
+    .ticket-description-preview {
+        font-size: 0.9rem;
+        color: var(--text-medium);
+        margin-top: 0.75rem;
+        line-height: 1.5;
+        max-height: 3em; /* Approx 2 lines */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        /* Forcing ellipsis on multiline requires more complex CSS or JS, 
+           keeping it simple for now or use white-space: nowrap if single line is OK */
+    }
+
+    .ticket-actions {
+        margin-top: 1rem;
+        text-align: right;
+    }
+    .ticket-actions .btn-sm {
+        font-size: 0.8rem;
+    }
+
+    .view-all-btn-container {
+        text-align: center;
+        margin-top: 2rem;
+    }
+
+    /* Agent/Admin Dashboard minimal styling */
+    .agent-dashboard-section {
+        margin-bottom: 2rem;
+    }
+    .agent-dashboard-section h4 {
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--primary-color);
+        display: inline-block;
+    }
+    .agent-dashboard-list .list-group-item {
+        border-left: 3px solid transparent;
+        transition: border-left-color 0.2s;
+    }
+    .agent-dashboard-list .list-group-item:hover {
+        border-left-color: var(--primary-color);
+        background-color: #f8f9fa;
+    }
+
+    /* Admin Dashboard - Stats Cards */
+    .admin-stats-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-left: 4px solid var(--primary-color);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+    }
+    .admin-stats-card .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-dark);
+    }
+    .admin-stats-card .stat-label {
+        font-size: 0.9rem;
+        color: var(--text-medium);
+    }
+    .admin-stats-card .stat-icon {
+        font-size: 1.5rem;
+        color: var(--primary-color);
+        opacity: 0.7;
+    }
+    .recent-interactions-list .list-group-item {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+    .interaction-actor { font-weight: 600; color: var(--primary-color); }
+    .interaction-time { font-size: 0.8rem; color: var(--text-light); }
+
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-container">
-    <div class="dashboard-greeting mb-4">
-        <h1 class="content-title">{{ title }}</h1>
-        <p class="lead text-secondary">Welcome back, {{ current_user.username }}! Here's what's happening.</p>
-    </div>
-
+<div class="container-fluid">
     {% if current_user.is_admin %}
-        <div class="admin-stats-grid">
-            {# Total Tickets - Link to all tickets without status filter #}
-            <a href="{{ url_for('admin_all_tickets') }}" class="stat-card-link" title="View all tickets">
-                <div class="stat-card stat-card-total animated-stat">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-layer-group"></i>
-                    </div>
-                    <div class="stat-card-content">
-                        <h3 class="stat-card-value">{{ total_tickets }}</h3>
-                        <p class="stat-card-label">Total Tickets</p>
-                    </div>
-                </div>
-            </a>
-
-            {# Open Tickets - Link to all tickets filtered by status=Open #}
-            <a href="{{ url_for('admin_all_tickets', status='Open') }}" class="stat-card-link" title="View Open tickets">
-                <div class="stat-card stat-card-open animated-stat" style="animation-delay: 0.1s;">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-folder-open"></i>
-                    </div>
-                    <div class="stat-card-content">
-                        <h3 class="stat-card-value">{{ open_tickets }}</h3>
-                        <p class="stat-card-label">Open Tickets</p>
-                    </div>
-                </div>
-            </a>
-
-            {# In Progress Tickets - Link to all tickets filtered by status=In Progress #}
-            <a href="{{ url_for('admin_all_tickets', status='In Progress') }}" class="stat-card-link" title="View In Progress tickets">
-                <div class="stat-card stat-card-progress animated-stat" style="animation-delay: 0.2s;">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-spinner"></i>
-                    </div>
-                    <div class="stat-card-content">
-                        <h3 class="stat-card-value">{{ inprogress_tickets }}</h3>
-                        <p class="stat-card-label">In Progress</p>
-                    </div>
-                </div>
-            </a>
-
-            {# Resolved Tickets - Link to all tickets filtered by status=Resolved #}
-            <a href="{{ url_for('admin_all_tickets', status='Resolved') }}" class="stat-card-link" title="View Resolved tickets">
-                <div class="stat-card stat-card-resolved animated-stat" style="animation-delay: 0.3s;">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-check-double"></i>
-                    </div>
-                    <div class="stat-card-content">
-                        <h3 class="stat-card-value">{{ resolved_tickets }}</h3>
-                        <p class="stat-card-label">Resolved Tickets</p>
-                    </div>
-                </div>
-            </a>
+        {# --- ADMIN DASHBOARD --- #}
+        <div class="dashboard-welcome">
+            <h2>Admin Dashboard</h2>
+            <p>Overview of the ticket system.</p>
         </div>
-        <div class="mt-4 mb-5 text-center"> 
-            <a href="{{ url_for('admin_all_tickets')}}" class="btn btn-lg btn-primary dashboard-action-button">
-                <i class="fas fa-list-alt mr-2"></i>View All Tickets
-            </a>
-        </div>
-
-        {# --- NEW SECTIONS TO FILL SPACE --- #}
-        <div class="row dashboard-lower-sections">
-            <div class="col-lg-7 col-md-12 mb-4">
-                <div class="card dashboard-section-card animated-section" style="animation-delay: 0.4s;">
-                    <div class="card-header">
-                        <i class="fas fa-bolt mr-2"></i>Quick Actions
-                    </div>
-                    <div class="card-body">
-                        <div class="quick-actions-grid">
-                            <a href="{{ url_for('admin_create_edit_user') }}" class="quick-action-item">
-                                <i class="fas fa-user-plus fa-2x"></i>
-                                <span>New User</span>
-                            </a>
-                            <a href="{{ url_for('create_ticket') }}" class="quick-action-item">
-                                <i class="fas fa-plus-circle fa-2x"></i>
-                                <span>New Ticket</span>
-                            </a>
-                            <a href="{{ url_for('admin_user_list') }}" class="quick-action-item">
-                                <i class="fas fa-users-cog fa-2x"></i>
-                                <span>Manage Users</span>
-                            </a>
-                            <a href="{{ url_for('admin_category_list') }}" class="quick-action-item">
-                                <i class="fas fa-tags fa-2x"></i>
-                                <span>Manage Categories</span>
-                            </a>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="admin-stats-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-value">{{ total_tickets }}</div>
+                            <div class="stat-label">Total Tickets</div>
                         </div>
+                        <div class="stat-icon"><i class="fas fa-ticket-alt"></i></div>
                     </div>
                 </div>
             </div>
-
-            <div class="col-lg-5 col-md-12 mb-4">
-                <div class="card dashboard-section-card animated-section" style="animation-delay: 0.5s;">
-                    <div class="card-header">
-                        <i class="far fa-clock mr-2"></i>Recent System Activity
+            <div class="col-md-3">
+                <div class="admin-stats-card" style="border-left-color: #28a745;">
+                     <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-value">{{ open_tickets }}</div>
+                            <div class="stat-label">Open Tickets</div>
+                        </div>
+                        <div class="stat-icon" style="color: #28a745;"><i class="fas fa-folder-open"></i></div>
                     </div>
-                    <div class="card-body recent-activity-body">
-                        {% if recent_interactions %}
-                            <ul class="list-unstyled recent-activity-list">
-                                {% for interaction in recent_interactions %}
-                                    <li>
-                                        <span class="activity-icon">
-                                            {% if 'TICKET_CREATED' in interaction.interaction_type %}<i class="fas fa-ticket-alt text-primary"></i>
-                                            {% elif 'COMMENT_ADDED' in interaction.interaction_type %}<i class="fas fa-comment-dots text-success"></i>
-                                            {% elif 'LOGIN' in interaction.interaction_type or interaction.interaction_type == 'USER_REGISTERED' %}<i class="fas fa-user-check text-success"></i>
-                                            {% elif '_CHANGE' in interaction.interaction_type or '_UPDATE' in interaction.interaction_type %}<i class="fas fa-edit text-info"></i>
-                                            {% else %}<i class="fas fa-info-circle text-secondary"></i>{% endif %}
-                                        </span>
-                                        <div class="activity-content">
-                                            {% set actor = interaction.user.username if interaction.user else (interaction.ticket.creator.username if interaction.interaction_type == 'TICKET_CREATED' and interaction.ticket and interaction.ticket.creator else 'System') %}
-                                            <strong>
-                                                {% if 'TICKET_CREATED' in interaction.interaction_type %}Ticket #{{ interaction.ticket_id }} created
-                                                {% elif 'COMMENT_ADDED' in interaction.interaction_type %}Comment on Ticket #{{ interaction.ticket_id }}
-                                                {% elif interaction.details and interaction.details.field_display_name %}{{ interaction.details.field_display_name }} changed on Ticket #{{ interaction.ticket_id }}
-                                                {% else %}{{ interaction.interaction_type.replace('_', ' ')|title }}{% if interaction.ticket_id %} on Ticket #{{ interaction.ticket_id }}{% endif %}{% endif %}
-                                            </strong>
-                                            {% if interaction.details and interaction.details.field_display_name %}from '{{ interaction.details.old_value|truncate(20, True) if interaction.details.old_value is not none else 'N/A' }}' to '{{ interaction.details.new_value|truncate(20, True) if interaction.details.new_value is not none else 'N/A' }}'{% elif 'COMMENT_ADDED' in interaction.interaction_type and interaction.details and interaction.details.is_internal %} (Internal){% elif 'TICKET_CREATED' in interaction.interaction_type and interaction.details and interaction.details.title %} "{{ interaction.details.title|truncate(30) }}"{% endif %}
-                                            <small class="text-muted d-block">{{ interaction.timestamp.strftime('%b %d, %Y %H:%M') }} {% if actor != 'System' %}by {{ actor }}{% endif %}</small>
-                                        </div>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <div class="text-center mt-2 no-activity">
-                                 <i class="fas fa-stream fa-2x text-muted mb-2"></i>
-                                <p class="text-muted">No recent significant activity.</p>
-                            </div>
-                        {% endif %}
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="admin-stats-card" style="border-left-color: #ffc107;">
+                     <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-value">{{ inprogress_tickets }}</div>
+                            <div class="stat-label">In Progress</div>
+                        </div>
+                        <div class="stat-icon" style="color: #ffc107;"><i class="fas fa-tasks"></i></div>
                     </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                 <div class="admin-stats-card" style="border-left-color: #007bff;">
+                     <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-value">{{ resolved_tickets }}</div>
+                            <div class="stat-label">Resolved Tickets</div>
+                        </div>
+                         <div class="stat-icon" style="color: #007bff;"><i class="fas fa-check-circle"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+             <div class="col-md-7">
+                <div class="agent-dashboard-section">
+                    <h4>Recent System Interactions</h4>
+                    {% if recent_interactions %}
+                    <ul class="list-group recent-interactions-list">
+                        {% for interaction in recent_interactions %}
+                            <li class="list-group-item">
+                                <span class="interaction-actor">
+                                    {% if interaction.user %}{{ interaction.user.username }}{% elif interaction.interaction_type == 'TICKET_CREATED' and interaction.ticket and interaction.ticket.creator %}{{ interaction.ticket.creator.username }}{% else %}System{% endif %}
+                                </span>
+                                {% set interaction_desc = interaction.interaction_type.replace('_', ' ').title() %}
+                                {% if interaction.details %}
+                                    {% if interaction.details.get('field_display_name') %}
+                                        changed <strong>{{ interaction.details.field_display_name }}</strong> from "{{ interaction.details.old_value|truncate(20) }}" to "{{ interaction.details.new_value|truncate(20) }}"
+                                    {% elif interaction.details.get('comment_id') %}
+                                        added a comment
+                                    {% elif interaction.details.get('title') and interaction.interaction_type == 'TICKET_CREATED' %}
+                                        created ticket: {{ interaction.details.title|truncate(30) }}
+                                    {% else %}
+                                        {{ interaction_desc }}
+                                    {% endif %}
+                                {% else %}
+                                     {{ interaction_desc }}
+                                {% endif %}
+                                {% if interaction.ticket %}
+                                    on <a href="{{ url_for('view_ticket', ticket_id=interaction.ticket_id) }}">Ticket #{{ interaction.ticket_id }}</a>
+                                {% endif %}
+                                <span class="float-right interaction-time">{{ interaction.timestamp.strftime('%b %d, %H:%M') }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted">No recent interactions recorded.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="agent-dashboard-section">
+                    <h4>Quick Stats</h4>
+                     <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total Users
+                            <span class="badge badge-primary badge-pill">{{ total_users }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Active Categories
+                            <span class="badge badge-primary badge-pill">{{ active_category_choices_gdoc|length -1 if active_category_choices_gdoc else 0 }}</span>
+                        </li>
+                        {# Add more quick stats as needed #}
+                    </ul>
                 </div>
             </div>
         </div>
 
 
     {% elif current_user.is_agent %}
-        <div class="agent-dashboard-layout">
-            <div class="dashboard-section">
-                <h2 class="section-title"><i class="fas fa-user-tie mr-2"></i>My Assigned Tickets (Active)</h2>
-                {% if my_assigned_tickets %}
-                    <div class="ticket-list-wrapper">
-                        {% for ticket in my_assigned_tickets %}
-                            {% include '_ticket_item.html' %}
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="empty-state-card">
-                        <i class="fas fa-clipboard-check fa-3x text-muted mb-3"></i>
-                        <p>You have no active tickets assigned to you. Well done!</p>
-                    </div>
-                {% endif %}
+        {# --- AGENT DASHBOARD --- #}
+        <div class="dashboard-welcome">
+            <h2>Agent Dashboard</h2>
+            <p>Manage and track assigned support tickets.</p>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="agent-dashboard-section">
+                    <h4><i class="fas fa-user-clock mr-2"></i>Your Assigned Tickets (Unsolved)</h4>
+                    {% if my_assigned_tickets %}
+                        <ul class="list-group agent-dashboard-list">
+                            {% for ticket in my_assigned_tickets %}
+                                <li class="list-group-item">
+                                    <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">{{ ticket.title }}</a>
+                                    <small class="d-block text-muted">
+                                        Status: {{ ticket.status }} | Priority: {{ ticket.priority }} | Updated: {{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}
+                                    </small>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted">No tickets currently assigned to you that are unsolved.</p>
+                    {% endif %}
+                </div>
             </div>
-            <hr class="my-5">
-            <div class="dashboard-section">
-                <h2 class="section-title"><i class="fas fa-inbox mr-2"></i>Unassigned Open Tickets (Recent 10)</h2>
-                {% if unassigned_tickets %}
-                    <div class="ticket-list-wrapper">
-                        {% for ticket in unassigned_tickets %}
-                            {% include '_ticket_item.html' %}
-                        {% endfor %}
-                    </div>
-                {% else %}
-                     <div class="empty-state-card">
-                        <i class="fas fa-coffee fa-3x text-muted mb-3"></i>
-                        <p>No unassigned open tickets currently. Time for a coffee?</p>
-                    </div>
-                {% endif %}
-            </div>
-            <div class="mt-4 text-center">
-                <a href="{{ url_for('agent_ticket_list') }}" class="btn btn-lg btn-primary dashboard-action-button">
-                    <i class="fas fa-th-list mr-2"></i>View All Agent Tickets
-                </a>
+            <div class="col-md-6">
+                 <div class="agent-dashboard-section">
+                    <h4><i class="fas fa-inbox mr-2"></i>Unassigned Open Tickets</h4>
+                    {% if unassigned_tickets %}
+                         <ul class="list-group agent-dashboard-list">
+                            {% for ticket in unassigned_tickets %}
+                                 <li class="list-group-item">
+                                    <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">{{ ticket.title }}</a>
+                                     <small class="d-block text-muted">
+                                        Priority: {{ ticket.priority }} | Created: {{ ticket.created_at.strftime('%b %d, %Y %H:%M') }}
+                                    </small>
+                                     <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline-success float-right mt-n3">Assign to Me</a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                        {% if unassigned_tickets|length >= 10 %}
+                            <a href="{{ url_for('agent_ticket_list', view_name='unassigned') }}" class="btn btn-sm btn-link mt-2">View all unassigned...</a>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted">No unassigned open tickets at the moment.</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
-    {% elif current_user.is_client %}
-        <div class="dashboard-section">
-            <h2 class="section-title"><i class="fas fa-ticket-alt mr-2"></i>My Recent Tickets</h2>
-            {% if my_tickets %}
-                <div class="ticket-list-wrapper">
-                    {% for ticket in my_tickets %}
-                        {% include '_ticket_item.html' %}
-                    {% endfor %}
+    {% else %}
+        {# --- CLIENT DASHBOARD (IMPROVED) --- #}
+        <div class="dashboard-welcome">
+            <h2>My Dashboard</h2>
+            <p>Welcome back, {{ current_user.username }}! Here's what's happening with your tickets.</p>
+        </div>
+
+        <h4><i class="fas fa-history mr-2"></i>My Recent Tickets</h4>
+        {% if my_tickets %}
+            <div class="row">
+                {% for ticket in my_tickets %}
+                <div class="col-md-6">
+                    <div class="ticket-card">
+                        <div class="ticket-priority-indicator priority-{{ ticket.priority|lower }}"></div>
+                        <div class="ticket-card-header">
+                            <div>
+                                <h5 class="ticket-card-title">
+                                    <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">{{ ticket.title }}</a>
+                                </h5>
+                                <span class="ticket-id">#{{ ticket.id }}</span>
+                            </div>
+                            <span class="ticket-status-badge status-{{ ticket.status|lower|replace(' ', '-') }}">
+                                <span class="status-dot"></span>{{ ticket.status }}
+                            </span>
+                        </div>
+                        
+                        <div class="ticket-meta">
+                            <i class="fas fa-layer-group"></i>Category: <strong>{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</strong>
+                        </div>
+                         <div class="ticket-meta">
+                             <i class="fas {{ 'fa-exclamation-circle' if ticket.priority == 'Urgent' else ('fa-arrow-alt-circle-up' if ticket.priority == 'High' else ('fa-arrow-alt-circle-right' if ticket.priority == 'Medium' else 'fa-arrow-alt-circle-down')) }}"></i>
+                             Priority: <strong>{{ ticket.priority }}</strong>
+                        </div>
+                        <div class="ticket-meta">
+                            <i class="fas fa-user"></i>Assigned: <strong>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</strong>
+                        </div>
+                        <div class="ticket-meta">
+                           <i class="fas fa-clock"></i>Last Updated: <strong>{{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</strong>
+                        </div>
+                        {% if ticket.description %}
+                        <p class="ticket-description-preview">{{ ticket.description|striptags|truncate(120) }}</p>
+                        {% endif %}
+                        <div class="ticket-actions">
+                            <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye mr-1"></i>View Details
+                            </a>
+                        </div>
+                    </div>
                 </div>
-            {% else %}
-                <div class="empty-state-card text-center">
-                    <i class="fas fa-folder-plus fa-3x text-muted mb-3"></i>
-                    <p>You have not created any tickets yet.</p>
-                    <a href="{{url_for('create_ticket')}}" class="btn btn-success dashboard-action-button">
-                        <i class="fas fa-plus-circle mr-1"></i> Create one now!
-                    </a>
-                </div>
-            {% endif %}
-            {% if my_tickets %} 
-            <div class="mt-4 text-center">
-                <a href="{{ url_for('my_tickets') }}" class="btn btn-lg btn-primary dashboard-action-button">
-                    <i class="fas fa-list-ul mr-2"></i>View All My Tickets
-                </a>
+                {% endfor %}
             </div>
-            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle mr-2"></i>You haven't submitted any tickets yet.
+                <a href="{{ url_for('create_ticket') }}" class="alert-link ml-2">Create your first ticket now!</a>
+            </div>
+        {% endif %}
+
+        <div class="view-all-btn-container">
+            <a href="{{ url_for('my_tickets') }}" class="btn btn-primary">
+                <i class="fas fa-list-ul mr-2"></i>View All My Tickets
+            </a>
         </div>
     {% endif %}
 </div>
 {% endblock %}
 
-{% block head_extra %}
-<style>
-    .dashboard-container {
-        animation: fadeInDashboard 0.5s ease-out forwards;
-    }
-    @keyframes fadeInDashboard {
-        from { opacity: 0; transform: translateY(15px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+{% block scripts %}
+{{ super() }}
+{# Add any dashboard-specific JS if needed in the future #}
+<script>
+    // Example: Simple animation for cards on load
+    document.addEventListener('DOMContentLoaded', function() {
+        const ticketCards = document.querySelectorAll('.ticket-card');
+        ticketCards.forEach((card, index) => {
+            card.style.animation = `fadeInUp 0.5s ${index * 0.1}s ease-out forwards`;
+            card.style.opacity = '0'; // Start hidden for animation
+        });
+    });
 
-    .dashboard-greeting .content-title {
-        font-size: 2rem; 
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
-    }
-    .dashboard-greeting .lead {
-        font-size: 1.1rem;
-        font-weight: 300;
-        color: var(--text-secondary);
-    }
-
-    /* Admin Stats Grid */
-    .admin-stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-        gap: 1.5rem;
-        margin-top: 1.5rem;
-    }
-    .stat-card-link { /* Wrapper for the card to make it clickable */
-        text-decoration: none;
-        color: inherit;
-        display: block;
-        border-radius: var(--border-radius); /* Match card's radius */
-        transition: var(--transition-base);
-    }
-     .stat-card-link:hover .stat-card { /* Apply card hover when link is hovered */
-        transform: translateY(-4px);
-        box-shadow: var(--box-shadow-md);
-    }
-    .stat-card {
-        background-color: var(--card-bg);
-        border-radius: var(--border-radius);
-        padding: 1.25rem; 
-        display: flex;
-        align-items: center;
-        box-shadow: var(--box-shadow); 
-        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Ensure card itself has transition */
-        border-left: 4px solid transparent; 
-        cursor: pointer; /* Indicate clickable area */
-    }
-    /* .stat-card:hover is handled by .stat-card-link:hover .stat-card */
-
-    .stat-card-icon {
-        font-size: 1.75rem; 
-        margin-right: 1rem;
-        padding: 0.6rem;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 50px; 
-        height: 50px;
-        flex-shrink: 0;
-    }
-    .stat-card-icon i { line-height: 1; }
-    .stat-card-content .stat-card-value {
-        font-size: 2rem; 
-        font-weight: 700;
-        color: var(--text-primary);
-        margin-bottom: 0;
-        line-height: 1;
-    }
-    .stat-card-content .stat-card-label {
-        font-size: 0.8rem; 
-        color: var(--text-secondary);
-        margin-bottom: 0;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .stat-card-total { border-left-color: var(--primary-color); }
-    .stat-card-total .stat-card-icon { background-color: rgba(var(--bs-primary-rgb, 31,115,183), 0.1); color: var(--primary-color); }
-    .stat-card-open { border-left-color: var(--warning-color); }
-    .stat-card-open .stat-card-icon { background-color: rgba(255,193,7, 0.1); color: var(--warning-color); }
-    .stat-card-progress { border-left-color: var(--info-color); }
-    .stat-card-progress .stat-card-icon { background-color: rgba(23,162,184, 0.1); color: var(--info-color); }
-    .stat-card-resolved { border-left-color: var(--success-color); }
-    .stat-card-resolved .stat-card-icon { background-color: rgba(40,167,69, 0.1); color: var(--success-color); }
-
-    .animated-stat, .animated-section {
-        opacity: 0;
-        transform: translateY(20px);
-        animation: fadeInUpStagger 0.5s ease-out forwards;
-    }
-    @keyframes fadeInUpStagger {
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .dashboard-action-button { padding: 0.75rem 1.5rem; font-size: 0.95rem; }
-
-    /* Agent & Client Dashboard Sections */
-    .dashboard-section .section-title {
-        font-size: 1.3rem; 
-        color: var(--text-primary);
-        margin-bottom: 1.25rem;
-        padding-bottom: 0.6rem;
-        border-bottom: 1px solid var(--border-color);
-    }
-    .ticket-list-wrapper .card { 
-        animation: slideInTicket 0.4s ease-out forwards;
-        opacity: 0;
-        transform: translateX(-20px);
-        box-shadow: var(--box-shadow-sm); 
-    }
-    .ticket-list-wrapper .card:hover {
-        box-shadow: var(--box-shadow); 
-        transform: translateY(-2px);
-    }
-    {% for i in range(1, 11) %}
-    .ticket-list-wrapper .card:nth-child({{i}}) { animation-delay: {{ (i-1) * 0.07 }}s; }
-    {% endfor %}
-
-    @keyframes slideInTicket { to { opacity: 1; transform: translateX(0); } }
-
-    .empty-state-card {
-        background-color: var(--card-bg);
-        border: 1px dashed var(--border-color);
-        border-radius: var(--border-radius);
-        padding: 2rem;
-        text-align: center;
-        color: var(--text-secondary);
-        margin-top: 1rem;
-    }
-    .empty-state-card p { font-size: 1rem; margin-bottom: 1.25rem; }
-
-    .dashboard-lower-sections { margin-top: 2.5rem; }
-    .dashboard-section-card {
-        height: 100%; 
-        border-left: 4px solid var(--primary-color-lighter);
-    }
-    .dashboard-section-card .card-header { font-size: 1rem; font-weight: 500; background-color: #f8f9fa; }
-    .dashboard-section-card .card-header i { margin-right: 0.5rem; color: var(--primary-color); }
-
-    .quick-actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; }
-    .quick-action-item {
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        padding: 1rem; background-color: #f9fafb; border-radius: var(--border-radius);
-        border: 1px solid var(--border-color); text-align: center; color: var(--text-secondary);
-        transition: var(--transition-base), transform 0.15s ease; text-decoration: none !important;
-    }
-    .quick-action-item:hover { background-color: var(--primary-color); color: white; border-color: var(--primary-color); transform: translateY(-3px); box-shadow: var(--box-shadow-sm); }
-    .quick-action-item:hover i { color: white !important; }
-    .quick-action-item i { color: var(--primary-color); margin-bottom: 0.75rem; transition: color 0.15s ease; }
-    .quick-action-item span { font-size: 0.85rem; font-weight: 500; }
-
-    .recent-activity-body { max-height: 350px; overflow-y: auto; }
-    .recent-activity-list { padding-left: 0; list-style: none; margin-bottom: 0; }
-    .recent-activity-list li { display: flex; align-items: flex-start; padding: 0.75rem 0.25rem; border-bottom: 1px solid #f1f3f5; }
-    .recent-activity-list li:last-child { border-bottom: none; }
-    .activity-icon { margin-right: 1rem; flex-shrink: 0; width: 30px; text-align: center; }
-    .activity-icon i { font-size: 1.1rem; }
-    .activity-content strong { font-weight: 500; color: var(--text-primary); }
-    .activity-content small { font-size: 0.75rem; }
-    .no-activity { padding: 2rem 0; }
-</style>
+    // CSS for fadeInUp animation (can be in <style> or external CSS)
+    const styleSheet = document.createElement("style");
+    styleSheet.type = "text/css";
+    styleSheet.innerText = `
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    `;
+    document.head.appendChild(styleSheet);
+</script>
 {% endblock %}

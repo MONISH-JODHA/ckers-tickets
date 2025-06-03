@@ -1,21 +1,181 @@
 {% extends "base.html" %}
-{% set title = title %} {# Corrected: Use the title variable passed from the route #}
+{% set title = title %} {# Assumes 'title' is passed from your Flask route, e.g., "Register as Client" #}
+
+{% block head_extra %}
+<style>
+    :root {
+        /* Using success theme for registration, can be changed */
+        --theme-color:rgb(40, 106, 167); /* Success color */
+        --theme-color-darker:rgb(44, 30, 126);
+        --theme-color-lighter:rgb(61, 192, 209);
+        --theme-color-rgb: 40, 167, 69;
+
+        --text-primary-dark: #111827; 
+        --text-secondary-muted: #6b7280; 
+        --text-on-theme: #ffffff;
+
+        --page-content-bg: #f9fafb; 
+        --card-bg: #ffffff;
+        --card-border-color: #e0e6f0; 
+        --input-border-color: #ced4da;
+        --input-focus-border-color: var(--theme-color);
+        --input-focus-box-shadow: 0 0 0 0.2rem rgba(var(--theme-color-rgb), 0.25);
+
+        --danger-color: #dc3545; /* For error states */
+
+        --border-radius: .375rem;
+        --border-radius-lg: .5rem;
+        
+        --box-shadow-card: 0 8px 25px rgba(0,0,0,0.1); 
+        --box-shadow-button-hover: 0 4px 15px -2px rgba(var(--theme-color-rgb), 0.35);
+        
+        --transition-smooth: all 0.3s ease;
+    }
+
+    .app-content {
+        background-color: var(--page-content-bg);
+    }
+
+    .register-card-wrapper {
+        max-width: 560px; /* Slightly wider for more form fields */
+        margin-top: 2.5rem; 
+        margin-bottom: 3rem;
+        opacity: 0;
+        transform: translateY(20px);
+        animation: fadeInUp 0.6s 0.2s ease-out forwards;
+    }
+
+    @keyframes fadeInUp {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .register-card {
+        border: 1px solid var(--card-border-color);
+        border-radius: var(--border-radius-lg);
+        box-shadow: var(--box-shadow-card);
+        overflow: hidden; 
+    }
+
+    .register-card .card-header {
+        background: linear-gradient(135deg, var(--theme-color-darker) 0%, var(--theme-color) 100%);
+        color: var(--text-on-theme);
+        padding: 1.5rem 1rem; 
+        border-bottom: none; 
+    }
+    .register-card .card-header h2 {
+        font-weight: 600;
+        font-size: 1.75rem;
+        letter-spacing: -0.5px;
+    }
+
+    .register-card .card-body {
+        padding: 1.5rem 2rem; /* Adjusted padding */
+    }
+    .register-card .card-body .info-text { /* Class for the optional info text */
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .register-card fieldset legend {
+        font-size: 1.15rem;
+        font-weight: 500;
+        color: var(--text-primary-dark);
+    }
+
+    .form-control-label {
+        font-weight: 500;
+        color: var(--text-secondary-muted);
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control-lg { 
+        border-radius: var(--border-radius);
+        border: 1px solid var(--input-border-color);
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        transition: border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+    }
+    .form-control-lg:focus {
+        border-color: var(--input-focus-border-color);
+        box-shadow: var(--input-focus-box-shadow);
+        background-color: #fff; 
+    }
+    .form-control-lg.is-invalid {
+        border-color: var(--danger-color); 
+    }
+    .form-control-lg.is-invalid:focus {
+        box-shadow: 0 0 0 0.2rem rgba(var(--danger-color, 220, 53, 69), 0.25);
+    }
+
+    .btn-register { /* Custom class for register button */
+        background-color: var(--theme-color);
+        border-color: var(--theme-color);
+        color: var(--text-on-theme);
+        font-weight: 500;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        border-radius: var(--border-radius);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: background-color var(--transition-smooth), border-color var(--transition-smooth), box-shadow var(--transition-smooth), transform var(--transition-smooth);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .btn-register:hover {
+        background-color: var(--theme-color-darker);
+        border-color: var(--theme-color-darker);
+        color: var(--text-on-theme);
+        box-shadow: var(--box-shadow-button-hover);
+        transform: translateY(-2px);
+    }
+    .btn-register:active {
+        transform: translateY(0);
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .btn-register i {
+        margin-right: 0.5em;
+    }
+
+    .register-card .card-footer {
+        background-color: var(--page-content-bg); 
+        border-top: 1px solid var(--card-border-color);
+        padding: 1.25rem;
+    }
+    .register-card .card-footer small, /* For text like "Already have an account?" */
+    .register-card .card-footer a { /* For the "Sign In" link */
+        color: var(--text-secondary-muted);
+    }
+    .register-card .card-footer a {
+        color: var(--theme-color); /* Link color matches theme */
+        font-weight: 500;
+        transition: color var(--transition-smooth);
+    }
+    .register-card .card-footer a:hover {
+        color: var(--theme-color-darker);
+        text-decoration: underline;
+    }
+
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-4">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow-sm">
-            <div class="card-header text-center bg-success text-white">
+<div class="row justify-content-center"> {# Removed mt-4, using wrapper for margin #}
+    <div class="col-md-10 col-lg-8 register-card-wrapper"> {# Adjusted cols, using wrapper for max-width #}
+        <div class="card register-card"> {# Removed shadow-sm #}
+            <div class="card-header text-center">
                 <h2 class="mb-0">{{ title }}</h2>
             </div>
-            <div class="card-body p-4">
+            <div class="card-body">
                 {% if info_text %}
-                    <p class="text-muted text-center mb-4">{{ info_text }}</p>
+                    <p class="text-muted text-center info-text">{{ info_text }}</p> {# Added class for styling #}
                 {% endif %}
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
                     <fieldset>
-                        <legend class="border-bottom mb-4 pb-2 h5">Create Your {{ registration_type }} Account</legend>
+                        <legend class="border-bottom mb-4 pb-2 h5">Create Your {{ registration_type | default('New') }} Account</legend>
 
                         <div class="form-group mb-3">
                             {{ form.username.label(class="form-control-label") }}
@@ -39,11 +199,7 @@
                             {% else %}
                                 {{ form.email(class="form-control form-control-lg", placeholder="yourname@example.com") }}
                             {% endif %}
-                            {% if registration_type == 'Client' and 'cloudkeeper.com' in form.email.placeholder %}
-                            <small class="form-text text-muted">
-                                Consider allowing various domains or update placeholder if necessary.
-                            </small>
-                            {% endif %}
+                            {# Removed the specific cloudkeeper.com small text as it was too specific for a general template #}
                         </div>
 
                         <div class="form-group mb-3">
@@ -71,12 +227,14 @@
                         </div>
                     </fieldset>
                     <div class="form-group mt-4">
-                        {{ form.submit(class="btn btn-lg btn-success btn-block w-100") }}
+                        {{ form.submit(class="btn btn-lg btn-register w-100") }} {# Use btn-register and custom theme #}
+                        {# Example with icon: #}
+                        {# <button type="submit" class="btn btn-lg btn-register w-100"><i class="fas fa-user-plus"></i> Create Account</button> #}
                     </div>
                 </form>
             </div>
-            <div class="card-footer text-muted text-center py-3">
-                Already have an account? <a href="{{ url_for('login') }}">Sign In</a>
+            <div class="card-footer text-muted text-center">
+                <small>Already have an account? <a href="{{ url_for('login') }}" class="ml-1">Sign In</a></small>
             </div>
         </div>
     </div>

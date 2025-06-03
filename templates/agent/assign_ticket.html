@@ -1,53 +1,267 @@
 {% extends "base.html" %}
-{% set title = "Assign Ticket #" ~ ticket.id %} {# Corrected: Set title variable #}
+{% set title = "Assign Ticket #" ~ ticket.id %}
+
+{% block head_extra %}
+<style>
+    :root {
+        /* Using the sophisticated palette from previous enhancements */
+        --primary-color: #4A90E2; 
+        --primary-color-dark: #357ABD;
+        --primary-color-light: #7AAFF0;
+        --primary-color-rgb: 74, 144, 226;
+        --primary-glow: rgba(var(--primary-color-rgb), 0.1);
+        --primary-pale: #f0f6ff;
+
+        --accent-color: #EF5DA8; /* Contrasting pink/magenta for highlights */
+        
+        --success-color: #2ECC71;
+        --warning-color: #F1C40F;
+        --danger-color: #E74C3C;
+        --info-color: #3498DB;
+        
+        --text-darkest: #2c3e50;
+        --text-dark: #34495e;
+        --text-medium: #7f8c8d;
+        --text-light: #bdc3c7;
+        --text-on-primary: #FFFFFF;
+        --text-link: var(--primary-color);
+
+        --page-bg: #eef1f5; 
+        --card-bg: #ffffff;
+        --card-border: transparent; 
+        --card-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+        --card-hover-shadow: 0 8px 25px rgba(var(--primary-color-rgb), 0.1);
+
+        --input-bg: #fdfdfe;
+        --input-border: #dfe3e8;
+        --input-focus-border: var(--primary-color-light);
+        --input-focus-shadow: 0 0 0 3px var(--primary-glow);
+
+        --radius-base: 6px;
+        --radius-lg: 10px;
+        --radius-xl: 16px; /* For the main card */
+
+        --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        --transition-main: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--page-bg);
+        color: var(--text-dark);
+    }
+    .app-content {
+        background-color: transparent;
+        padding-top: 2rem; /* More space from top */
+        display: flex;
+        align-items: center; /* Vertically center the card if content is short */
+        min-height: calc(100vh - var(--app-header-height, 60px) - var(--app-footer-height, 50px));
+    }
+
+    .assign-ticket-card {
+        background-color: var(--card-bg);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--card-shadow-strong, 0 10px 30px rgba(0,0,0,0.08)); /* Stronger shadow */
+        width: 100%;
+        max-width: 600px; /* Control max width */
+        margin: auto; /* Center the card */
+        overflow: hidden; /* For header gradient */
+        opacity: 0;
+        transform: scale(0.95) translateY(20px);
+        animation: popInCard 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.2s forwards;
+    }
+    @keyframes popInCard {
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .assign-ticket-card .card-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%);
+        color: var(--text-on-primary);
+        padding: 1.5rem 2rem;
+        border-bottom: none;
+        text-align: center;
+    }
+    .assign-ticket-card .card-header h2 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+        letter-spacing: -0.02em;
+    }
+    .assign-ticket-card .card-header .ticket-title-preview {
+        font-size: 0.9rem;
+        opacity: 0.85;
+        max-width: 90%;
+        margin: 0 auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+
+    .assign-ticket-card .card-body {
+        padding: 2rem 2.5rem;
+    }
+    .ticket-info-item {
+        margin-bottom: 1rem;
+        font-size: 0.95rem;
+    }
+    .ticket-info-item strong {
+        font-weight: 600;
+        color: var(--text-darkest);
+        min-width: 150px; /* Align values */
+        display: inline-block;
+    }
+    .ticket-info-item .badge {
+        font-size: 0.9em;
+        padding: 0.4em 0.75em;
+        font-weight: 500;
+    }
+    /* Badge colors (consistent with other views) */
+    .badge-status-open { background-color: var(--success-color); color: #fff; }
+    .badge-status-in-progress { background-color: var(--primary-color); color: #fff; }
+    .badge-priority-urgent { background-color: var(--danger-color); color: #fff; }
+    .badge-priority-high { background-color: var(--warning-color); color: var(--text-darkest); }
+    .badge-priority-medium { background-color: var(--info-color); color: #fff; }
+    .badge-priority-low { background-color: var(--secondary-color); color: #fff; }
+
+
+    .assign-ticket-card .form-control-label {
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 0.5rem;
+    }
+    .assign-ticket-card .form-control, .assign-ticket-card .custom-select {
+        border-radius: var(--radius-md);
+        border: 1px solid var(--input-border);
+        background-color: var(--input-bg);
+        font-size: 1rem;
+        padding: 0.7rem 1rem;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .assign-ticket-card .form-control:focus, .assign-ticket-card .custom-select:focus {
+        border-color: var(--input-focus-border);
+        box-shadow: var(--input-focus-shadow), inset 0 1px 2px rgba(0,0,0,0.04);
+        background-color: #fff;
+    }
+    .assign-ticket-card .btn-primary {
+        background-color: var(--accent-color); /* Use accent for main action */
+        border-color: var(--accent-color);
+        color: #fff;
+        font-weight: 600;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        border-radius: var(--radius-md);
+        transition: var(--transition-main);
+    }
+    .assign-ticket-card .btn-primary:hover {
+        background-color: var(--accent-color-dark);
+        border-color: var(--accent-color-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(var(--accent-color), 0.25);
+    }
+    .assign-ticket-card .btn-secondary {
+        color: var(--text-medium);
+        background-color: transparent;
+        border-color: var(--input-border);
+    }
+    .assign-ticket-card .btn-secondary:hover {
+        background-color: var(--secondary-light);
+        border-color: #c8ced3;
+        color: var(--text-dark);
+    }
+
+    .guidance-text {
+        background-color: var(--primary-pale);
+        border: 1px solid var(--primary-color-light);
+        color: var(--primary-color-dark);
+        padding: 1rem 1.25rem;
+        border-radius: var(--radius-md);
+        font-size: 0.9rem;
+        text-align: center;
+    }
+    .guidance-text i {
+        margin-right: 0.5em;
+    }
+    .guidance-links {
+        margin-top: 1.5rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+    }
+
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card mt-4 shadow-sm">
-            <div class="card-header bg-info text-white">
-                <h2 class="mb-0">Assign Ticket #{{ ticket.id }}: {{ ticket.title }}</h2>
-            </div>
-            <div class="card-body">
-                <p><strong>Current Assignee:</strong> {{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</p>
-                <p><strong>Status:</strong> <span class="badge badge-info">{{ ticket.status }}</span></p>
-                <p><strong>Priority:</strong> <span class="badge 
-                    {% if ticket.priority == 'Urgent' %}badge-danger
-                    {% elif ticket.priority == 'High' %}badge-warning
-                    {% elif ticket.priority == 'Medium' %}badge-primary
-                    {% else %}badge-secondary{% endif %}">{{ ticket.priority }}</span>
-                </p>
-                <hr>
-                
-                {# This form assumes you have a `form` object (e.g., AgentUpdateTicketForm or a dedicated AssignAgentForm) 
-                   passed from the route that renders this template.
-                   If assignment is primarily done via the "Assign to Me" button or the AgentUpdateTicketForm on view_ticket.html, 
-                   this dedicated page might be simpler or not use a full WTForm.
-                #}
-                {% if form and form.assigned_to_id %} {# Check if the relevant field exists #}
-                <form method="POST"> {# Action URL defaults to current page if not specified #}
-                    {{ form.hidden_tag() }}
-                    <div class="form-group">
-                        {{ form.assigned_to_id.label(class="form-control-label font-weight-bold") }}
-                        {{ form.assigned_to_id(class="form-control custom-select " + ("is-invalid" if form.assigned_to_id.errors else "")) }}
-                        {% if form.assigned_to_id.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.assigned_to_id.errors %}<span>{{ error }}</span>{% endfor %}
-                            </div>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7"> {# Adjusted column for better centering #}
+            <div class="assign-ticket-card">
+                <div class="card-header">
+                    <i class="fas fa-user-tag fa-2x mb-2" style="opacity:0.7;"></i>
+                    <h2>Assign Ticket</h2>
+                    <p class="ticket-title-preview">#{{ ticket.id }}: {{ ticket.title }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="ticket-info-item">
+                        <strong>Current Assignee:</strong> 
+                        {% if ticket.assignee %}
+                            <i class="fas fa-user-check text-success mr-1"></i>{{ ticket.assignee.username }}
+                        {% else %}
+                            <span class="text-muted">Unassigned</span>
                         {% endif %}
                     </div>
-                    <div class="form-group mt-4">
-                        {{ form.submit(class="btn btn-primary", value="Assign Agent") }}
-                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary">Cancel</a>
+                    <div class="ticket-info-item">
+                        <strong>Status:</strong> 
+                        <span class="badge badge-status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
                     </div>
-                </form>
-                {% else %}
-                 <p class="text-muted">
-                     <em>To assign this ticket, please use the "Assign to Me" button on the ticket list or the assignment options on the main ticket view page.</em>
-                 </p>
-                 <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary mt-2">Back to Ticket #{{ ticket.id }}</a>
-                 <a href="{{ url_for('agent_ticket_list') }}" class="btn btn-outline-primary mt-2">Back to Ticket List</a>
-                {% endif %}
+                    <div class="ticket-info-item">
+                        <strong>Priority:</strong> 
+                        <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
+                    </div>
+                    <hr class="my-4">
+                    
+                    {% if form and form.assigned_to_id %} 
+                    {# This block will show if a form with 'assigned_to_id' is passed from the route #}
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        <div class="form-group">
+                            {{ form.assigned_to_id.label(class="form-control-label") }}
+                            {{ form.assigned_to_id(class="form-control custom-select " + ("is-invalid" if form.assigned_to_id.errors else "")) }}
+                            {% if form.assigned_to_id.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.assigned_to_id.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group mt-4 text-center">
+                            {{ form.submit(class="btn btn-primary px-5", value="Assign Agent") }}
+                        </div>
+                    </form>
+                    <hr class="my-4">
+                    <div class="text-center">
+                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-arrow-left mr-1"></i> Back to Ticket Details
+                        </a>
+                    </div>
+                    {% else %}
+                     <div class="guidance-text">
+                         <i class="fas fa-info-circle"></i> 
+                         This page provides information about ticket assignment.
+                         Actual assignment is typically done via the "Assign to Me" button on ticket lists or through the update form on the main ticket view page.
+                     </div>
+                     <div class="guidance-links">
+                         <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-eye mr-1"></i> View Ticket #{{ ticket.id }}
+                         </a>
+                         <a href="{{ url_for('agent_ticket_list') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-list-alt mr-1"></i> Back to Ticket List
+                         </a>
+                     </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>

@@ -1,14 +1,331 @@
 {% extends "base.html" %}
-{% set title = title %} {# Uses the title variable passed from the agent_ticket_list route #}
+{% set title = title or "Agent Ticket View" %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --primary-hue: 210; /* Base hue for HSL colors */
+        --primary-color: hsl(var(--primary-hue), 75%, 55%);
+        --primary-color-dark: hsl(var(--primary-hue), 75%, 45%);
+        --primary-color-light: hsl(var(--primary-hue), 80%, 65%);
+        --primary-glow: hsla(var(--primary-hue), 75%, 55%, 0.15);
+        --primary-pale: hsla(var(--primary-hue), 80%, 96%, 1);
+
+        --accent-hue: 330; /* Contrasting accent */
+        --accent-color: hsl(var(--accent-hue), 80%, 60%);
+        --accent-color-dark: hsl(var(--accent-hue), 80%, 50%);
+
+        --success-color: #2ECC71;
+        --warning-color: #F1C40F;
+        --danger-color: #E74C3C;
+        --info-color: #3498DB; /* For medium priority or other info states */
+        --secondary-color: #95A5A6; /* For low priority or resolved */
+        
+        /* HSL versions for badge backgrounds if needed (example) */
+        --warning-colorH: 45; /* Hue for F1C40F (approx) */
+        --danger-colorH: 0;   /* Hue for E74C3C (approx) */
+        
+        --text-darkest: #1A202C; 
+        --text-dark: #2D3748;   
+        --text-medium: #4A5568; 
+        --text-light: #718096;  
+        --text-link: var(--primary-color);
+
+        --page-bg: #F7FAFC; 
+        --card-bg: #FFFFFF;
+        --card-border: #E2E8F0; 
+        --card-shadow: 0 4px 12px rgba(0, 20, 60, 0.04); 
+        --card-hover-shadow: 0 10px 25px -5px rgba(var(--primary-hue), 75%, 55%, 0.1), 0 8px 10px -6px rgba(var(--primary-hue), 75%, 55%, 0.08);
+
+        --radius-sm: 4px;
+        --radius-md: 8px; 
+        --radius-lg: 12px;
+
+        --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        --transition-main: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        --transition-fast: all 0.15s ease-out;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--page-bg);
+        color: var(--text-dark);
+        overflow-x: hidden; 
+    }
+    .app-content {
+        background-color: transparent;
+        padding: 1.5rem;
+    }
+
+    /* Page Header Animation & Styling */
+    .page-header-container {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 2.5rem; padding-bottom: 1.25rem;
+        border-bottom: 1px solid var(--card-border);
+        position: relative;
+    }
+    .page-header-container::after { 
+        content: ''; position: absolute; bottom: -1px; left: 0;
+        height: 2px; width: 100px; 
+        background: linear-gradient(90deg, var(--primary-color) 0%, var(--accent-color) 100%);
+        border-radius: 2px;
+        animation: expandUnderline 0.8s 0.3s ease-out forwards;
+    }
+    @keyframes expandUnderline { to { width: 200px; } }
+
+    .page-header-container h1 {
+        font-size: 2rem; font-weight: 800; color: var(--text-darkest);
+        letter-spacing: -0.03em; margin: 0;
+        opacity: 0; transform: translateX(-20px);
+        animation: slideInText 0.6s 0.2s ease-out forwards;
+    }
+    @keyframes slideInText { to { opacity: 1; transform: translateX(0); } }
+
+    /* Create Ticket Button (if used on this page, e.g. for client's My Tickets) */
+    .btn-create-ticket-enhanced { 
+        background: linear-gradient(45deg, var(--primary-color) 0%, var(--accent-color) 100%);
+        border: none; color: #fff; font-weight: 600; padding: 0.7rem 1.5rem;
+        border-radius: var(--radius-md); font-size: 0.9rem; transition: var(--transition-main);
+        box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.2), 0 2px 5px rgba(var(--accent-hue), 80%, 60%, 0.2);
+        opacity: 0; transform: scale(0.9);
+        animation: popInButtonCreate 0.5s 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; /* Unique name */
+    }
+    @keyframes popInButtonCreate { to { opacity: 1; transform: scale(1); } }
+    .btn-create-ticket-enhanced:hover {
+        color: #fff; transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 7px 15px rgba(var(--primary-rgb), 0.25), 0 4px 8px rgba(var(--accent-hue), 80%, 60%, 0.25);
+    }
+    .btn-create-ticket-enhanced .fas { margin-right: 0.6em; }
+
+    /* Ticket List Items - Advanced Styling */
+    .ticket-list-item {
+        background-color: var(--card-bg); border-radius: var(--radius-lg);
+        box-shadow: var(--card-shadow); margin-bottom: 1.5rem; padding: 0;
+        display: flex; flex-direction: column;
+        transition: var(--transition-main); /* Changed from --transition-cards for consistency */
+        overflow: hidden; position: relative;
+        opacity: 0; transform: perspective(1000px) rotateX(-15deg) translateY(30px);
+        animation: flipInTicketListRender 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards; /* Unique name */
+    }
+    /* Stagger ticket item animations */
+    /* Corrected variable name from 'tickets' to 'tickets_pagination.items' */
+    {% if tickets_pagination and tickets_pagination.items %} 
+        {% for ticket in tickets_pagination.items %}
+    .ticket-list-item:nth-of-type({{ loop.index }}) { animation-delay: {{ (loop.index0 * 0.08) + 0.3 }}s; } /* Adjusted delay slightly */
+        {% endfor %}
+    {% endif %}
+
+    @keyframes flipInTicketListRender { /* Unique name */
+        to { opacity: 1; transform: perspective(1000px) rotateX(0deg) translateY(0); }
+    }
+
+    .ticket-list-item::before { 
+        content: ''; position: absolute; top: 0; left: 0; bottom: 0;
+        width: 5px;
+        background: linear-gradient(180deg, var(--primary-color) 0%, var(--accent-color) 100%);
+        transform: scaleY(0); transform-origin: center;
+        transition: transform 0.3s ease-out;
+        border-top-left-radius: var(--radius-lg);
+        border-bottom-left-radius: var(--radius-lg);
+    }
+    .ticket-list-item:hover::before { transform: scaleY(1); }
+    .ticket-list-item:hover {
+        box-shadow: var(--card-hover-shadow);
+        transform: translateY(-5px); 
+    }
+
+    .ticket-content-wrapper { 
+        padding: 1.5rem 1.75rem; display: flex; flex-direction: column;
+    }
+    @media (min-width: 768px) { .ticket-content-wrapper { flex-direction: row; align-items: flex-start; } }
+
+    .ticket-main-info { flex-grow: 1; margin-bottom: 1rem; }
+    @media (min-width: 768px) { .ticket-main-info { margin-right: 1.5rem; margin-bottom: 0; } }
+
+    .ticket-title-link {
+        font-size: 1.2rem; font-weight: 700; color: var(--text-darkest);
+        text-decoration: none; display: block; margin-bottom: 0.5rem;
+        transition: color var(--transition-fast);
+    }
+    .ticket-title-link:hover { color: var(--primary-color-dark); }
+    
+    .ticket-description-preview {
+        font-size: 0.9rem; color: var(--text-medium); line-height: 1.65;
+        margin-bottom: 1rem; display: -webkit-box; -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis;
+        min-height: calc(0.9rem * 1.65 * 2);
+    }
+    
+    .ticket-attributes { display: flex; flex-wrap: wrap; gap: 0.6rem; font-size: 0.8rem; }
+    .ticket-attributes .badge {
+        padding: 0.4em 0.8em; font-weight: 500; border-radius: var(--radius-sm);
+        border: 1px solid transparent; transition: var(--transition-fast);
+    }
+    .ticket-attributes .badge:hover { transform: scale(1.05); box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+    .badge-priority { display: flex; align-items: center; }
+    .badge-priority .fas { margin-right: 0.4em; font-size: 0.9em; }
+    /* Using direct colors from root for consistency */
+    .badge-priority-low { background-color: var(--neutral-100); color: var(--neutral-600); border-color: var(--neutral-300); }
+    .badge-priority-medium { background-color: var(--primary-pale); color: var(--primary-color-dark); border-color: var(--primary-color-light); }
+    .badge-priority-high { background-color: hsl(var(--warning-colorH, 45), 100%, 95%); color: hsl(var(--warning-colorH, 45), 100%, 30%); border-color: hsl(var(--warning-colorH, 45), 100%, 80%); }
+    .badge-priority-urgent { background-color: hsl(var(--danger-colorH, 0), 100%, 96%); color: hsl(var(--danger-colorH, 0), 70%, 45%); border-color: hsl(var(--danger-colorH, 0), 100%, 85%); }
+    .badge-category { background-color: var(--neutral-100); color: var(--neutral-600); border-color: var(--neutral-300);}
+    .badge-category .fas { color: var(--neutral-500); }
+
+    .ticket-meta-column {
+        flex-shrink: 0; width: 100%; text-align: left; padding-top: 1rem;
+        border-top: 1px dashed var(--card-border);
+    }
+    @media (min-width: 768px) {
+        .ticket-meta-column { width: auto; min-width: 240px; text-align: right; padding-top: 0; border-top: none; }
+    }
+    .ticket-status-indicator {
+        display: flex; align-items: center;
+        justify-content: flex-end; margin-bottom: 0.75rem;
+    }
+    @media (max-width: 767px) { .ticket-status-indicator { justify-content: flex-start; } }
+
+    .ticket-status-indicator .status-dot {
+        width: 10px; height: 10px; border-radius: 50%; margin-right: 0.5em;
+        box-shadow: 0 0 0 3px rgba(0,0,0,0.05), inset 0 1px 1px rgba(0,0,0,0.1); 
+        transition: transform 0.2s ease-out;
+    }
+    .ticket-list-item:hover .status-dot { transform: scale(1.2); }
+    .ticket-status-indicator .status-text {
+        font-size: 0.85rem; font-weight: 600; text-transform: capitalize;
+    }
+    /* Consistent status colors using root variables */
+    .status-dot.open, .status-text.open, .ticket-status-badge.open { color: var(--success-color); } .status-dot.open { background-color: var(--success-color); box-shadow: 0 0 8px var(--success-color); } .ticket-status-badge.open { background-color: var(--success-color); color:#fff; }
+    .status-dot.in-progress, .status-text.in-progress, .ticket-status-badge.in-progress { color: var(--primary-color); } .status-dot.in-progress { background-color: var(--primary-color); box-shadow: 0 0 8px var(--primary-color); } .ticket-status-badge.in-progress { background-color: var(--primary-color); color:#fff; }
+    .status-dot.pending, .status-text.pending, .ticket-status-badge.pending { color: var(--warning-color); } .status-dot.pending { background-color: var(--warning-color); box-shadow: 0 0 8px var(--warning-color); } .ticket-status-badge.pending { background-color: var(--warning-color); color:var(--text-darkest); }
+    .status-dot.resolved, .status-text.resolved, .ticket-status-badge.resolved { color: var(--text-medium); } .status-dot.resolved { background-color: var(--text-medium); } .ticket-status-badge.resolved { background-color: var(--text-medium); color:#fff;}
+    .status-dot.closed, .status-text.closed, .ticket-status-badge.closed { color: var(--neutral-500); } .status-dot.closed { background-color: var(--neutral-500); } .ticket-status-badge.closed { background-color: var(--neutral-500); color:#fff; }
+    .status-dot.re-opened, .status-text.re-opened, .ticket-status-badge.re-opened { color: var(--accent-color); } .status-dot.re-opened { background-color: var(--accent-color); box-shadow: 0 0 8px var(--accent-color); } .ticket-status-badge.re-opened { background-color: var(--accent-color); color:#fff; }
+
+    .ticket-meta-timestamps { font-size: 0.75rem; color: var(--text-light); line-height: 1.6; }
+    .ticket-meta-timestamps span { display: block; margin-bottom: 0.1rem; } 
+    .ticket-meta-timestamps strong { color: var(--text-medium); font-weight: 500;}
+    
+    .ticket-item-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
+    @media (max-width: 767px) { .ticket-item-actions { justify-content: flex-start; } }
+    
+    .btn-manual-assign, .btn-assign-ticket { /* Combined for common base */
+        font-size: 0.8rem; padding: 0.35rem 0.8rem; border-radius: var(--radius-base);
+        transition: var(--transition-fast); display: inline-flex; align-items: center;
+        border: 1px solid transparent;
+    }
+    .btn-manual-assign .fas, .btn-assign-ticket .fas { margin-right: 0.4em; }
+
+    .btn-manual-assign {
+        background-color: var(--primary-pale); color: var(--primary-color-dark);
+        border-color: var(--primary-color-light);
+    }
+    .btn-manual-assign:hover {
+        background-color: var(--primary-color); color: #fff; border-color: var(--primary-color);
+        transform: translateY(-1px); box-shadow: 0 2px 5px rgba(var(--primary-rgb), 0.15);
+    }
+    .btn-assign-ticket { /* For "Assign to Me" */
+        background: linear-gradient(45deg, var(--primary-color), var(--primary-color-light));
+        color: #fff; box-shadow: 0 2px 6px rgba(var(--primary-rgb), 0.2);
+    }
+    .btn-assign-ticket:hover {
+        background: linear-gradient(45deg, var(--primary-color-dark), var(--primary-color));
+        transform: translateY(-2px) scale(1.02); box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.3);
+    }
+    .btn-assign-ticket .fas { margin-right: 0; } /* If only icon */
+
+
+    /* Pagination - Elegant */
+    .pagination-wrapper { display: flex; justify-content: center; margin-top: 3rem; }
+    .pagination .page-item .page-link {
+        color: var(--primary-color); border-radius: 50%; margin: 0 5px;
+        width: 40px; height: 40px; 
+        display: flex; align-items: center; justify-content: center;
+        border: 1px solid var(--primary-pale); background-color: var(--card-bg);
+        transition: var(--transition-main); font-size: 0.9rem; font-weight: 600;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .pagination .page-item .page-link:hover {
+        background-color: var(--primary-pale); border-color: var(--primary-color-light);
+        color: var(--primary-color-dark); transform: translateY(-2px) scale(1.05);
+        box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.12);
+    }
+    .pagination .page-item.active .page-link {
+        background: linear-gradient(45deg, var(--primary-color) 0%, var(--accent-color) 100%);
+        border-color: var(--primary-color-dark); color: #fff;
+        box-shadow: 0 5px 12px rgba(var(--primary-rgb), 0.2), 0 3px 7px rgba(var(--accent-hue),80%,60%,0.2) ;
+        transform: scale(1.1);
+    }
+    .pagination .page-item.disabled .page-link {
+        color: var(--text-light); background-color: var(--neutral-100);
+        border-color: var(--neutral-200); box-shadow: none; pointer-events: none;
+    }
+    .pagination .page-link .fas { font-size: 0.9em; }
+
+    /* "No Tickets" Alert - More Engaging */
+    .no-tickets-alert-wrapper {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        min-height: 60vh; text-align: center;
+        opacity: 0; transform: translateY(30px) scale(0.95);
+        animation: noTicketsPopList 0.7s 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; /* Unique name */
+    }
+    @keyframes noTicketsPopList { /* Unique name */
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .no-tickets-alert-wrapper .icon-container {
+        width: 120px; height: 120px;
+        background: radial-gradient(circle, hsla(var(--primary-hue), 80%, 98%, 1) 0%, var(--primary-pale) 100%);
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 0 0 12px rgba(var(--primary-rgb), 0.05), var(--card-hover-shadow);
+        position: relative;
+    }
+    .no-tickets-alert-wrapper .fas {
+        font-size: 3.5rem; color: var(--primary-color);
+        animation: iconFloatPage 2.5s ease-in-out infinite alternate; /* Unique name */
+    }
+    @keyframes iconFloatPage { /* Unique name */
+        0% { transform: translateY(-5px) rotate(-3deg); }
+        100% { transform: translateY(5px) rotate(3deg); }
+    }
+    .no-tickets-alert-wrapper h5 {
+        font-size: 1.75rem; font-weight: 700; color: var(--text-darkest);
+        margin-bottom: 0.75rem;
+    }
+    .no-tickets-alert-wrapper p {
+        font-size: 1.05rem; color: var(--text-medium);
+        max-width: 450px; margin-bottom: 2rem; line-height: 1.7;
+    }
+    .no-tickets-alert-wrapper .btn-primary-action {
+        background: linear-gradient(45deg, var(--primary-color) 0%, var(--accent-color) 100%);
+        border: none; color: #fff; font-weight: 600;
+        padding: 0.8rem 2rem; border-radius: 50px;
+        font-size: 1rem; transition: var(--transition-main);
+        box-shadow: 0 4px 15px rgba(var(--primary-rgb), 0.25);
+    }
+     .no-tickets-alert-wrapper .btn-primary-action:hover {
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 7px 20px rgba(var(--primary-rgb), 0.3);
+     }
+</style>
+{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-header-container">
         <h1>{{ title }}</h1>
-        {# Optional: Add a dropdown here to switch views if not using a sidebar 
-           or if you want additional quick navigation within this page.
-        <div class="dropdown">
-            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="agentViewSwitcher" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Switch View
+        {# Optional View Switcher #}
+        {% if current_user.is_client and request.endpoint == 'my_tickets' %}
+        <a href="{{ url_for('create_ticket') }}" class="btn btn-create-ticket-enhanced">
+            <i class="fas fa-plus-circle"></i> Create New Ticket
+        </a>
+        {% elif current_user.is_agent or current_user.is_admin %}
+         {# Example for a view switcher if you consolidate agent views 
+            Pass 'current_view_display_name' from your route which could be title
+         <div class="dropdown view-switcher-dropdown">
+            <button class="btn btn-sm dropdown-toggle" type="button" id="agentViewSwitcher" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <i class="fas fa-list-alt mr-1"></i> {{ title }} 
             </button>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="agentViewSwitcher">
                 <a class="dropdown-item {% if current_view == 'my_unsolved' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='my_unsolved') }}">My Unsolved</a>
@@ -21,52 +338,59 @@
             </div>
         </div>
         #}
+        {% endif %}
     </div>
 
     {% if tickets_pagination and tickets_pagination.items %}
-        {% for ticket in tickets_pagination.items %}
-            {% include '_ticket_item.html' %} 
-        {% endfor %}
+        <div class="ticket-list-container">
+            {% for ticket in tickets_pagination.items %}
+                {# This include now expects _ticket_item.html to match the new structure #}
+                {% include '_ticket_item.html' with context %} 
+            {% endfor %}
+        </div>
 
-        <nav aria-label="Ticket navigation" class="mt-4">
-            <ul class="pagination justify-content-center">
-                {% set query_params = request.args.to_dict(flat=True) %}
-                {% do query_params.pop('page', None) %}
-
-                {% if tickets_pagination.has_prev %}
-                    <li class="page-item">
-                        <a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=tickets_pagination.prev_num, **query_params) }}">Previous</a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
-                {% endif %}
-
-                {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+        {% if tickets_pagination.pages > 1 %}
+        <nav aria-label="Ticket navigation" class="pagination-wrapper">
+            <ul class="pagination">
+                {% set query_params = request.args.to_dict(flat=True) %}{% do query_params.pop('page', None) %}
+                <li class="page-item {% if not tickets_pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=tickets_pagination.prev_num, **query_params) if tickets_pagination.has_prev else '#'}}"><i class="fas fa-chevron-left"></i></a>
+                </li>
+                {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
                     {% if page_num %}
-                        {% if tickets_pagination.page == page_num %}
-                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                        {% else %}
-                            <li class="page-item"><a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=page_num, **query_params) }}">{{ page_num }}</a></li>
-                        {% endif %}
-                    {% else %}
-                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <li class="page-item {% if tickets_pagination.page == page_num %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=page_num, **query_params) }}">{{ page_num }}</a>
+                        </li>
+                    {% elif loop.previtem is number and loop.nextitem is number %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
                     {% endif %}
                 {% endfor %}
-
-                {% if tickets_pagination.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=tickets_pagination.next_num, **query_params) }}">Next</a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled"><span class="page-link">Next</span></li>
-                {% endif %}
+                <li class="page-item {% if not tickets_pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for(request.endpoint, view_name=current_view, page=tickets_pagination.next_num, **query_params) if tickets_pagination.has_next else '#'}}"><i class="fas fa-chevron-right"></i></a>
+                </li>
             </ul>
         </nav>
-        <p class="text-center text-muted small">
-            Showing page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}.
-            Total {{ tickets_pagination.total }} tickets.
+        {% endif %}
+        <p class="text-center text-light small mt-3">
+            Page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}.
+            Displaying {{ tickets_pagination.items|length }} of {{ tickets_pagination.total }} tickets.
         </p>
     {% else %}
-        <div class="alert alert-info mt-3">No tickets found for this view.</div>
+        <div class="no-tickets-alert-wrapper">
+            <div class="icon-container">
+                <i class="fas fa-ghost"></i>
+            </div>
+            <h5>No Tickets Found!</h5>
+            <p>Looks like this queue is all clear. Well done, or perhaps time for a coffee?</p>
+            {% if current_user.is_client %}
+             <a href="{{ url_for('create_ticket') }}" class="btn btn-primary-action">
+                <i class="fas fa-plus-circle mr-1"></i> Create a New Ticket
+            </a>
+            {% else %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary-action">
+                <i class="fas fa-th-large mr-1"></i> Go to Dashboard
+            </a>
+            {% endif %}
+        </div>
     {% endif %}
 {% endblock %}

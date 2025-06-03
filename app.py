@@ -267,6 +267,7 @@ class Ticket(db.Model):
     status = db.Column(db.String(20), default='Open', nullable=False)
     priority = db.Column(db.String(20), default='Medium', nullable=False)
     created_at = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)  # ← Must be here!
     updated_at = db.Column(db.DateTime, index=True, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -469,12 +470,244 @@ class SupportModalOptionForm(FlaskForm):
 
 class ShareCredentialsForm(FlaskForm):
     recipient_email = StringField('Recipient Email', validators=[DataRequired(), Email()])
+    
+    
+    
+    
+class AssignAgentOnlyForm(FlaskForm):
+    assigned_to_id = SelectField('Assign To Agent', coerce=int, 
+                                 validators=[InputRequired(message="Please select an agent or choose 'Unassign'.")])
+    submit = SubmitField('Assign Agent')
 
 # --- Flask-Login, Context Processors, Decorators ---
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 login_manager.login_message = "Please log in to access this page."
+
+
+
+
+
+
+
+
+
+
+from flask import Blueprint, jsonify, request
+from datetime import datetime
+
+analytics_api_bp = Blueprint('analytics_api', __name__, url_prefix='/api/analytics')
+
+
+
+
+@analytics_api_bp.route('/avg_resolution_time')
+def avg_resolution_time():
+    # Safety check: ensure model has resolved_at
+    if not hasattr(Ticket, 'resolved_at'): # Check the Ticket class attribute
+        current_app.logger.error("Ticket model is missing 'resolved_at' attribute in its definition.")
+        return jsonify({"error": "Server configuration error: Ticket model is missing 'resolved_at' field."}), 500
+
+    base_query = db.session.query(
+        Ticket.created_at,
+        Ticket.resolved_at 
+    ).filter(
+        Ticket.status.in_(['Resolved', 'Closed']),
+        Ticket.resolved_at.isnot(None),
+        Ticket.created_at.isnot(None)
+    )
+    
+    filtered_query = _apply_common_filters(base_query, request.args)
+    tickets_for_resolution = filtered_query.all()
+    
+    total_resolution_seconds = 0
+    resolved_ticket_count = len(tickets_for_resolution)
+    average_resolution_time_str = "N/A"
+
+    if resolved_ticket_count > 0:
+        for created_at_ts, resolved_at_ts in tickets_for_resolution:
+            if resolved_at_ts and created_at_ts: 
+                resolution_duration = resolved_at_ts - created_at_ts
+                total_resolution_seconds += resolution_duration.total_seconds()
+        
+        if total_resolution_seconds >= 0: # Allow for 0 second resolution
+            average_seconds = total_resolution_seconds / resolved_ticket_count if resolved_ticket_count else 0
+            
+            days = int(average_seconds // (24 * 3600))
+            hours = int((average_seconds % (24 * 3600)) // 3600)
+            minutes = int((average_seconds % 3600) // 60)
+            
+            parts = []
+            if days > 0: parts.append(f"{days}d")
+            if hours > 0: parts.append(f"{hours}h")
+            if minutes > 0: parts.append(f"{minutes}m")
+            
+            average_resolution_time_str = " ".join(parts) if parts else "<1m"
+            if not average_resolution_time_str and resolved_ticket_count > 0 and total_resolution_seconds >= 0:
+                 average_resolution_time_str = "<1m" # If sum is 0 or very small
+        else: # Should not happen if created_at <= resolved_at
+            average_resolution_time_str = "Calc Error"
+
+    return jsonify({
+        'average_resolution_time_str': average_resolution_time_str,
+        'resolved_ticket_count': resolved_ticket_count
+    })
+
+
+
+
+
+
+
+
+
+
+# Add this to your app.py, likely near other ticket-related routes
+
+# In app.py
+
+@app.route('/ticket/<int:ticket_id>/assign', methods=['GET', 'POST'])
+@login_required 
+def assign_ticket_page(ticket_id):
+    ticket = db.session.get(Ticket, ticket_id)
+    if not ticket:
+        flash('Ticket not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # Use the new, simpler form specifically for assignment
+    form = AssignAgentOnlyForm() 
+
+    # Populate choices for the assigned_to_id dropdown
+    agent_choices = [(u.id, u.username) for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()]
+    form.assigned_to_id.choices = [(0, '--- Unassign/Select Agent ---')] + agent_choices
+    
+    if request.method == 'GET':
+        # Populate the form with the current assignee
+        form.assigned_to_id.data = ticket.assigned_to_id or 0 # Use 0 for 'Unassign/Select Agent' if no one is assigned
+
+    if form.validate_on_submit():
+        old_assignee_id = ticket.assigned_to_id
+        old_assignee_name = ticket.assignee.username if ticket.assignee else "Unassigned"
+        
+        new_assignee_id_from_form = form.assigned_to_id.data
+        
+        # Convert form value (0 for Unassign) to None for DB storage
+        new_assignee_id_for_db = new_assignee_id_from_form if new_assignee_id_from_form != 0 else None
+
+        if old_assignee_id != new_assignee_id_for_db:
+            ticket.assigned_to_id = new_assignee_id_for_db
+            
+            new_assignee_obj = db.session.get(User, new_assignee_id_for_db) if new_assignee_id_for_db else None
+            new_assignee_name = new_assignee_obj.username if new_assignee_obj else "Unassigned"
+            
+            log_interaction(ticket.id, 'ASSIGNMENT_CHANGE', user_id=current_user.id, 
+                            details={'old_value': old_assignee_name, 'new_value': new_assignee_name, 'field_display_name': 'Assignee'})
+            
+            # If a ticket is assigned (not unassigned) and was 'Open', change its status to 'In Progress'
+            if new_assignee_id_for_db and ticket.status == 'Open':
+                old_status = ticket.status
+                ticket.status = 'In Progress'
+                log_interaction(ticket.id, 'STATUS_CHANGE', user_id=current_user.id,
+                                details={'old_value': old_status, 'new_value': ticket.status, 'field_display_name': 'Status'})
+
+            try:
+                db.session.commit()
+                flash(f'Ticket #{ticket.id} assignment updated to {new_assignee_name}.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error updating ticket assignment: {str(e)}', 'danger')
+                app.logger.error(f"Error updating assignment for ticket {ticket.id}: {e}", exc_info=True)
+        else:
+            flash('No change in assignment.', 'info')
+        
+        # Always redirect to the view_ticket page after processing (success, error, or no change)
+        return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+    # If form validation fails on POST (e.g., somehow no agent selected, though InputRequired should catch)
+    # or if it's a GET request, render the template.
+    return render_template('agent/assign_ticket.html', 
+                           title=f"Assign Ticket #{ticket.id}", 
+                           ticket=ticket,
+                           form=form)
+
+
+
+
+
+
+
+@analytics_api_bp.route('/total_tickets_in_period')
+def total_tickets_in_period():
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    # ... (rest of your existing total_tickets_in_period code) ...
+    # Make sure Ticket model is accessible (e.g., imported, or via db.Ticket if that's your setup)
+    query = Ticket.query # Assuming Ticket is your SQLAlchemy model for tickets
+    
+    if start_date_str and end_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            query = query.filter(Ticket.created_at >= start_date, Ticket.created_at <= end_date)
+        except ValueError:
+             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+    
+    # ... apply other filters to the query ...
+    # status = request.args.get('status')
+    # if status and status != 'all':
+    #     query = query.filter(Ticket.status == status)
+    # ... etc. for priority, category, organization, agent ...
+
+    count = query.count()
+    period_desc = "Selected Period"
+    if start_date_str and end_date_str:
+        period_desc = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
+    elif start_date_str:
+        period_desc = f"From {start_date.strftime('%b %d, %Y')}"
+    elif end_date_str:
+        period_desc = f"Until {end_date.strftime('%b %d, %Y')}"
+
+    return jsonify({'total_tickets': count, 'period_description': period_desc})
+
+
+@analytics_api_bp.route('/open_urgent_high_tickets')
+def open_urgent_high_tickets():
+    open_statuses = ['Open', 'In Progress', 'Pending'] # Define your open statuses
+    urgent_high_priorities = ['Urgent', 'High']
+
+    query = Ticket.query.filter(
+        Ticket.status.in_(open_statuses),
+        Ticket.priority.in_(urgent_high_priorities)
+    )
+
+    # Apply other filters if passed, e.g., category_id, organization_id
+    # category_id = request.args.get('category_id')
+    # if category_id and category_id != 'all':
+    #     query = query.filter(Ticket.category_id == int(category_id))
+    # ... etc.
+
+    count = query.count()
+    return jsonify({'open_urgent_high_count': count})
+
+app.register_blueprint(analytics_api_bp)
+
+
+
+# Ensure you have:
+# from app_folder.models import Ticket # Or wherever your Ticket model is
+# from app_folder import db # Or wherever your SQLAlchemy db instance is
+
+
+
+
+
+
+
+
+
+
+
 
 @login_manager.user_loader
 def load_user(user_id): 
@@ -563,7 +796,7 @@ def get_active_environment_choices():
 def get_active_organization_choices():
     return get_active_choices(OrganizationOption, placeholder_text_id_0='--- Select Organization ---')
 def get_active_form_type_choices():
-    return get_active_choices(FormTypeOption, placeholder_text_id_0='--- Select Form Type ---')
+    return get_active_choices(FormTypeOption, placeholder_text_id_0='--- Select Dificulty-Level ---')
 def get_active_apn_opportunity_choices():
     return get_active_choices(APNOpportunityOption, placeholder_text_id_0='--- Select APN Opportunity ---')
 def get_active_support_modal_choices():
@@ -833,21 +1066,29 @@ def my_tickets():
     tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).all()
     return render_template('client/my_tickets.html', title='My Submitted Tickets', tickets=tickets)
 
+# app.py
+
+# ... (other imports and code) ...
+from datetime import datetime # Ensure datetime is imported
+
+# ... (Models, Forms, etc.) ...
+
 @app.route('/ticket/<int:ticket_id>', methods=['GET', 'POST'])
 @login_required
 def view_ticket(ticket_id):
-    app.logger.critical(f"--- ENTERED VIEW_TICKET ROUTE for ticket_id: {ticket_id} ---")
+    # ... (existing code for fetching ticket, permissions, comment_form, agent_update_form setup) ...
+    # app.logger.critical(f"--- ENTERED VIEW_TICKET ROUTE for ticket_id: {ticket_id} ---") # Keep if useful
     ticket = db.session.get(Ticket, ticket_id) 
     if not ticket:
         flash('Ticket not found.', 'danger')
-        app.logger.warning(f"Ticket ID: {ticket_id} not found by db.session.get. Redirecting.")
+        # app.logger.warning(f"Ticket ID: {ticket_id} not found by db.session.get. Redirecting.") # Keep if useful
         return redirect(url_for('dashboard'))
         
-    app.logger.info(f"Found ticket: {ticket.title} for ID: {ticket_id}")
+    # app.logger.info(f"Found ticket: {ticket.title} for ID: {ticket_id}") # Keep if useful
 
     if not (current_user.is_admin or current_user.is_agent or ticket.created_by_id == current_user.id): 
         flash('You do not have permission to view this ticket.', 'danger')
-        app.logger.warning(f"Unauthorized attempt to view ticket ID: {ticket_id} by user {current_user.username}. Redirecting.")
+        # app.logger.warning(f"Unauthorized attempt to view ticket ID: {ticket_id} by user {current_user.username}. Redirecting.") # Keep if useful
         return redirect(url_for('dashboard')) 
 
     comment_form = CommentForm()
@@ -855,13 +1096,14 @@ def view_ticket(ticket_id):
     attachments = ticket.ticket_attachments.order_by(Attachment.uploaded_at.desc()).all()
     is_privileged_user = current_user.is_agent or current_user.is_admin
 
-    sorted_interaction_dates = []
-    interactions_by_date = {}
-    today_date_obj = date.today() 
-    yesterday_date_obj = today_date_obj - timedelta(days=1)
+    sorted_interaction_dates = [] #
+    interactions_by_date = {}   #
+    today_date_obj = date.today()       #
+    yesterday_date_obj = today_date_obj - timedelta(days=1) #
 
     if is_privileged_user:
         agent_update_form = AgentUpdateTicketForm(obj=ticket if request.method == 'GET' else None)
+        # ... (rest of agent_update_form choices and GET population)
         agent_choices = [(u.id, u.username) for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()]
         agent_update_form.assigned_to_id.choices = [(0, '--- Unassign/Select Agent ---')] + agent_choices
         agent_update_form.category_id.choices = get_active_category_choices()
@@ -896,10 +1138,11 @@ def view_ticket(ticket_id):
             agent_update_form.apn_opportunity_description.data = ticket.apn_opportunity_description or ''
             agent_update_form.support_modal_id.data = ticket.support_modal_id or 0
 
+
     if request.method == 'POST':
-        app.logger.info(f"POST request to view_ticket for ID: {ticket_id}")
+        # app.logger.info(f"POST request to view_ticket for ID: {ticket_id}") # Keep if useful
         if 'submit_comment' in request.form and comment_form.validate_on_submit():
-            app.logger.info(f"Attempting to add comment for ticket ID: {ticket_id}")
+            # ... (existing comment submission logic) ...
             is_internal_comment = is_privileged_user and hasattr(comment_form, 'is_internal') and comment_form.is_internal.data
             comment = Comment(content=comment_form.content.data, user_id=current_user.id, ticket_id=ticket.id, is_internal=is_internal_comment)
             db.session.add(comment); db.session.flush()
@@ -910,12 +1153,14 @@ def view_ticket(ticket_id):
                 log_interaction(ticket.id, 'FIRST_RESPONSE_RECORDED', user_id=current_user.id, details={'responded_at': ticket.first_response_at.isoformat() if ticket.first_response_at else None, 'duration_minutes': ticket.first_response_duration_minutes})
             db.session.commit(); flash('Your comment has been added.', 'success')
             return redirect(url_for('view_ticket', ticket_id=ticket.id, _anchor='comments_section'))
-        
+
         elif 'submit_update' in request.form and is_privileged_user and agent_update_form and agent_update_form.validate_on_submit():
-            app.logger.info(f"Attempting to update ticket ID: {ticket_id}")
-            old_values = { 'status': ticket.status, 'priority': ticket.priority, 
+            # app.logger.info(f"Attempting to update ticket ID: {ticket_id}") # Keep if useful
+            old_values = { # Capture values BEFORE populate_obj
+                'status': ticket.status, 'priority': ticket.priority, 
                 'assignee_name': ticket.assignee.username if ticket.assignee else "Unassigned",
                 'category_name': ticket.category_ref.name if ticket.category_ref else "None",
+                # ... (all other old_values as they were) ...
                 'cloud_provider': ticket.cloud_provider or "None", 'severity': ticket.severity or "None",
                 'aws_service': ticket.aws_service or "None", 'aws_account_id': ticket.aws_account_id or "None",
                 'environment': ticket.environment or "None",
@@ -934,7 +1179,10 @@ def view_ticket(ticket_id):
             }
             old_severity_for_alert_trigger = ticket.severity
             
-            agent_update_form.populate_obj(ticket) 
+            # Populate ticket object with form data
+            agent_update_form.populate_obj(ticket) # This updates ticket.status, ticket.priority etc.
+            
+            # Handle ForeignKey fields that might be 0 from the form
             ticket.assigned_to_id = agent_update_form.assigned_to_id.data if agent_update_form.assigned_to_id.data != 0 else None
             ticket.category_id = agent_update_form.category_id.data if agent_update_form.category_id.data != 0 else None
             ticket.organization_id = agent_update_form.organization_id.data if agent_update_form.organization_id.data != 0 else None
@@ -950,10 +1198,30 @@ def view_ticket(ticket_id):
 
             if ticket.cloud_provider != 'AWS': ticket.aws_service = None
 
-            changed_fields_map_display = {
-                'Status': (old_values['status'], ticket.status), 'Priority': (old_values['priority'], ticket.priority),
+            # --- START: Logic for resolved_at ---
+            new_status = ticket.status # Status after populate_obj
+            previous_status = old_values['status'] # Status before populate_obj
+
+            if new_status in ['Resolved', 'Closed'] and previous_status not in ['Resolved', 'Closed']:
+                if not ticket.resolved_at: # Only set if not already set (e.g., re-closing)
+                    ticket.resolved_at = datetime.utcnow()
+                    log_interaction(ticket.id, 'TICKET_RESOLVED_TIMESTAMPED', user_id=current_user.id, 
+                                    details={'resolved_at': ticket.resolved_at.isoformat(), 
+                                             'status_changed_to': new_status})
+            elif new_status not in ['Resolved', 'Closed'] and previous_status in ['Resolved', 'Closed']:
+                if ticket.resolved_at: # Only clear if it was set
+                    ticket.resolved_at = None
+                    log_interaction(ticket.id, 'TICKET_REOPENED_RESOLUTION_CLEARED', user_id=current_user.id,
+                                    details={'status_changed_to': new_status})
+            # --- END: Logic for resolved_at ---
+
+            # Interaction logging for changed fields (as before)
+            changed_fields_map_display = { # Make sure this map uses the new values from ticket object
+                'Status': (old_values['status'], ticket.status), 
+                'Priority': (old_values['priority'], ticket.priority),
                 'Assignee': (old_values['assignee_name'], ticket.assignee.username if ticket.assignee else "Unassigned"),
                 'Category': (old_values['category_name'], ticket.category_ref.name if ticket.category_ref else "None"),
+                # ... (all other fields for interaction logging) ...
                 'Cloud Provider': (old_values['cloud_provider'], ticket.cloud_provider or "None"), 
                 'Severity': (old_values['severity'], ticket.severity or "None"),
                 'AWS Service': (old_values['aws_service'], ticket.aws_service or "None"), 
@@ -977,7 +1245,8 @@ def view_ticket(ticket_id):
                     interaction_type_suffix = field_name.upper().replace(" ", "_").replace("(", "").replace(")", "") + "_CHANGE"
                     log_interaction(ticket.id, interaction_type_suffix, user_id=current_user.id, details={'old_value': old_val, 'new_value': new_val, 'field_display_name': field_name})
             
-            if agent_update_form.errors: flash('Error updating ticket. Please check the form.', 'danger')
+            if agent_update_form.errors: 
+                flash('Error updating ticket. Please check the form.', 'danger')
             else:
                 try: 
                     db.session.commit()
@@ -992,6 +1261,7 @@ def view_ticket(ticket_id):
         elif request.method == 'POST' and (comment_form.errors or (agent_update_form and agent_update_form.errors)):
             flash('Please correct the errors in the form.', 'danger')
 
+    # ... (rest of view_ticket logic for comments, interactions, rendering template) ...
     comments_query = ticket.comments
     if not is_privileged_user: 
         comments_query = comments_query.filter_by(is_internal=False)
@@ -1018,13 +1288,25 @@ def view_ticket(ticket_id):
                 comment_type = "internal" if details.get('is_internal') else "public"; p_interaction['message'] = f"added a {comment_type} comment."
                 if comment_obj and (not comment_obj.is_internal or is_privileged_user): p_interaction['comment_preview'] = comment_obj.content
             elif interaction.interaction_type == 'FIRST_RESPONSE_RECORDED': duration_min = details.get('duration_minutes', 'N/A'); p_interaction['message'] = f"logged the first agent response. Duration: {duration_min} minutes."
+            # --- New Interaction Log Messages for Resolved/Reopened Timestamps ---
+            elif interaction.interaction_type == 'TICKET_RESOLVED_TIMESTAMPED':
+                resolved_at_str = details.get('resolved_at')
+                status_changed_to_str = details.get('status_changed_to')
+                p_interaction['message'] = f"marked ticket as <strong>{status_changed_to_str}</strong> and recorded resolution time."
+                if resolved_at_str:
+                    try: p_interaction['message'] += f" (at {datetime.fromisoformat(resolved_at_str).strftime('%b %d, %Y %H:%M')})"
+                    except: pass # ignore parse error for display
+            elif interaction.interaction_type == 'TICKET_REOPENED_RESOLUTION_CLEARED':
+                status_changed_to_str = details.get('status_changed_to')
+                p_interaction['message'] = f"reopened ticket (status to <strong>{status_changed_to_str}</strong>), cleared previous resolution time."
+            # --- End New Interaction Log Messages ---
             if not p_interaction['message'] and not field_display_name: p_interaction['message'] = f"performed action: {interaction.interaction_type}. Details: {details}"
             processed_interactions.append(p_interaction)
         interactions_by_date = {k: sorted(list(g), key=lambda i: i['timestamp_obj'], reverse=True) for k, g in groupby(processed_interactions, key=lambda i: i['timestamp_obj'].date())}
         sorted_interaction_dates = sorted(interactions_by_date.keys(), reverse=True)
     
     page_title = f'Ticket #{ticket.id}: {ticket.title}'
-    app.logger.info(f"Rendering view_ticket for ID: {ticket.id} with title: '{page_title}' for user {current_user.username}")
+    # app.logger.info(f"Rendering view_ticket for ID: {ticket.id} with title: '{page_title}' for user {current_user.username}") # Keep if useful
     return render_template('client/view_ticket.html', 
                            title=page_title, 
                            ticket=ticket, 
@@ -1038,6 +1320,7 @@ def view_ticket(ticket_id):
                            today_date=today_date_obj,                   
                            yesterday_date=yesterday_date_obj) 
 
+# ... (rest of app.py) ...
 @app.route('/uploads/<filename>')
 @login_required
 def uploaded_file(filename):
@@ -1934,21 +2217,27 @@ def _apply_common_filters(query, args, model_to_filter=Ticket):
     return query
 
 @app.route('/tools/analytics_dashboard')
-@admin_required
+@login_required # or @admin_required depending on your access control
 def analytics_dashboard_page():
-    all_statuses = [{'value': s[0], 'display': s[1]} for s in TICKET_STATUS_CHOICES]
-    all_priorities = [{'value': p[0], 'display': p[1]} for p in TICKET_PRIORITY_CHOICES]
-    all_categories = [{'id': c.id, 'name': c.name} for c in Category.query.order_by(Category.name).all()]
-    all_organizations = [{'id': o.id, 'name': o.name} for o in OrganizationOption.query.filter_by(is_active=True).order_by(OrganizationOption.name).all()]
-    all_agents = [{'id': u.id, 'username': u.username} for u in User.query.filter(User.role.in_(['agent', 'admin'])).order_by(User.username).all()]
-    
-    return render_template('tools/analytics_dashboard.html',
-                           title="Analytics Dashboard",
-                           all_statuses=all_statuses,
-                           all_priorities=all_priorities,
-                           all_categories=all_categories,
-                           all_organizations=all_organizations,
-                           all_agents=all_agents)
+    # Fetch choices for filters
+    # Ensure TICKET_STATUS_CHOICES and TICKET_PRIORITY_CHOICES are accessible
+    # e.g., defined globally in app.py or from app.config
+    all_statuses_data = [{'value': s[0], 'display': s[1]} for s in TICKET_STATUS_CHOICES]
+    all_priorities_data = [{'value': p[0], 'display': p[1]} for p in TICKET_PRIORITY_CHOICES]
+    all_categories_data = Category.query.order_by(Category.name).all() # Pass objects
+    all_organizations_data = OrganizationOption.query.filter_by(is_active=True).order_by(OrganizationOption.name).all() # Pass objects
+    all_agents_data = User.query.filter(User.role.in_(['agent', 'admin'])).order_by(User.username).all() # Pass objects
+
+    return render_template(
+        'tools/analytics_dashboard.html', 
+        title="Analytics Dashboard",
+        all_statuses=all_statuses_data,
+        all_priorities=all_priorities_data,
+        all_categories=all_categories_data,
+        all_organizations=all_organizations_data,
+        all_agents=all_agents_data
+        # Add any other necessary variables for your template
+    )
 
 @app.route('/api/analytics/ticket_status_distribution')
 @admin_required

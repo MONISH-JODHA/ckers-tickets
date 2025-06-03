@@ -1,19 +1,347 @@
 {% extends "base.html" %}
-{% set title = title %} {# Corrected: Use the title variable passed from the route #}
+{% set title = title or "My Submitted Tickets" %} {# Provide a default if title isn't passed #}
+
+{% block head_extra %}
+<style>
+    :root {
+        --primary-color: #4A90E2; /* Sophisticated blue */
+        --primary-color-dark: #357ABD;
+        --primary-color-light: #7AAFF0;
+        --primary-color-rgb: 74, 144, 226;
+        --primary-glow: rgba(var(--primary-color-rgb), 0.1);
+        --primary-pale: #f0f6ff;
+
+        --success-color: #2ECC71; /* Bright, clean green */
+        --success-color-dark: #25a25a;
+        
+        --text-darkest: #2c3e50;
+        --text-dark: #34495e;
+        --text-medium: #7f8c8d;
+        --text-light: #bdc3c7;
+        --text-link: var(--primary-color);
+
+        --page-bg: #eef1f5; /* Soft, off-white */
+        --card-bg: #ffffff;
+        --card-border: transparent; /* Let shadow define the card edge */
+        --card-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+        --card-hover-shadow: 0 8px 25px rgba(var(--primary-color-rgb), 0.1);
+
+        --radius-base: 6px;
+        --radius-lg: 10px; /* More rounded for cards */
+
+        --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        --transition-cards: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        --transition-elements: all 0.2s ease-in-out;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--page-bg);
+        color: var(--text-dark);
+    }
+    .app-content {
+        background-color: transparent;
+        padding: 1.5rem;
+    }
+
+    /* Page Header Section */
+    .page-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem; /* More space below header */
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #dfe3e8; /* Subtle divider */
+        opacity: 0;
+        transform: translateY(-20px);
+        animation: headerSlideIn 0.5s 0.1s ease-out forwards;
+    }
+    @keyframes headerSlideIn {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .page-header-container h1 {
+        font-size: 1.875rem; /* ~30px */
+        font-weight: 700;
+        color: var(--text-darkest);
+        letter-spacing: -0.025em;
+        margin: 0;
+    }
+
+    .btn-create-ticket {
+        background-color: var(--success-color);
+        border-color: var(--success-color);
+        color: #fff;
+        font-weight: 500;
+        padding: 0.6rem 1.25rem;
+        border-radius: var(--radius-base);
+        font-size: 0.9rem;
+        transition: var(--transition-elements);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .btn-create-ticket:hover {
+        background-color: var(--success-color-dark);
+        border-color: var(--success-color-dark);
+        color: #fff;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
+    }
+    .btn-create-ticket .fas {
+        margin-right: 0.5em;
+        font-size: 0.9em;
+    }
+
+    /* Ticket List Item Styling (Plocard Style from previous "All Tickets Overview") */
+    .ticket-list-item {
+        background-color: var(--card-bg);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--card-shadow);
+        margin-bottom: 1.25rem;
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        flex-direction: column; /* Default for smaller screens */
+        transition: var(--transition-cards);
+        opacity: 0;
+        transform: scale(0.98) translateY(10px);
+        animation: ticketPopIn 0.4s ease-out forwards;
+    }
+    /* Stagger ticket item animations */
+    {% if tickets %}
+        {% for ticket in tickets %}
+    .ticket-list-item:nth-of-type({{ loop.index }}) { animation-delay: {{ (loop.index0 * 0.07) + 0.2 }}s; }
+        {% endfor %}
+    {% endif %}
+
+    @keyframes ticketPopIn {
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .ticket-list-item:hover {
+        box-shadow: var(--card-hover-shadow);
+        transform: translateY(-5px) scale(1.01); /* Slightly more lift */
+    }
+
+    .ticket-main-info {
+        flex-grow: 1;
+        margin-bottom: 0.75rem;
+    }
+    @media (min-width: 768px) {
+        .ticket-list-item {
+            flex-direction: row;
+            align-items: flex-start; 
+        }
+        .ticket-main-info {
+            margin-right: 1.5rem;
+            margin-bottom: 0;
+        }
+    }
+
+    .ticket-title-link {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: var(--text-link);
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.35rem;
+        transition: color var(--transition-elements);
+    }
+    .ticket-title-link:hover {
+        color: var(--primary-color-dark);
+        text-decoration: underline;
+    }
+    .ticket-description-preview {
+        font-size: 0.9rem;
+        color: var(--text-medium);
+        line-height: 1.6;
+        margin-bottom: 0.75rem;
+        /* For multi-line ellipsis */
+        display: -webkit-box;
+        -webkit-line-clamp: 2; /* Show 2 lines */
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-height: calc(0.9rem * 1.6 * 2); /* Approximate height for 2 lines */
+    }
+    .ticket-attributes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem;
+        font-size: 0.8rem;
+    }
+    .ticket-attributes .badge {
+        padding: 0.35em 0.7em;
+        font-weight: 500;
+        border-radius: var(--radius-base);
+    }
+    .badge-priority-medium { background-color: var(--info-color); color: #fff; }
+    .badge-priority-high { background-color: var(--warning-color); color: var(--text-darkest); } /* Dark text for yellow */
+    .badge-priority-urgent { background-color: var(--danger-color); color: #fff; }
+    .badge-category { background-color: var(--secondary-light); color: var(--secondary-color); border: 1px solid #dfe3e8;}
+
+    .ticket-meta-info {
+        flex-shrink: 0;
+        width: 100%; 
+        text-align: left; 
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--secondary-light);
+    }
+    @media (min-width: 768px) {
+        .ticket-meta-info {
+            width: auto; 
+            min-width: 230px; 
+            text-align: right;
+            padding-top: 0;
+            border-top: none;
+        }
+    }
+
+    .ticket-status-badge {
+        display: inline-block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 0.4em 0.9em;
+        border-radius: 50px; /* Pill shape */
+        margin-bottom: 0.6rem;
+        color: #fff;
+        text-transform: capitalize;
+        letter-spacing: 0.02em;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .ticket-status-badge.open { background-color: var(--success-color); }
+    .ticket-status-badge.in-progress { background-color: var(--primary-color); }
+    .ticket-status-badge.pending { background-color: var(--warning-color); color: var(--text-darkest);}
+    .ticket-status-badge.resolved { background-color: var(--secondary-color); }
+    .ticket-status-badge.closed { background-color: #738096; } /* Darker grey for closed */
+    /* Add more status colors */
+
+    .ticket-meta-details {
+        font-size: 0.75rem;
+        color: var(--text-light);
+        line-height: 1.6;
+    }
+    .ticket-meta-details span { display: block; margin-bottom: 0.1rem; } 
+    .ticket-meta-details strong { color: var(--text-medium); font-weight: 500;}
+
+    /* "No Tickets" Alert */
+    .no-tickets-alert {
+        background-color: var(--primary-pale);
+        border: 1px dashed var(--primary-color-light);
+        color: var(--primary-color-dark);
+        border-radius: var(--radius-lg);
+        text-align: center;
+        padding: 2.5rem; /* More padding */
+        margin-top: 2rem;
+        opacity: 0;
+        transform: translateY(10px);
+        animation: fadeInAlert 0.5s 0.3s ease-out forwards;
+    }
+    @keyframes fadeInAlert {
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .no-tickets-alert .fas {
+        font-size: 2.5rem; /* Larger icon */
+        margin-bottom: 1rem;
+        color: var(--primary-color);
+        opacity: 0.7;
+    }
+    .no-tickets-alert h5 {
+        font-weight: 600;
+        color: var(--text-darkest);
+        margin-bottom: 0.5rem;
+    }
+    .no-tickets-alert p {
+        font-size: 0.95rem;
+        color: var(--text-medium);
+    }
+
+    /* Pagination (if you add it later) */
+    .pagination-wrapper { /* Copied from All Tickets for consistency */
+        display: flex; justify-content: center; margin-top: 2rem;
+    }
+    .pagination .page-item .page-link {
+        color: var(--primary-color); border-radius: var(--radius-base); margin: 0 4px;
+        border: 1px solid #dfe3e8; background-color: var(--card-bg);
+        transition: var(--transition-elements); padding: 0.55rem 0.9rem; font-size: 0.9rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .pagination .page-item .page-link:hover {
+        background-color: var(--primary-pale); border-color: var(--primary-color-light);
+        color: var(--primary-color-dark);
+    }
+    .pagination .page-item.active .page-link {
+        background-color: var(--primary-color); border-color: var(--primary-color);
+        color: #fff; box-shadow: 0 3px 8px var(--primary-glow);
+    }
+    .pagination .page-item.disabled .page-link {
+        color: var(--text-light); background-color: var(--secondary-light);
+        border-color: #dfe3e8; box-shadow: none;
+    }
+    .pagination .page-link .fas { font-size: 0.8em; }
+
+</style>
+{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>{{ title }}</h1>
-        <a href="{{ url_for('create_ticket') }}" class="btn btn-success">
-            <i class="fas fa-plus-circle mr-1"></i> Create New Ticket
+    <div class="page-header-container">
+        <a href="{{ url_for('create_ticket') }}" class="btn btn-create-ticket">
+            <i class="fas fa-plus-circle"></i> Create New Ticket
         </a>
     </div>
 
     {% if tickets %}
-        {% for ticket in tickets %}
-            {% include '_ticket_item.html' %}
-        {% endfor %}
+        <div class="ticket-list-container">
+            {% for ticket in tickets %}
+                {# 
+                   This assumes your _ticket_item.html is structured to use the 
+                   .ticket-list-item, .ticket-main-info, .ticket-title-link, 
+                   .ticket-description-preview, .ticket-attributes, and .ticket-meta-info classes.
+                   If not, you'll need to adapt _ticket_item.html or embed its structure here.
+                   For this example, I'm embedding a structure that matches the CSS.
+                #}
+                <div class="ticket-list-item">
+                    <div class="ticket-main-info">
+                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="ticket-title-link">
+                            Ticket #{{ ticket.id }}: {{ ticket.title }}
+                        </a>
+                        <p class="ticket-description-preview">
+                            {{ ticket.description|striptags|truncate(120, True) }}
+                        </p>
+                        <div class="ticket-attributes">
+                            <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
+                            <span class="badge badge-category">{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</span>
+                        </div>
+                    </div>
+                    <div class="ticket-meta-info">
+                        <span class="badge ticket-status-badge {{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
+                        <div class="ticket-meta-details">
+                            <span>Created by: <strong>{{ ticket.creator.username }}</strong></span>
+                            <span>{{ ticket.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+                            <hr style="margin: 0.3rem 0; border-top: 1px dashed #e0e6ed; opacity:0.7;">
+                            <span>Assigned to: <strong>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</strong></span>
+                            <span>Last updated: {{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</span>
+                        </div>
+                         {% if current_user.is_agent and not ticket.assignee and ticket.status == 'Open' and url_for('assign_ticket_to_me', ticket_id=ticket.id) %}
+                            {# This assign button might not be relevant for "My Submitted Tickets" view for a client #}
+                            {# But keeping it if this template is shared or for future agent views of their own tickets #}
+                            <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline-success mt-2" style="font-size:0.75rem; padding:0.25rem 0.6rem;"><i class="fas fa-hand-paper mr-1"></i> Assign</a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {# Add pagination here if this list can grow long #}
+        {# Example: {% include '_pagination.html' with context pagination=tickets %} #}
+
     {% else %}
-        <div class="alert alert-info">You have not created any tickets yet.</div>
+        <div class="no-tickets-alert">
+            <i class="fas fa-folder-open"></i>
+            <h5>No Tickets Yet!</h5>
+            <p>It looks like you haven't submitted any support tickets. <br>Ready to get started?</p>
+            <a href="{{ url_for('create_ticket') }}" class="btn btn-create-ticket mt-3" style="background-color: var(--primary-color); border-color: var(--primary-color);">
+                <i class="fas fa-plus-circle"></i> Create Your First Ticket
+            </a>
+        </div>
     {% endif %}
 {% endblock %}

@@ -2,116 +2,459 @@
 
 {% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
 
+{% block head_extra %}
+<style>
+    :root {
+        --primary-color: #4A90E2; /* A slightly desaturated, sophisticated blue */
+        --primary-color-dark: #357ABD;
+        --primary-color-light: #7AAFF0;
+        --primary-color-rgb: 74, 144, 226;
+        --primary-glow: rgba(var(--primary-color-rgb), 0.1);
+        --primary-pale: #f0f6ff; /* Very light blue for backgrounds */
+
+        --secondary-color: #7F8C8D; /* Cool grey */
+        --secondary-light: #f4f6f8; /* Light grey for subtle backgrounds */
+
+        --success-color: #2ECC71; /* Bright, clean green */
+        --warning-color: #F1C40F; /* Sunflower yellow */
+        --danger-color: #E74C3C;  /* Alizarin red */
+        --info-color: #3498DB;    /* Peter river blue (can be same as primary) */
+        
+        --text-darkest: #2c3e50; /* Very dark blue/grey */
+        --text-dark: #34495e;   /* Dark grey */
+        --text-medium: #7f8c8d; /* Medium grey */
+        --text-light: #bdc3c7;  /* Light grey */
+        --text-link: var(--primary-color);
+
+        --page-bg: #eef1f5; /* Soft, off-white */
+        --card-bg: #ffffff;
+        --card-border: transparent; /* Let shadow define the card edge */
+        --card-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+        --card-hover-shadow: 0 8px 25px rgba(var(--primary-color-rgb), 0.1);
+
+        --input-bg: #fdfdfe;
+        --input-border: #dfe3e8;
+        --input-focus-border: var(--primary-color-light);
+        --input-focus-shadow: 0 0 0 3px var(--primary-glow);
+
+        --radius-base: 6px;
+        --radius-lg: 10px; /* More rounded for cards */
+
+        --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        --transition-cards: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        --transition-elements: all 0.2s ease-in-out;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--page-bg);
+        color: var(--text-dark);
+    }
+    .app-content {
+        background-color: transparent;
+        padding: 1.5rem;
+    }
+
+    .content-header-bar {
+        margin-bottom: 1.5rem;
+    }
+    .content-title {
+        font-size: 1.75rem; /* Larger title */
+        font-weight: 700;
+        color: var(--text-darkest);
+        letter-spacing: -0.025em;
+    }
+
+    /* --- Filter Section --- */
+    .filter-section {
+        background-color: var(--card-bg);
+        padding: 1.5rem 1.75rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--card-shadow);
+        margin-bottom: 2rem;
+        opacity: 0;
+        transform: translateY(-15px);
+        animation: filterSlideIn 0.5s 0.1s ease-out forwards;
+    }
+    @keyframes filterSlideIn {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .filter-section-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-darkest);
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+    }
+    .filter-section-header .fas {
+        color: var(--primary-color);
+        margin-right: 0.6em;
+        font-size: 0.9em;
+    }
+    .filter-section .form-control-label {
+        font-size: 0.75rem; /* Smaller labels */
+        font-weight: 500;
+        color: var(--text-medium);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.4rem;
+    }
+    .filter-section .form-control, .filter-section .custom-select {
+        border-radius: var(--radius-base);
+        border: 1px solid var(--input-border);
+        background-color: var(--input-bg);
+        font-size: 0.9rem;
+        padding: 0.6rem 0.9rem;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+        transition: var(--transition-elements);
+    }
+    .filter-section .form-control:focus, .filter-section .custom-select:focus {
+        border-color: var(--input-focus-border);
+        box-shadow: var(--input-focus-shadow), inset 0 1px 2px rgba(0,0,0,0.03);
+        background-color: #fff;
+    }
+    .filter-section .btn {
+        font-weight: 500;
+        padding: 0.6rem 1.5rem;
+        border-radius: var(--radius-base);
+        font-size: 0.9rem;
+        transition: var(--transition-elements);
+    }
+    .filter-section .btn-primary {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+    .filter-section .btn-primary:hover {
+        background-color: var(--primary-color-dark);
+        border-color: var(--primary-color-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(var(--primary-color-rgb), 0.2);
+    }
+    .filter-section .btn-outline-secondary {
+        color: var(--text-medium);
+        border-color: var(--input-border);
+    }
+    .filter-section .btn-outline-secondary:hover {
+        background-color: var(--secondary-light);
+        border-color: #c8ced3;
+        color: var(--text-dark);
+    }
+
+    /* --- Ticket List Styling --- */
+    .ticket-list-item { /* This class will be on the root div of _ticket_item.html */
+        background-color: var(--card-bg);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--card-shadow);
+        margin-bottom: 1.25rem;
+        padding: 1.25rem 1.5rem; /* All padding direct on item */
+        display: flex;
+        flex-direction: column; /* Default for smaller screens */
+        transition: var(--transition-cards);
+        opacity: 0;
+        transform: scale(0.98) translateY(10px);
+        animation: ticketPopIn 0.4s ease-out forwards;
+    }
+    /* Stagger ticket item animations */
+    {% if tickets_pagination and tickets_pagination.items %}
+        {% for ticket in tickets_pagination.items %}
+    .ticket-list-item:nth-of-type({{ loop.index }}) { animation-delay: {{ (loop.index0 * 0.06) + 0.25 }}s; }
+        {% endfor %}
+    {% endif %}
+
+    @keyframes ticketPopIn {
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .ticket-list-item:hover {
+        box-shadow: var(--card-hover-shadow);
+        transform: translateY(-4px);
+    }
+
+    .ticket-main-info {
+        flex-grow: 1;
+        margin-bottom: 0.75rem; /* Space before meta on small screens */
+    }
+    @media (min-width: 768px) {
+        .ticket-list-item {
+            flex-direction: row;
+            align-items: flex-start; /* Align items if they have different heights */
+        }
+        .ticket-main-info {
+            margin-right: 1.5rem;
+            margin-bottom: 0;
+        }
+    }
+
+    .ticket-title-link {
+        font-size: 1.15rem; /* Slightly larger title */
+        font-weight: 600;
+        color: var(--text-link);
+        text-decoration: none;
+        display: block; /* To allow margin */
+        margin-bottom: 0.35rem;
+        transition: color var(--transition-elements);
+    }
+    .ticket-title-link:hover {
+        color: var(--primary-color-dark);
+        text-decoration: underline;
+    }
+    .ticket-description-preview {
+        font-size: 0.9rem;
+        color: var(--text-medium);
+        line-height: 1.6;
+        margin-bottom: 0.75rem;
+        /* For multi-line ellipsis if desired via JS or more complex CSS */
+        /* display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; */
+    }
+    .ticket-attributes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem; /* Spacing between attribute badges */
+        font-size: 0.8rem;
+    }
+    .ticket-attributes .badge {
+        padding: 0.35em 0.7em;
+        font-weight: 500;
+        border-radius: var(--radius-base);
+    }
+    /* Custom badge colors for attributes */
+    .badge-priority-medium { background-color: var(--info-color); color: #fff; }
+    .badge-priority-high { background-color: var(--warning-color); color: var(--warning-text); }
+    .badge-priority-urgent { background-color: var(--danger-color); color: #fff; }
+    .badge-category { background-color: var(--secondary-light); color: var(--secondary-color); border: 1px solid #dfe3e8;}
+
+
+    .ticket-meta-info {
+        flex-shrink: 0; /* Prevent shrinking */
+        width: 100%; /* Full width on small screens */
+        text-align: left; /* Default */
+        padding-top: 0.75rem; /* Space if it wraps below on small screens */
+        border-top: 1px solid var(--secondary-light); /* Separator on small screens */
+    }
+    @media (min-width: 768px) {
+        .ticket-meta-info {
+            width: auto; /* Auto width on larger screens */
+            min-width: 220px; /* Ensure enough space for meta */
+            text-align: right;
+            padding-top: 0;
+            border-top: none;
+        }
+    }
+
+    .ticket-status-badge {
+        display: inline-block; /* To allow margin */
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 0.4em 0.9em;
+        border-radius: 50px; /* Pill shape */
+        margin-bottom: 0.6rem;
+        color: #fff;
+        text-transform: capitalize;
+        letter-spacing: 0.02em;
+    }
+    .ticket-status-badge.open { background-color: var(--success-color); }
+    .ticket-status-badge.in-progress { background-color: var(--primary-color); }
+    .ticket-status-badge.pending { background-color: var(--warning-color); color: var(--warning-text);}
+    /* Add more status colors */
+
+    .ticket-meta-details {
+        font-size: 0.75rem; /* Smaller meta text */
+        color: var(--text-light);
+        line-height: 1.5;
+    }
+    .ticket-meta-details span { display: block; } /* Each meta on new line */
+    .ticket-meta-details strong { color: var(--text-medium); font-weight: 500;}
+
+
+    /* --- Pagination --- */
+    .pagination-wrapper {
+        display: flex;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    .pagination .page-item .page-link {
+        color: var(--primary-color);
+        border-radius: var(--radius-base);
+        margin: 0 4px;
+        border: 1px solid var(--input-border);
+        background-color: var(--card-bg);
+        transition: var(--transition-elements);
+        padding: 0.55rem 0.9rem;
+        font-size: 0.9rem;
+        box-shadow: var(--card-shadow-light);
+    }
+    .pagination .page-item .page-link:hover {
+        background-color: var(--primary-pale);
+        border-color: var(--primary-color-light);
+        color: var(--primary-color-dark);
+    }
+    .pagination .page-item.active .page-link {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        color: #fff;
+        box-shadow: 0 3px 8px var(--primary-glow);
+    }
+    .pagination .page-item.disabled .page-link {
+        color: var(--text-light);
+        background-color: var(--secondary-light);
+        border-color: var(--input-border);
+        box-shadow: none;
+    }
+    .pagination .page-link .fas { font-size: 0.8em; } /* For chevrons */
+
+    /* --- No Tickets Alert --- */
+    .no-tickets-alert {
+        background-color: var(--primary-pale);
+        border: 1px dashed var(--primary-color-light);
+        color: var(--primary-color-dark);
+        border-radius: var(--radius-lg);
+    }
+    .no-tickets-alert .fas { color: var(--primary-color); }
+</style>
+{% endblock %}
+
 {% block content_header %}
 <div class="content-header-bar">
     <h1 class="content-title">{{ title }}</h1>
-    {# No specific page actions here, filters are below #}
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="admin-section">
-    <div class="card admin-filter-card mb-4">
-        <div class="card-header">
-            <i class="fas fa-filter fa-fw mr-1"></i> Filter Tickets
-        </div>
-        <div class="card-body">
-            <form method="GET" action="{{ url_for('admin_all_tickets') }}">
-                <div class="row">
-                    <div class="col-md-6 col-lg-3 form-group">
-                        <label for="status" class="form-control-label">Status</label>
-                        <select name="status" id="status" class="form-control custom-select">
-                            <option value="">All Statuses</option>
-                            {% for value, display in statuses %}
-                            <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ display }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6 col-lg-3 form-group">
-                        <label for="priority" class="form-control-label">Priority</label>
-                        <select name="priority" id="priority" class="form-control custom-select">
-                            <option value="">All Priorities</option>
-                             {% for value, display in priorities %}
-                            <option value="{{ value }}" {% if current_filters.priority == value %}selected{% endif %}>{{ display }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6 col-lg-3 form-group">
-                        <label for="category_id" class="form-control-label">Category</label>
-                        <select name="category_id" id="category_id" class="form-control custom-select">
-                            <option value="">All Categories</option>
-                            {% for category in categories %}
-                            <option value="{{ category.id }}" {% if current_filters.get('category_id') == category.id|string %}selected{% endif %}>{{ category.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6 col-lg-3 form-group">
-                        <label for="assigned_to_id" class="form-control-label">Assigned To</label>
-                        <select name="assigned_to_id" id="assigned_to_id" class="form-control custom-select">
-                            <option value="">Any Agent</option>
-                            <option value="0" {% if current_filters.get('assigned_to_id') == "0" %}selected{% endif %}>Unassigned</option>
-                            {% for agent in agents %}
-                            <option value="{{ agent.id }}" {% if current_filters.get('assigned_to_id') == agent.id|string %}selected{% endif %}>{{ agent.username }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+<div class="admin-ticket-overview">
+    <div class="filter-section">
+        <h2 class="filter-section-header"><i class="fas fa-sliders-h"></i>Filter Tickets</h2>
+        <form method="GET" action="{{ url_for('admin_all_tickets') }}">
+            <div class="row">
+                <div class="col-md-6 col-lg-3 form-group">
+                    <label for="status" class="form-control-label">Status</label>
+                    <select name="status" id="status" class="form-control custom-select">
+                        <option value="">All Statuses</option>
+                        {% for value, display in statuses %}
+                        <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ display }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <div class="row">
-                    <div class="col-md-6 col-lg-3 form-group">
-                        <label for="organization_id" class="form-control-label">Organization</label>
-                        <select name="organization_id" id="organization_id" class="form-control custom-select">
-                            <option value="">All Organizations</option>
-                            {% for org in organizations_for_filter %}
-                            <option value="{{ org.id }}" {% if current_filters.get('organization_id') == org.id|string %}selected{% endif %}>{{ org.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6 col-lg-3 form-group d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-block">Apply Filters</button>
-                    </div>
-                     <div class="col-md-6 col-lg-3 form-group d-flex align-items-end">
-                        <a href="{{ url_for('admin_all_tickets') }}" class="btn btn-outline-secondary btn-block">Clear Filters</a>
-                    </div>
+                <div class="col-md-6 col-lg-3 form-group">
+                    <label for="priority" class="form-control-label">Priority</label>
+                    <select name="priority" id="priority" class="form-control custom-select">
+                        <option value="">All Priorities</option>
+                         {% for value, display in priorities %}
+                        <option value="{{ value }}" {% if current_filters.priority == value %}selected{% endif %}>{{ display }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-            </form>
-        </div>
+                <div class="col-md-6 col-lg-3 form-group">
+                    <label for="category_id" class="form-control-label">Category</label>
+                    <select name="category_id" id="category_id" class="form-control custom-select">
+                        <option value="">All Categories</option>
+                        {% for category in categories %}
+                        <option value="{{ category.id }}" {% if current_filters.get('category_id') == category.id|string %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 col-lg-3 form-group">
+                    <label for="assigned_to_id" class="form-control-label">Assigned To</label>
+                    <select name="assigned_to_id" id="assigned_to_id" class="form-control custom-select">
+                        <option value="">Any Agent</option>
+                        <option value="0" {% if current_filters.get('assigned_to_id') == "0" %}selected{% endif %}>Unassigned</option>
+                        {% for agent in agents %}
+                        <option value="{{ agent.id }}" {% if current_filters.get('assigned_to_id') == agent.id|string %}selected{% endif %}>{{ agent.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-6 col-lg-3 form-group">
+                    <label for="organization_id" class="form-control-label">Organization</label>
+                    <select name="organization_id" id="organization_id" class="form-control custom-select">
+                        <option value="">All Organizations</option>
+                        {% for org in organizations_for_filter %}
+                        <option value="{{ org.id }}" {% if current_filters.get('organization_id') == org.id|string %}selected{% endif %}>{{ org.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 col-lg-3 form-group d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-filter mr-1"></i> Apply Filters</button>
+                </div>
+                 <div class="col-md-6 col-lg-3 form-group d-flex align-items-end">
+                    <a href="{{ url_for('admin_all_tickets') }}" class="btn btn-outline-secondary btn-block"><i class="fas fa-eraser mr-1"></i> Clear Filters</a>
+                </div>
+            </div>
+        </form>
     </div>
 
     {% if tickets_pagination and tickets_pagination.items %}
-        {% for ticket in tickets_pagination.items %}
-            {# Using a slightly modified ticket item for admin view if needed, or just the standard one #}
-            {% include '_ticket_item.html' %} 
-        {% endfor %}
+        <div class="ticket-list-container"> {# Optional: A wrapper for the list if needed for future layout #}
+            {% for ticket in tickets_pagination.items %}
+                {# 
+                   The _ticket_item.html needs to be adapted to this new structure.
+                   For this example, I'll embed a simplified structure here.
+                   Ideally, you'd modify _ticket_item.html to use these classes.
+                #}
+                <div class="ticket-list-item">
+                    <div class="ticket-main-info">
+                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="ticket-title-link">
+                            Ticket #{{ ticket.id }}: {{ ticket.title }}
+                        </a>
+                        <p class="ticket-description-preview">
+                            {{ ticket.description|striptags|truncate(120, True) }}
+                        </p>
+                        <div class="ticket-attributes">
+                            <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
+                            <span class="badge badge-category">{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</span>
+                        </div>
+                    </div>
+                    <div class="ticket-meta-info">
+                        <span class="badge ticket-status-badge {{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
+                        <div class="ticket-meta-details">
+                            <span>Created by: <strong>{{ ticket.creator.username }}</strong></span>
+                            <span>{{ ticket.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+                            <hr style="margin: 0.3rem 0; border-top-color: var(--input-border); opacity:0.5;">
+                            <span>Assigned to: <strong>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</strong></span>
+                            <span>Last updated: {{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</span>
+                        </div>
+                         {% if current_user.is_agent and not ticket.assignee and ticket.status == 'Open' %}
+                            <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-sm btn-success mt-2" style="font-size:0.75rem; padding:0.25rem 0.6rem;"><i class="fas fa-hand-paper mr-1"></i> Assign</a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
 
         {% if tickets_pagination.pages > 1 %}
-        <nav aria-label="Ticket navigation" class="mt-4">
-            <ul class="pagination justify-content-center">
+        <nav aria-label="Ticket navigation" class="pagination-wrapper">
+            <ul class="pagination">
                 {% set query_params = request.args.to_dict(flat=True) %}{% do query_params.pop('page', None) %}
                 <li class="page-item {% if not tickets_pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.prev_num, **query_params) if tickets_pagination.has_prev else '#'}}">Previous</a>
+                    <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.prev_num, **query_params) if tickets_pagination.has_prev else '#'}}"><i class="fas fa-chevron-left"></i></a>
                 </li>
-                {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
                     {% if page_num %}
                         <li class="page-item {% if tickets_pagination.page == page_num %}active{% endif %}">
                             <a class="page-link" href="{{ url_for(request.endpoint, page=page_num, **query_params) }}">{{ page_num }}</a>
                         </li>
-                    {% elif loop.index0 > 0 and loop.index0 < tickets_pagination.pages -1 %}
-                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% elif loop.previtem is number and loop.nextitem is number %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
                     {% endif %}
                 {% endfor %}
                 <li class="page-item {% if not tickets_pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.next_num, **query_params) if tickets_pagination.has_next else '#'}}">Next</a>
+                    <a class="page-link" href="{{ url_for(request.endpoint, page=tickets_pagination.next_num, **query_params) if tickets_pagination.has_next else '#'}}"><i class="fas fa-chevron-right"></i></a>
                 </li>
             </ul>
         </nav>
         {% endif %}
-        <p class="text-center text-muted small mt-2">
-            Page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}. Total {{ tickets_pagination.total }} tickets.
+        <p class="text-center text-light small mt-3">
+            Page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}. Displaying {{ tickets_pagination.items|length }} of {{ tickets_pagination.total }} tickets.
         </p>
     {% else %}
-        <div class="alert alert-info text-center p-4 mt-4">
-            <i class="fas fa-ticket-alt fa-2x text-muted mb-2"></i><br>
-            No tickets found matching your criteria.
+        <div class="alert no-tickets-alert text-center p-5 mt-4">
+            <i class="fas fa-folder-open fa-3x mb-3" style="opacity:0.6;"></i>
+            <h5 class="font-weight-normal">No tickets found.</h5>
+            <p class="text-medium">Try adjusting your filters or check back later.</p>
         </div>
     {% endif %}
 </div>

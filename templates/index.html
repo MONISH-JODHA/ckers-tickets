@@ -1,54 +1,455 @@
 {% extends "base.html" %}
-{% set title = "Welcome" %} {# Corrected: Set title variable #}
+{% set title = "Welcome to TicketSys" %} {# More engaging title #}
+
+{% block head_extra %}
+<style>
+    :root {
+        --primary-color: #1f73b7; /* Existing primary */
+        --primary-color-light: #5fa8d3; /* Lighter shade for gradients/accents */
+        --primary-color-dark: #165a91; /* Darker shade for depth/hovers */
+        --primary-color-rgb: 31, 115, 183;
+
+        --accent-color: #00A3BF; /* A new accent color (like your AI assistant CTA) */
+        --accent-color-dark: #008299;
+
+        --success-color: #28a745;
+        --success-color-dark: #1e7e34;
+
+        --text-dark-heading: #1f2937; /* Very dark grey for main headings */
+        --text-dark-body: #374151;   /* Dark grey for body text */
+        --text-light-muted: #6b7280; /* Lighter grey for muted text */
+        --text-on-primary: #ffffff;
+        --text-on-accent: #ffffff;
+        
+        --page-bg: #f8f9fa; /* Light, almost white page background */
+        --hero-gradient-start: var(--primary-color);
+        --hero-gradient-end: var(--primary-color-light);
+        
+        --card-bg: #ffffff;
+        --card-border-color: #e7eaf3; /* Softer border for cards */
+        
+        --border-radius-md: .5rem; /* 8px - more rounded */
+        --border-radius-lg: .75rem; /* 12px - even more rounded for hero elements */
+        
+        --box-shadow-soft: 0 4px 12px rgba(0,0,0,0.05);
+        --box-shadow-medium: 0 8px 20px rgba(0,0,0,0.07);
+        --box-shadow-strong: 0 12px 30px rgba(var(--primary-color-rgb), 0.15);
+        --box-shadow-button-hover: 0 6px 15px -3px rgba(var(--primary-color-rgb), 0.35);
+
+        --transition-elegant: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    body {
+        background-color: var(--page-bg);
+        overflow-x: hidden; /* Prevent horizontal scroll from animations */
+    }
+
+    /* Remove default content header and adjust app-content padding for this hero page */
+    /* This allows the hero to be full-width within the main content area provided by base.html */
+    .content-header-bar { display: none !important; }
+    .app-content { 
+        padding-top: 0 !important; 
+        padding-left: 0 !important; /* Remove default padding if any */
+        padding-right: 0 !important; /* Remove default padding if any */
+        padding-bottom: 0 !important; /* Remove default padding if any, if footer is also part of this page's design */
+                                     /* Or, if base.html footer should show, this might not be needed */
+        /* animation: none !important; /* Optionally disable default app-content fade if it clashes */
+    }
+
+
+    /* --- HERO SECTION --- */
+    .welcome-hero-wrapper {
+        background: linear-gradient(135deg, var(--hero-gradient-start) 0%, var(--hero-gradient-end) 100%);
+        color: var(--text-on-primary);
+        padding: 6rem 1.5rem; /* Added horizontal padding for content */
+        min-height: 70vh; 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        position: relative;
+        overflow: hidden; 
+    }
+    
+    .welcome-hero-wrapper::before {
+        content: '';
+        position: absolute;
+        top: -50px; left: -50px;
+        width: 200px; height: 200px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
+        opacity: 0;
+        animation: floatShape 20s infinite linear alternate, fadeIn 2s 0.5s ease-out forwards;
+    }
+    .welcome-hero-wrapper::after {
+        content: '';
+        position: absolute;
+        bottom: -80px; right: -80px;
+        width: 250px; height: 250px;
+        background: rgba(255,255,255,0.07);
+        border-radius: 45% 55% 60% 40% / 50% 45% 55% 50%; 
+        opacity: 0;
+        animation: floatShapeReverse 25s infinite linear alternate, fadeIn 2s 0.8s ease-out forwards;
+    }
+
+    @keyframes floatShape {
+        0% { transform: translateY(0px) translateX(0px) rotate(0deg); }
+        100% { transform: translateY(20px) translateX(30px) rotate(45deg); }
+    }
+    @keyframes floatShapeReverse {
+        0% { transform: translateY(0px) translateX(0px) rotate(0deg); }
+        100% { transform: translateY(-25px) translateX(-20px) rotate(-30deg); }
+    }
+    @keyframes fadeIn { to { opacity: 1; } }
+
+    .hero-content {
+        max-width: 800px; 
+        margin: 0 auto;
+        position: relative; 
+        z-index: 1;
+        opacity: 0;
+        transform: translateY(20px);
+        animation: contentSlideUp 0.8s 0.3s ease-out forwards;
+    }
+    @keyframes contentSlideUp {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-content .display-2 { 
+        font-weight: 700;
+        font-size: 3.5rem; 
+        margin-bottom: 1rem;
+        letter-spacing: -1.5px;
+        line-height: 1.2;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        opacity: 0;
+        transform: translateY(15px);
+        animation: textFadeInUp 0.6s 0.5s ease-out forwards;
+    }
+    .hero-content .lead-hero {
+        font-size: 1.35rem;
+        font-weight: 300; 
+        max-width: 650px;
+        margin-left: auto;
+        margin-right: auto;
+        margin-bottom: 2.5rem;
+        line-height: 1.7;
+        opacity: 0;
+        transform: translateY(15px);
+        animation: textFadeInUp 0.6s 0.7s ease-out forwards;
+    }
+    
+    @keyframes textFadeInUp {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-content .auth-prompt-hero {
+        font-size: 1.15rem;
+        margin-bottom: 2.5rem;
+        font-weight: 300;
+        opacity: 0;
+        transform: translateY(15px);
+        animation: textFadeInUp 0.6s 0.9s ease-out forwards;
+    }
+
+    .hero-buttons .btn {
+        font-size: 1rem;
+        font-weight: 500;
+        padding: 0.85rem 2.25rem;
+        border-radius: var(--border-radius-md);
+        transition: var(--transition-elegant), transform 0.2s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin: 0.5rem 0.75rem;
+        border: 2px solid transparent;
+        opacity: 0;
+        transform: translateY(15px) scale(0.95);
+        animation: buttonPopIn 0.5s ease-out forwards;
+    }
+    .hero-buttons .btn:nth-child(1) { animation-delay: 1.1s; }
+    .hero-buttons .btn:nth-child(2) { animation-delay: 1.25s; }
+
+    @keyframes buttonPopIn {
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .hero-buttons .btn-primary-hero {
+        background-color: var(--text-on-primary); 
+        color: var(--primary-color); 
+        box-shadow: var(--box-shadow-strong);
+    }
+    .hero-buttons .btn-primary-hero:hover {
+        background-color: rgba(255,255,255,0.9);
+        color: var(--primary-color-dark);
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 15px 35px rgba(var(--primary-color-rgb),0.2);
+    }
+    .hero-buttons .btn-secondary-hero { 
+        background-color: transparent;
+        color: var(--text-on-primary);
+        border-color: var(--text-on-primary);
+    }
+    .hero-buttons .btn-secondary-hero:hover {
+        background-color: var(--text-on-primary);
+        color: var(--primary-color);
+        transform: translateY(-3px) scale(1.03);
+    }
+    .hero-buttons .btn i {
+        margin-right: 0.7em;
+        font-size: 0.95em;
+    }
+
+    /* --- FEATURES SECTION --- */
+    .features-section-wrapper {
+        padding: 5rem 1.5rem; /* Added horizontal padding for content */
+        background-color: var(--page-bg); 
+    }
+    .section-title {
+        text-align: center;
+        margin-bottom: 3.5rem;
+        font-size: 2.25rem;
+        font-weight: 600;
+        color: var(--text-dark-heading);
+        position: relative;
+        /* Use a separate animation for section title to ensure it plays after hero */
+        opacity: 0;
+        transform: translateY(20px);
+        animation: sectionContentSlideUp 0.7s 0.2s ease-out forwards; 
+    }
+     @keyframes sectionContentSlideUp { /* Renamed to avoid conflict if used elsewhere */
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .section-title::after { 
+        content: '';
+        display: block;
+        width: 70px;
+        height: 4px;
+        background-color: var(--accent-color); 
+        margin: 0.75rem auto 0;
+        border-radius: 2px;
+    }
+
+    .feature-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border-color);
+        border-radius: var(--border-radius-lg);
+        box-shadow: var(--box-shadow-soft);
+        transition: var(--transition-elegant);
+        height: 100%;
+        padding: 2.5rem 2rem; 
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+        animation: featureCardPopIn 0.6s ease-out forwards;
+    }
+    /* Stagger feature card animations based on their appearance in the flow */
+    .features-section-wrapper .row > div:nth-child(1) .feature-card { animation-delay: 0.4s; }
+    .features-section-wrapper .row > div:nth-child(2) .feature-card { animation-delay: 0.55s; }
+    .features-section-wrapper .row > div:nth-child(3) .feature-card { animation-delay: 0.7s; }
+
+
+    @keyframes featureCardPopIn {
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .feature-card:hover {
+        transform: translateY(-10px);
+        box-shadow: var(--box-shadow-medium);
+    }
+    .feature-card .feature-icon-wrapper {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        font-size: 2.5rem; 
+        color: var(--text-on-primary);
+        transition: var(--transition-elegant);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .feature-card:hover .feature-icon-wrapper {
+        transform: scale(1.1) rotate(8deg);
+        box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    }
+
+    .icon-track .feature-icon-wrapper { background: linear-gradient(135deg, var(--primary-color), var(--primary-color-light)); }
+    .icon-support .feature-icon-wrapper { background: linear-gradient(135deg, var(--success-color), #5cb85c); } 
+    .icon-workflow .feature-icon-wrapper { background: linear-gradient(135deg, var(--accent-color), var(--accent-color-dark)); }
+
+    .feature-card .card-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-dark-heading);
+        margin-bottom: 0.75rem;
+    }
+    .feature-card .card-text {
+        font-size: 0.95rem;
+        color: var(--text-light-muted);
+        line-height: 1.75;
+    }
+    
+    /* Flashed messages (styling for messages from base.html) */
+    .flash-messages-container {
+        position: fixed; 
+        top: 20px; 
+        right: 20px; 
+        z-index: 1060; /* Ensure it's above hero content if they overlap */
+        width: auto; 
+        max-width: 400px;
+    }
+    .flash-messages-container .alert {
+        box-shadow: var(--box-shadow-medium); 
+        font-size: 0.9rem; 
+        padding: 0.9rem 1.35rem;
+        border-radius: var(--border-radius-md); 
+        border: none;
+        animation: slideInRightFlash 0.5s ease-out;
+        color: #fff; 
+    }
+    .alert-success { background-color: var(--success-color); }
+    /* Fallbacks for colors not defined in this page's :root, but might come from base or style.css */
+    .alert-danger { background-color: var(--danger-color, #dc3545); } 
+    .alert-info { background-color: var(--info-color, #17a2b8); }
+    .alert-warning { background-color: var(--warning-color, #ffc107); color: var(--text-dark-body, #212529);} 
+    
+    @keyframes slideInRightFlash {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 992px) {
+        .hero-content .display-2 { font-size: 2.8rem; }
+        .hero-content .lead-hero { font-size: 1.2rem; }
+        .welcome-hero-wrapper { padding: 4rem 1.5rem; min-height: auto;}
+        .features-section-wrapper { padding: 3.5rem 1.5rem; }
+        .section-title { font-size: 2rem; margin-bottom: 2.5rem;}
+        .feature-card { margin-bottom: 1.5rem; } /* Ensure consistent spacing on smaller screens */
+    }
+    @media (max-width: 768px) {
+        .hero-content .display-2 { font-size: 2.2rem; letter-spacing: -1px; }
+        .hero-content .lead-hero { font-size: 1.1rem; }
+        .hero-buttons .btn { padding: 0.75rem 1.75rem; font-size: 0.95rem; margin: 0.5rem; }
+        .hero-buttons { display: flex; flex-direction: column; align-items: center; } /* Stack buttons on small screens */
+        .hero-buttons .btn { width: 80%; max-width: 300px; }
+
+        .features-section-wrapper { padding: 3rem 1rem; } /* Slightly less padding on very small screens */
+        .section-title { font-size: 1.8rem; }
+        .feature-card { padding: 2rem 1.5rem; }
+        .feature-card .feature-icon-wrapper { width: 70px; height: 70px; font-size: 2rem; }
+        .feature-card .card-title { font-size: 1.3rem; }
+    }
+    @media (max-width: 576px) {
+        .hero-content .display-2 { font-size: 1.9rem; }
+        .hero-content .lead-hero { font-size: 1rem; }
+        .welcome-hero-wrapper { padding: 3rem 1rem; }
+    }
+
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="jumbotron mt-4 text-center shadow-lg p-5 bg-light rounded">
-    <h1 class="display-4">Welcome to TicketSys!</h1>
-    <p class="lead">Your efficient solution for managing support tickets and customer interactions.</p>
-    <hr class="my-4">
-    {% if current_user.is_anonymous %}
-        <p>Please log in to access the system or register for a new account.</p>
-        <a class="btn btn-primary btn-lg mr-2" href="{{ url_for('login') }}" role="button">
-            <i class="fas fa-sign-in-alt mr-1"></i>Login
-        </a>
-        <a class="btn btn-success btn-lg" href="{{ url_for('register_client') }}" role="button">
-            <i class="fas fa-user-plus mr-1"></i>Register
-        </a>
-    {% else %}
-        <p>You are logged in, {{ current_user.username }}. Go to your dashboard to get started.</p>
-        <a class="btn btn-primary btn-lg" href="{{ url_for('dashboard') }}" role="button">
-            <i class="fas fa-tachometer-alt mr-1"></i>Go to Dashboard
-        </a>
-    {% endif %}
+{# This content will be placed within the .app-content block of base.html #}
+{# The CSS above customizes .app-content for this specific page #}
+
+<div class="welcome-hero-wrapper">
+    <div class="container hero-content">
+        <h1 class="display-2">Empowering Your Support</h1>
+        <p class="lead-hero">TicketSys provides an intuitive and powerful platform for managing customer support tickets, streamlining workflows, and delivering exceptional service.</p>
+        
+        {% if current_user.is_anonymous %}
+            <p class="auth-prompt-hero">Join us or log in to experience seamless support management.</p>
+            <div class="hero-buttons">
+                <a class="btn btn-primary-hero" href="{{ url_for('login') }}" role="button">
+                    <i class="fas fa-key"></i>Login
+                </a>
+                <a class="btn btn-secondary-hero" href="{{ url_for('register_client') }}" role="button">
+                    <i class="fas fa-user-plus"></i>Register Now
+                </a>
+            </div>
+        {% else %}
+            <p class="auth-prompt-hero">Welcome back, {{ current_user.username }}! Your dashboard awaits.</p>
+            <div class="hero-buttons">
+                <a class="btn btn-primary-hero" href="{{ url_for('dashboard') }}" role="button">
+                    <i class="fas fa-th-large"></i>Go to Dashboard
+                </a>
+            </div>
+        {% endif %}
+    </div>
 </div>
 
-<div class="row mt-5 text-center">
-    <div class="col-md-4 mb-3">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <i class="fas fa-tasks fa-3x text-primary mb-3"></i>
-                <h4 class="card-title">Track Your Issues</h4>
-                <p class="card-text">Easily create and monitor the status of your support requests. Get timely updates and resolutions from our dedicated team.</p>
+<div class="features-section-wrapper">
+    <div class="container">
+        <h2 class="section-title">Why Choose TicketSys?</h2>
+        <div class="row">
+            <div class="col-lg-4 col-md-6 mb-4 d-flex">
+                <div class="feature-card icon-track">
+                    <div class="feature-icon-wrapper">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                    <h4 class="card-title">Smart Issue Tracking</h4>
+                    <p class="card-text">Effortlessly create, assign, and monitor the status of all support requests with real-time updates and clear visibility.</p>
+                </div>
             </div>
-        </div>
-    </div>
-    <div class="col-md-4 mb-3">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <i class="fas fa-headset fa-3x text-success mb-3"></i>
-                <h4 class="card-title">Efficient Support</h4>
-                <p class="card-text">Our support agents are equipped to help. Tickets are categorized and prioritized for quick and effective assistance.</p>
+            <div class="col-lg-4 col-md-6 mb-4 d-flex">
+                <div class="feature-card icon-support">
+                    <div class="feature-icon-wrapper">
+                        <i class="fas fa-headset"></i>
+                    </div>
+                    <h4 class="card-title">Exceptional Support</h4>
+                    <p class="card-text">Our system empowers agents with the tools they need for rapid, categorized, and prioritized assistance, ensuring customer satisfaction.</p>
+                </div>
             </div>
-        </div>
-    </div>
-    <div class="col-md-4 mb-3">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <i class="fas fa-sitemap fa-3x text-info mb-3"></i>
-                <h4 class="card-title">Organized Workflow</h4>
-                <p class="card-text">A streamlined system for agents and administrators to manage tickets, assign tasks, and collaborate efficiently.</p>
+            <div class="col-lg-4 col-md-6 mb-4 d-flex">
+                <div class="feature-card icon-workflow">
+                    <div class="feature-icon-wrapper">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <h4 class="card-title">Optimized Workflow</h4>
+                    <p class="card-text">A beautifully streamlined system for agents and administrators to manage tickets, delegate tasks, and collaborate effectively.</p>
+                </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // You can add specific JavaScript for this page here if needed.
+    // For now, CSS animations handle the primary load-in effects.
+    // Example: Trigger animations on scroll if they are further down the page.
+    // const observerOptions = {
+    //     root: null,
+    //     rootMargin: '0px',
+    //     threshold: 0.1 // Trigger when 10% of the element is visible
+    // };
+
+    // const observerCallback = (entries, observer) => {
+    //     entries.forEach(entry => {
+    //         if (entry.isIntersecting) {
+    //             entry.target.classList.add('in-view');
+    //             // observer.unobserve(entry.target); // Optional: stop observing after animation
+    //         }
+    //     });
+    // };
+
+    // const featureCards = document.querySelectorAll('.feature-card');
+    // if (featureCards.length > 0) {
+    //     const scrollObserver = new IntersectionObserver(observerCallback, observerOptions);
+    //     featureCards.forEach(card => scrollObserver.observe(card));
+    // }
+    //
+    // And add to CSS:
+    // .feature-card { opacity: 0; transform: translateY(30px) scale(0.95); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
+    // .feature-card.in-view { opacity: 1; transform: translateY(0) scale(1); }
+    // /* Remove animation property from .feature-card if using JS scroll animations for them */
+
+</script>
 {% endblock %}

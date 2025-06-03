@@ -11,7 +11,6 @@
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    {# Determine if a System Options sub-page is active for initial sidebar state #}
     {% set system_options_active = request.endpoint in [
         'admin_category_list', 'admin_cloud_provider_list', 'admin_severity_list', 
         'admin_environment_list', 'admin_organization_list', 'admin_form_type_list', 
@@ -19,7 +18,6 @@
     ] %}
 
     <div class="app-layout">
-        <!-- Persistent Sidebar -->
         <nav class="app-sidebar {% if system_options_active %}sidebar-wide-open{% endif %}" id="appSidebar">
             <div class="sidebar-header">
                 <a class="navbar-brand" href="{{ url_for('index') }}">
@@ -31,18 +29,19 @@
                 </button>
             </div>
             <ul class="nav flex-column sidebar-nav">
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                        <i class="fas fa-tachometer-alt fa-fw"></i><span class="sidebar-item-text">Dashboard</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'create_ticket' %}active{% endif %}" href="{{ url_for('create_ticket') }}">
-                        <i class="fas fa-plus-circle fa-fw"></i><span class="sidebar-item-text">New Ticket</span>
-                    </a>
-                </li>
-
+                {# --- MODIFICATION: Moved Dashboard and New Ticket inside authenticated block --- #}
                 {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-tachometer-alt fa-fw"></i><span class="sidebar-item-text">Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'create_ticket' %}active{% endif %}" href="{{ url_for('create_ticket') }}">
+                            <i class="fas fa-plus-circle fa-fw"></i><span class="sidebar-item-text">New Ticket</span>
+                        </a>
+                    </li>
+
                     {% if current_user.is_client %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'my_tickets' %}active{% endif %}" href="{{ url_for('my_tickets') }}">
@@ -136,14 +135,14 @@
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_severity_list' %}active{% endif %}" href="{{ url_for('admin_severity_list') }}">Severities</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_environment_list' %}active{% endif %}" href="{{ url_for('admin_environment_list') }}">Environments</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_organization_list' %}active{% endif %}" href="{{ url_for('admin_organization_list') }}">Organizations</a></li>
-                                <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_form_type_list' %}active{% endif %}" href="{{ url_for('admin_form_type_list') }}">Form Types</a></li>
+                                <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_form_type_list' %}active{% endif %}" href="{{ url_for('admin_form_type_list') }}">Dificulty-level</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_apn_opportunity_list' %}active{% endif %}" href="{{ url_for('admin_apn_opportunity_list') }}">APN Opportunities</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_support_modal_list' %}active{% endif %}" href="{{ url_for('admin_support_modal_list') }}">Support Modals</a></li>
                             </ul>
                         </div>
                     </li>
-                    {% endif %}
-                {% endif %}
+                    {% endif %} {# End Admin Block #}
+                {% endif %} {# End Authenticated Block #}
             </ul>
             <div class="sidebar-footer">
                 {% if current_user.is_authenticated %}
@@ -162,30 +161,26 @@
             </div>
         </nav>
    
-        <!-- Main Content Area -->
         <div class="app-main {% if system_options_active %}sidebar-wide-open-main{% endif %}" id="appMain">
             <header class="app-header">
                 <button class="btn btn-icon d-lg-none" id="sidebarMobileToggle" aria-label="Toggle sidebar">
                     <i class="fas fa-bars"></i>
                 </button>
                 
-                {# This block will be replaced by child templates if they define it #}
-                {# Otherwise, the default structure with page_actions_placeholder is used #}
                 {% block content_header %}
                     <div class="content-header-bar">
                         {% if title %} 
                             <h1 class="content-title">{{ title }}</h1>
                         {% else %}
-                             <div></div> {# Empty div to help flexbox alignment if no title #}
+                             <div></div> 
                         {% endif %}
                         <div class="page-actions-placeholder">
-                             {% block page_actions %}{% endblock %} {# Child templates fill this for buttons #}
+                             {% block page_actions %}{% endblock %}
                         </div>
                     </div>
                 {% endblock content_header %}
 
                  <div class="top-right-actions">
-                    {# Future placeholder for global search, notifications, user dropdown etc. #}
                  </div>
             </header>
 
@@ -205,8 +200,6 @@
                     {% endif %}
                 {% endwith %}
                 
-                {# If a child template did not override content_header, this is the main content area #}
-                {# If it did, then this block is where the rest of its content goes after its header #}
                 {% block content %}{% endblock %}
             </main>
             
@@ -224,12 +217,12 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     {% block scripts %}{% endblock %}
     <script>
+        // Existing sidebar script from base.html
         $(document).ready(function () {
             const appSidebar = $('#appSidebar');
             const appMain = $('#appMain');
             const systemOptionsToggle = $('#systemOptionsToggle');
             const adminOptionsCollapse = $('#adminOptionsCollapse');
-            
             const isSystemOptionsPage = {{ system_options_active | tojson }};
 
             function setSidebarWideState(isWide) {
@@ -241,77 +234,45 @@
                     appMain.removeClass('sidebar-wide-open-main');
                 }
             }
-
-            // Initial state on page load:
             if (isSystemOptionsPage) {
-                setSidebarWideState(true); // Sidebar starts wide if on a system options page
+                setSidebarWideState(true); 
                 systemOptionsToggle.addClass('show-submenu').attr('aria-expanded', 'true').removeClass('collapsed');
-                // adminOptionsCollapse should have 'show' class from Jinja
             } else {
-                // Ensure it's not wide if not a system options page
                 setSidebarWideState(false); 
-                // And ensure toggle reflects collapsed state if submenu isn't shown by Jinja
                 if (!adminOptionsCollapse.hasClass('show')) {
                     systemOptionsToggle.removeClass('show-submenu').attr('aria-expanded', 'false').addClass('collapsed');
                 }
             }
-
             systemOptionsToggle.on('click', function (e) {
                 const isCurrentlyOpen = adminOptionsCollapse.hasClass('show');
-                if (!isCurrentlyOpen) { // About to open
+                if (!isCurrentlyOpen) { 
                     setSidebarWideState(true);
-                } else { // About to close
-                    // Only shrink if we are NOT currently on a system options page.
-                    // If we are, it should remain wide even if user manually collapses.
+                } else { 
                     if (!isSystemOptionsPage) {
                         setSidebarWideState(false);
                     }
                 }
             });
-            
             adminOptionsCollapse.on('shown.bs.collapse', function () {
                 systemOptionsToggle.addClass('show-submenu');
-                // If shown, ensure sidebar is wide (handles cases like direct URL nav to sub-item)
                 setSidebarWideState(true); 
             });
-
             adminOptionsCollapse.on('hidden.bs.collapse', function () {
                 systemOptionsToggle.removeClass('show-submenu');
-                // If the sub-menu is hidden, AND we are not on a system options page, shrink the sidebar.
                 if (!isSystemOptionsPage) { 
                     setSidebarWideState(false);
                 }
-                // If we ARE on a system options page, the sidebar remains wide due to the Jinja class.
             });
-
-            // Clicking any sub-menu link will cause navigation.
-            // On the new page, `isSystemOptionsPage` will be re-evaluated.
-            // If the new page IS a system options page, sidebar will be wide due to Jinja.
-            // If the new page IS NOT a system options page, the sidebar will be narrow.
-            $('#adminOptionsCollapse .sub-nav-link').on('click', function() {
-                // No need to call setSidebarWideState(false) here for immediate shrink,
-                // as page navigation will handle the correct state.
-                // The goal is to keep it wide while navigating WITHIN system options.
-            });
-            
-            // For any OTHER top-level nav link (not system options)
             $('.sidebar-nav > .nav-item > .nav-link').not(systemOptionsToggle).on('click', function() {
-                // If this click navigates away from system options, the sidebar should shrink.
-                // This happens naturally on page reload as `isSystemOptionsPage` will be false.
-                // For immediate UX, if the system options *was* open, we can trigger its collapse.
                 if (adminOptionsCollapse.hasClass('show')) {
-                    adminOptionsCollapse.collapse('hide'); // This will trigger hidden.bs.collapse, which then shrinks if not on sys page.
+                    adminOptionsCollapse.collapse('hide'); 
                 } else {
-                     // If some other future menu could make it wide, handle here.
-                    setSidebarWideState(false); // Default to narrow if not system options context.
+                    setSidebarWideState(false); 
                 }
             });
-            
-            // Mobile sidebar toggle logic
             const sidebarMobileToggle = $('#sidebarMobileToggle');
             const sidebarMobileClose = $('#sidebarMobileClose');
             const sidebarBackdrop = $('#sidebarBackdrop');
-
             if (sidebarMobileToggle.length) {
                 sidebarMobileToggle.on('click', function() {
                     appSidebar.addClass('sidebar-mobile-active');
