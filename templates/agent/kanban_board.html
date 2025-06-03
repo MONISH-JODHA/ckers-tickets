@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+{{ super() }}
+{# We will add SortableJS later for drag and drop #}
+{# <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script> #}
+<style>
+    :root {
+        --kanban-bg: #f4f7f9; /* Light grey background for the board area */
+        --column-bg: #ebf0f3; /* Lighter grey for columns */
+        --column-header-bg: #dfe7ed;
+        --card-bg: #ffffff;
+        --card-border: #d1d9e0;
+        --card-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        --card-hover-shadow: 0 4px 10px rgba(0,0,0,0.12);
+
+        /* Status specific colors - using CSS variables for easier theming */
+        --status-open-bg: #e6fffa; --status-open-text: #00796b; --status-open-border: #00bfa5;
+        --status-inprogress-bg: #e3f2fd; --status-inprogress-text: #1565c0; --status-inprogress-border: #1e88e5;
+        --status-onhold-bg: #fff8e1; --status-onhold-text: #f57f17; --status-onhold-border: #ffab00;
+        --status-resolved-bg: #e8f5e9; --status-resolved-text: #2e7d32; --status-resolved-border: #4caf50;
+        --status-closed-bg: #f5f5f5; --status-closed-text: #616161; --status-closed-border: #bdbdbd;
+        
+        --priority-urgent-text: #d32f2f;
+        --priority-high-text: #f57c00;
+        --priority-medium-text: #1976d2;
+        --priority-low-text: #388e3c;
+    }
+
+    .kanban-board-container {
+        display: flex;
+        overflow-x: auto; /* Allows horizontal scrolling for many columns */
+        padding: 20px 10px;
+        background-color: var(--kanban-bg);
+        min-height: calc(100vh - 120px); /* Adjust based on your header/footer */
+        gap: 15px; /* Space between columns */
+    }
+
+    .kanban-column {
+        flex: 0 0 300px; /* Fixed width for columns, change as needed */
+        max-width: 300px;
+        background-color: var(--column-bg);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+        height: fit-content; /* Column height based on content initially */
+        max-height: calc(100vh - 160px); /* Max column height */
+    }
+
+    .kanban-column-header {
+        padding: 12px 15px;
+        font-weight: 600;
+        color: var(--neutral-700, #334155);
+        border-bottom: 1px solid var(--card-border);
+        background-color: var(--column-header-bg);
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .kanban-column-header .badge {
+        font-size: 0.8em;
+    }
+    /* Column header colors based on status */
+    .kanban-column[data-status="Open"] .kanban-column-header { background-color: var(--status-open-bg); color: var(--status-open-text); border-bottom-color: var(--status-open-border);}
+    .kanban-column[data-status="In Progress"] .kanban-column-header { background-color: var(--status-inprogress-bg); color: var(--status-inprogress-text); border-bottom-color: var(--status-inprogress-border);}
+    .kanban-column[data-status="On Hold"] .kanban-column-header { background-color: var(--status-onhold-bg); color: var(--status-onhold-text); border-bottom-color: var(--status-onhold-border);}
+    .kanban-column[data-status="Resolved"] .kanban-column-header { background-color: var(--status-resolved-bg); color: var(--status-resolved-text); border-bottom-color: var(--status-resolved-border);}
+    .kanban-column[data-status="Closed"] .kanban-column-header { background-color: var(--status-closed-bg); color: var(--status-closed-text); border-bottom-color: var(--status-closed-border);}
+
+
+    .kanban-cards-list {
+        padding: 10px;
+        overflow-y: auto; /* Scroll within column if too many cards */
+        flex-grow: 1;
+        min-height: 100px; /* Minimum height for drop zone */
+    }
+    /* Hide scrollbar for a cleaner look, but still scrollable */
+    .kanban-cards-list::-webkit-scrollbar { width: 6px; }
+    .kanban-cards-list::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+    .kanban-cards-list::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+
+    .kanban-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-left-width: 4px; /* For priority indicator */
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 10px;
+        box-shadow: var(--card-shadow);
+        cursor: grab; /* Indicates draggable */
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .kanban-card:hover {
+        box-shadow: var(--card-hover-shadow);
+        /* transform: translateY(-2px); */
+    }
+    .kanban-card.sortable-ghost { /* Style for the placeholder when dragging */
+        background-color: #e0e8f0;
+        opacity: 0.7;
+        border: 1px dashed #a0b0c0;
+    }
+    .kanban-card.sortable-chosen {
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        transform: scale(1.02);
+    }
+
+
+    .card-ticket-id {
+        font-size: 0.75rem;
+        color: #777;
+        margin-bottom: 4px;
+        display: block;
+    }
+    .card-ticket-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+        /* Ellipsis for long titles */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .card-ticket-title a { color: inherit; text-decoration: none; }
+    .card-ticket-title a:hover { text-decoration: underline; }
+
+    .card-meta {
+        font-size: 0.8rem;
+        color: #555;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+    }
+    .card-meta .priority-tag {
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 500;
+        font-size: 0.7rem;
+    }
+    .card-meta .assignee-avatar {
+        width: 20px; height: 20px; border-radius: 50%;
+        margin-left: 5px;
+        font-size: 0.6rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        background-color: #aaa; /* Default */
+    }
+     /* Priority card border colors */
+    .kanban-card.priority-Urgent { border-left-color: var(--priority-urgent-text); }
+    .kanban-card.priority-High { border-left-color: var(--priority-high-text); }
+    .kanban-card.priority-Medium { border-left-color: var(--priority-medium-text); }
+    .kanban-card.priority-Low { border-left-color: var(--priority-low-text); }
+
+    /* Priority tag specific styling */
+    .priority-tag.priority-Urgent { background-color: var(--priority-urgent-text); color: white; }
+    .priority-tag.priority-High { background-color: var(--priority-high-text); color: white; }
+    .priority-tag.priority-Medium { background-color: var(--priority-medium-text); color: white; }
+    .priority-tag.priority-Low { background-color: var(--priority-low-text); color: white; }
+
+    .no-tickets-placeholder {
+        text-align: center;
+        padding: 20px;
+        color: #888;
+        font-style: italic;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kanban-board-container" id="kanbanBoard">
+    {% for status_name in kanban_statuses %}
+        <div class="kanban-column" data-status="{{ status_name }}">
+            <div class="kanban-column-header">
+                <span>{{ status_name }}</span>
+                <span class="badge badge-secondary">{{ tickets_by_status[status_name]|length }}</span>
+            </div>
+            <div class="kanban-cards-list" id="column-{{ status_name|lower|replace(' ', '-') }}">
+                {% if tickets_by_status[status_name] %}
+                    {% for ticket in tickets_by_status[status_name] %}
+                    <div class="kanban-card priority-{{ ticket.priority }}" data-ticket-id="{{ ticket.id }}">
+                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="card-ticket-id" target="_blank">#{{ ticket.id }}</a>
+                        <div class="card-ticket-title">
+                            <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" target="_blank" title="{{ ticket.title }}">{{ ticket.title }}</a>
+                        </div>
+                        <div class="card-meta">
+                            <span class="priority-tag priority-{{ ticket.priority }}">{{ ticket.priority }}</span>
+                            <span class="assignee-info">
+                                {% if ticket.assignee %}
+                                    <img src="https://ui-avatars.com/api/?name={{ ticket.assignee.username[0]|upper }}&size=20&background=random&color=fff&rounded=true" 
+                                         alt="{{ ticket.assignee.username }}" title="{{ ticket.assignee.username }}" class="assignee-avatar">
+                                {% else %}
+                                   <i class="fas fa-user-circle text-muted" title="Unassigned"></i>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                     <div class="no-tickets-placeholder">No tickets</div>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# Remove comments to enable SortableJS once you're ready for drag-and-drop #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const columns = document.querySelectorAll('.kanban-cards-list');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    columns.forEach(column => {
+        new Sortable(column, {
+            group: 'shared-kanban', // Group name for items to be dragged between lists
+            animation: 150,
+            ghostClass: 'sortable-ghost', // Class name for the drop placeholder
+            chosenClass: 'sortable-chosen', // Class name for the chosen item
+            dragClass: 'sortable-drag', // Class name for the dragging item
+
+            onEnd: function (evt) {
+                const itemEl = evt.item;  // Dragged HTMLElement
+                const ticketId = itemEl.dataset.ticketId;
+                const toColumnEl = evt.to;    // Target list
+                const newStatus = toColumnEl.closest('.kanban-column').dataset.status;
+                // const newIndex = evt.newDraggableIndex; // For ordering within column
+
+                // console.log(`Ticket ${ticketId} moved to ${newStatus} at index ${newIndex}`);
+
+                // API call to update the ticket status
+                fetch(`/api/ticket/${ticketId}/update_status_kanban`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken 
+                    },
+                    body: JSON.stringify({ 
+                        new_status: newStatus,
+                        // new_order: newIndex // Send new_order if you implement ordering
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // console.log('Ticket status updated successfully:', data.message);
+                        // Optionally, update the card or column header (e.g., ticket count)
+                        // For now, a page reload or dynamic update of counts would be good
+                        updateColumnHeaders(); // Function to update counts
+                    } else {
+                        // console.error('Failed to update ticket status:', data.message);
+                        // Revert the drag operation visually if the backend update fails
+                        // This can be complex; SortableJS might offer ways or you manually move it back
+                        // For simplicity now, we'll flash a message or log.
+                        alert('Error updating ticket: ' + data.message);
+                        // Simple revert (might not be perfect if original list was also reordered)
+                        // evt.from.insertBefore(itemEl, evt.from.children[evt.oldDraggableIndex]);
+                         if (evt.from && evt.from.children[evt.oldDraggableIndex]) {
+                             evt.from.insertBefore(itemEl, evt.from.children[evt.oldDraggableIndex]);
+                         } else if (evt.from) { // if it was the last item
+                             evt.from.appendChild(itemEl);
+                         }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error during API call:', error);
+                    alert('Network error updating ticket.');
+                     if (evt.from && evt.from.children[evt.oldDraggableIndex]) {
+                         evt.from.insertBefore(itemEl, evt.from.children[evt.oldDraggableIndex]);
+                     } else if (evt.from) {
+                         evt.from.appendChild(itemEl);
+                     }
+                });
+            }
+        });
+    });
+
+    function updateColumnHeaders() {
+        document.querySelectorAll('.kanban-column').forEach(columnDiv => {
+            const cardList = columnDiv.querySelector('.kanban-cards-list');
+            const countBadge = columnDiv.querySelector('.kanban-column-header .badge');
+            if (cardList && countBadge) {
+                countBadge.textContent = cardList.children.length - (cardList.querySelector('.no-tickets-placeholder') ? 1 : 0) ;
+
+                // Handle "No tickets" placeholder
+                const placeholder = cardList.querySelector('.no-tickets-placeholder');
+                if (cardList.children.length === 0 || (cardList.children.length === 1 && placeholder)) {
+                    if (!placeholder) {
+                        const newPlaceholder = document.createElement('div');
+                        newPlaceholder.className = 'no-tickets-placeholder';
+                        newPlaceholder.textContent = 'No tickets';
+                        cardList.appendChild(newPlaceholder);
+                    }
+                } else {
+                    if (placeholder) {
+                        placeholder.remove();
+                    }
+                }
+            }
+        });
+    }
+    // Initial call to set counts and placeholders correctly
+    updateColumnHeaders();
+});
+</script>
+{% endblock %}

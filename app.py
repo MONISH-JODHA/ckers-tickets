@@ -1321,6 +1321,91 @@ def view_ticket(ticket_id):
                            yesterday_date=yesterday_date_obj) 
 
 # ... (rest of app.py) ...
+
+
+
+
+
+#kanban
+# ... (near other agent_required routes) ...
+
+@app.route('/agent/kanban_board')
+@agent_required
+def agent_kanban_board():
+    # Fetch all tickets that are not 'Closed' for a start, or filter as needed
+    # For a true Kanban, you'd typically show active work.
+    # We'll group them by status in the template.
+    
+    # TICKET_STATUS_CHOICES = [('Open', 'Open'), ('In Progress', 'In Progress'), ('On Hold', 'On Hold'), ('Resolved', 'Resolved'), ('Closed', 'Closed')]
+    # We need the statuses in a specific order for the board
+    kanban_statuses_ordered = [s[0] for s in TICKET_STATUS_CHOICES] # ['Open', 'In Progress', ..., 'Closed']
+
+    tickets_query = Ticket.query.order_by(Ticket.priority, Ticket.updated_at.desc())
+    
+    # For simplicity in this phase, fetch all and group in template.
+    # Later, you might pre-group here or fetch tickets per status.
+    all_tickets_for_board = tickets_query.all()
+
+    tickets_by_status = {status: [] for status in kanban_statuses_ordered}
+    for ticket in all_tickets_for_board:
+        if ticket.status in tickets_by_status:
+            tickets_by_status[ticket.status].append(ticket)
+        # else: # Handle tickets with unknown statuses if necessary
+        #     if 'Other' not in tickets_by_status: tickets_by_status['Other'] = []
+        #     tickets_by_status['Other'].append(ticket)
+
+    return render_template('agent/kanban_board.html', 
+                           title="Kanban Board",
+                           tickets_by_status=tickets_by_status,
+                           kanban_statuses=kanban_statuses_ordered,
+                           TICKET_PRIORITY_CHOICES_DICT=dict(TICKET_PRIORITY_CHOICES) # Pass for easy lookup
+                          )
+
+# API Endpoint for status updates (Phase 2 will use this)
+@app.route('/api/ticket/<int:ticket_id>/update_status_kanban', methods=['POST'])
+@agent_required
+def update_ticket_status_kanban(ticket_id):
+    ticket = db.session.get(Ticket, ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'message': 'Ticket not found'}), 404
+
+    data = request.get_json()
+    new_status = data.get('new_status')
+    # new_order = data.get('new_order') # For ordering within column, future use
+
+    if not new_status or new_status not in [s[0] for s in TICKET_STATUS_CHOICES]:
+        return jsonify({'success': False, 'message': 'Invalid status provided'}), 400
+
+    old_status = ticket.status
+    ticket.status = new_status
+    
+    # Update resolved_at logic (same as in view_ticket)
+    if new_status in ['Resolved', 'Closed'] and old_status not in ['Resolved', 'Closed']:
+        if not ticket.resolved_at:
+            ticket.resolved_at = datetime.utcnow()
+    elif new_status not in ['Resolved', 'Closed'] and old_status in ['Resolved', 'Closed']:
+        if ticket.resolved_at:
+            ticket.resolved_at = None
+    
+    # ticket.kanban_order = new_order # Future use
+
+    log_interaction(ticket.id, 'STATUS_CHANGE_KANBAN', user_id=current_user.id,
+                    details={'old_value': old_status, 'new_value': new_status, 'field_display_name': 'Status (Kanban)'})
+    
+    try:
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Ticket #{ticket.id} status updated to {new_status}'})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Kanban API Error updating ticket {ticket_id}: {e}")
+        return jsonify({'success': False, 'message': 'Error updating ticket status'}), 500
+    
+    
+
+
+
+
+
 @app.route('/uploads/<filename>')
 @login_required
 def uploaded_file(filename):

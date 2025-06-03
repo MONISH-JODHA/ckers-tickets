@@ -118,6 +118,13 @@
                             <i class="fas fa-chart-line fa-fw"></i><span class="sidebar-item-text">Analytics</span>
                         </a>
                     </li>
+                    {# ... inside {% if current_user.is_agent or current_user.is_admin %} block ... #}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'agent_kanban_board' %}active{% endif %}" href="{{ url_for('agent_kanban_board') }}">
+                            <i class="fas fa-columns fa-fw"></i><span class="sidebar-item-text">Kanban Board</span>
+                        </a>
+                    </li>
+                    {# ... #}
                     <li class="nav-item has-submenu" id="systemOptionsNavItem">
                         <a class="nav-link {% if system_options_active %}active-parent show-submenu{% endif %}" 
                            data-toggle="collapse" href="#adminOptionsCollapse" role="button" 
