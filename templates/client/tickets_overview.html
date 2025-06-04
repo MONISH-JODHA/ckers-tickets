@@ -1,11 +1,12 @@
 {% extends "base.html" %}
-{% set page_title = title or "My Submitted Tickets" %} 
-
-{% block title_tag %}{{ page_title }} - Ticket CMS{% endblock %}
+{# title is passed from the route, e.g., "Tickets for Your Company" or "Tickets for Your Organization" #}
+{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
 
 {% block head_extra %}
 {{ super() }}
-{# Use the styles provided in your example for "my_tickets.html" #}
+{# Copy the <style> block from your comprehensive "my_tickets.html" example #}
+{# or the "all_tickets.html" example, ensuring it has styles for: #}
+{# .page-header-container, .filter-bar (if applicable), .ticket-list-item, status badges, etc. #}
 <style>
     :root {
         --primary-color: #4A90E2; 
@@ -17,8 +18,8 @@
 
         --success-color: #2ECC71; 
         --success-color-dark: #25a25a;
-        --warning-color: #f39c12; /* For pending/on-hold */
-        --danger-color: #e74c3c; /* For urgent */
+        --warning-color: #F1C40F; 
+        --danger-color: #E74C3C;
         
         --text-darkest: #2c3e50;
         --text-dark: #34495e;
@@ -38,6 +39,11 @@
         --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
         --transition-cards: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         --transition-elements: all 0.2s ease-in-out;
+
+        /* For filter dropdown */
+        --filter-bar-bg: #ffffff;
+        --filter-select-bg: #f8f9fa;
+        --input-border: #dfe3e8; /* Added for filter select border */
     }
 
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -74,6 +80,32 @@
     }
     .btn-create-ticket .fas { margin-right: 0.5em; font-size: 0.9em; }
 
+    .filter-bar {
+        background-color: var(--filter-bar-bg);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--card-shadow);
+        animation: ticketPopIn 0.4s ease-out forwards; 
+        animation-delay: 0.1s; 
+    }
+    .filter-bar .form-inline .form-control, .filter-bar .form-inline .custom-select {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+        background-color: var(--filter-select-bg);
+        border-color: var(--input-border); /* Ensure this variable is defined */
+    }
+    .filter-bar .form-inline label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-right: 0.75rem;
+        color: var(--text-medium);
+    }
+    .filter-bar .btn-filter {
+        font-size: 0.85rem;
+        padding: 0.4rem 1rem;
+    }
+
     .ticket-list-item {
         background-color: var(--card-bg); border-radius: var(--radius-lg);
         box-shadow: var(--card-shadow); margin-bottom: 1.25rem; padding: 1.25rem 1.5rem;
@@ -88,7 +120,6 @@
     {% endif %}
     @keyframes ticketPopIn { to { opacity: 1; transform: scale(1) translateY(0); } }
     .ticket-list-item:hover { box-shadow: var(--card-hover-shadow); transform: translateY(-5px) scale(1.01); }
-    
     .ticket-main-info { flex-grow: 1; margin-bottom: 0.75rem; }
     @media (min-width: 768px) {
         .ticket-list-item { flex-direction: row; align-items: flex-start; }
@@ -107,8 +138,8 @@
     .ticket-attributes { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; }
     .ticket-attributes .badge { padding: 0.35em 0.7em; font-weight: 500; border-radius: var(--radius-base); }
     
-    .badge-priority-low { background-color: #7f8c8d; color: #fff; } /* Example: Grey for Low */
-    .badge-priority-medium { background-color: var(--primary-color-light); color: var(--primary-color-dark); } /* Example: Light Blue for Medium */
+    .badge-priority-low { background-color: #7f8c8d; color: #fff; }
+    .badge-priority-medium { background-color: var(--primary-color-light); color: var(--primary-color-dark); }
     .badge-priority-high { background-color: var(--warning-color); color: var(--text-darkest); }
     .badge-priority-urgent { background-color: var(--danger-color); color: #fff; }
     .badge-category { background-color: var(--primary-pale); color: var(--primary-color-dark); border: 1px solid var(--primary-color-light);}
@@ -127,7 +158,7 @@
     .ticket-status-badge.open { background-color: var(--success-color); }
     .ticket-status-badge.in-progress { background-color: var(--primary-color); }
     .ticket-status-badge.on-hold { background-color: var(--warning-color); color: var(--text-darkest);}
-    .ticket-status-badge.resolved { background-color: var(--text-medium); } 
+    .ticket-status-badge.resolved { background-color: var(--text-medium); }
     .ticket-status-badge.closed { background-color: #738096; }
 
     .ticket-meta-details { font-size: 0.75rem; color: var(--text-light); line-height: 1.6; }
@@ -154,20 +185,39 @@
     }
     .pagination .page-item .page-link:hover { background-color: var(--primary-pale); border-color: var(--primary-color-light); color: var(--primary-color-dark); }
     .pagination .page-item.active .page-link { background-color: var(--primary-color); border-color: var(--primary-color); color: #fff; box-shadow: 0 3px 8px var(--primary-glow); }
-    .pagination .page-item.disabled .page-link { color: var(--text-light); background-color: #f8f9fa; border-color: #dfe3e8; box-shadow: none; } /* Adjusted disabled bg */
+    .pagination .page-item.disabled .page-link { color: var(--text-light); background-color: #f8f9fa; border-color: #dfe3e8; box-shadow: none; }
     .pagination .page-link .fas { font-size: 0.8em; }
 </style>
 {% endblock %}
 
 {% block content %}
     <div class="page-header-container">
-        <h1>{{ page_title }}</h1>
+        <h1>{{ title }}</h1>
+        {# Create ticket button might be redundant if they are already on a list page, but can keep for consistency #}
         <a href="{{ url_for('create_ticket') }}" class="btn btn-create-ticket">
             <i class="fas fa-plus-circle"></i> Create New Ticket
         </a>
     </div>
 
-    {# No department filter here, as this page shows only tickets created by the current user #}
+    {# Filter for Organization Clients #}
+    {% if current_user.role == 'organization_client' and department_filter_choices %}
+    <div class="card filter-bar">
+        <form method="GET" action="{{ url_for('tickets_overview') }}" class="form-inline">
+            <div class="form-group mr-sm-3 mb-2 mb-sm-0"> {# Added Bootstrap spacing utilities #}
+                <label for="department_filter_select" class="mr-2">Filter by Company/Dept:</label>
+                <select name="department_filter" id="department_filter_select" class="custom-select custom-select-sm">
+                    {% for value, text in department_filter_choices %}
+                        <option value="{{ value }}" {% if value|string == current_department_filter|string %}selected{% endif %}>{{ text }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm btn-filter mb-2 mb-sm-0"><i class="fas fa-filter mr-1"></i>Apply</button>
+             {% if current_department_filter|string != '0' %}
+                <a href="{{ url_for('tickets_overview') }}" class="btn btn-outline-secondary btn-sm ml-sm-2 btn-filter mb-2 mb-sm-0"><i class="fas fa-times mr-1"></i>Clear Filter</a>
+            {% endif %}
+        </form>
+    </div>
+    {% endif %}
 
     {% if tickets_pagination and tickets_pagination.items %}
         <div class="ticket-list-container">
@@ -183,23 +233,31 @@
                         <div class="ticket-attributes">
                             <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
                             <span class="badge badge-category">{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</span>
-                            {# Displaying the ticket's actual company/org association #}
-                            {% if ticket.department_ref %}
-                                <span class="badge badge-department" title="Associated Company/Department">
+                            {# Show Department if it's an org_client viewing, or if the ticket has a department #}
+                            {% if current_user.role == 'organization_client' and ticket.department_ref %}
+                                <span class="badge badge-department" title="Company/Department">
                                     <i class="fas fa-building fa-xs mr-1"></i>{{ ticket.department_ref.name }}
                                 </span>
-                            {% elif ticket.organization_option_ref %}
-                                <span class="badge badge-department" title="Associated Organization">
-                                     <i class="fas fa-sitemap fa-xs mr-1"></i>{{ ticket.organization_option_ref.name }}
+                            {% elif current_user.role != 'organization_client' and ticket.department_ref %}
+                                {# Standard client view, dept is implicit, but can show for clarity if needed #}
+                                {# Or remove this if redundant for standard client #}
+                                 <span class="badge badge-department" title="Company/Department">
+                                    <i class="fas fa-building fa-xs mr-1"></i>{{ ticket.department_ref.name }}
                                 </span>
-                            {% else %}
-                                <span class="badge badge-department">Independently Submitted</span>
+                            {% elif ticket.organization_option_ref and (current_user.role == 'organization_client' or not ticket.department_ref) %}
+                                {# Show Org name if no specific department or for Org client context #}
+                                <span class="badge badge-department" title="Organization">
+                                     <i class="fas fa-sitemap fa-xs mr-1"></i>{{ ticket.organization_option_ref.name }} {% if current_user.role == 'organization_client' and not ticket.department_ref %}(Org-Wide){% endif %}
+                                </span>
                             {% endif %}
                         </div>
                     </div>
                     <div class="ticket-meta-info">
                         <span class="badge ticket-status-badge {{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
                         <div class="ticket-meta-details">
+                            <span>Created by: <strong>{{ ticket.creator.username }}</strong></span>
+                            <span>{{ ticket.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+                            <hr style="margin: 0.3rem 0; border-top: 1px dashed #e0e6ed; opacity:0.7;">
                             <span>Assigned to: <strong>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</strong></span>
                             <span>Last updated: {{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</span>
                         </div>
@@ -211,42 +269,64 @@
         {% if tickets_pagination.pages > 1 %}
             <nav aria-label="Ticket navigation" class="mt-4">
                 <ul class="pagination pagination-sm justify-content-center">
+                    {# Previous Page Link #}
                     <li class="page-item {% if not tickets_pagination.has_prev %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('my_tickets', page=tickets_pagination.prev_num) if tickets_pagination.has_prev else '#' }}" aria-label="Previous">
+                        <a class="page-link" href="{{ url_for('tickets_overview', page=tickets_pagination.prev_num, department_filter=current_department_filter) if tickets_pagination.has_prev else '#' }}" aria-label="Previous">
                             <span aria-hidden="true">«</span> <span class="sr-only">Previous</span>
                         </a>
                     </li>
+                    {# Page Numbers #}
                     {% for page_num in tickets_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                         {% if page_num %}
                             <li class="page-item {% if tickets_pagination.page == page_num %}active{% endif %}">
-                                <a class="page-link" href="{{ url_for('my_tickets', page=page_num) }}">{{ page_num }}</a>
+                                <a class="page-link" href="{{ url_for('tickets_overview', page=page_num, department_filter=current_department_filter) }}">{{ page_num }}</a>
                             </li>
                         {% else %}
-                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                             {% if loop.previtem is number and loop.nextitem is number %} {# Show ellipsis only if surrounded by numbers #}
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            {% endif %}
                         {% endif %}
                     {% endfor %}
+                    {# Next Page Link #}
                     <li class="page-item {% if not tickets_pagination.has_next %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('my_tickets', page=tickets_pagination.next_num) if tickets_pagination.has_next else '#' }}" aria-label="Next">
+                        <a class="page-link" href="{{ url_for('tickets_overview', page=tickets_pagination.next_num, department_filter=current_department_filter) if tickets_pagination.has_next else '#' }}" aria-label="Next">
                             <span aria-hidden="true">»</span> <span class="sr-only">Next</span>
                         </a>
                     </li>
                 </ul>
             </nav>
+             <p class="text-center text-muted small mt-2">
+                Page {{ tickets_pagination.page }} of {{ tickets_pagination.pages }}. Displaying {{ tickets_pagination.items|length }} of {{ tickets_pagination.total }} tickets.
+            </p>
         {% endif %}
 
     {% else %}
         <div class="no-tickets-alert">
             <i class="fas fa-folder-open"></i>
-            <h5>No Tickets Submitted Yet!</h5>
-            <p>You haven't created any support tickets. <br>Ready to submit one?</p>
+            <h5>No Tickets Found</h5>
+            <p>There are currently no tickets matching your criteria.
+                {% if current_user.role == 'client' or current_user.role == 'organization_client' %}
+                    <br>Ready to submit one?
+                {% endif %}
+            </p>
+            {% if current_user.role == 'client' or current_user.role == 'organization_client' %}
             <a href="{{ url_for('create_ticket') }}" class="btn btn-create-ticket mt-3" style="background-color: var(--primary-color); border-color: var(--primary-color);">
-                <i class="fas fa-plus-circle"></i> Create Your First Ticket
+                <i class="fas fa-plus-circle"></i> Create New Ticket
             </a>
+            {% endif %}
         </div>
     {% endif %}
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
-{# No specific scripts needed for this simple list view, unless you add client-side filtering later #}
+<script>
+    // Script for submitting the filter form when the select changes (optional UX improvement)
+    const departmentFilterSelect = document.getElementById('department_filter_select');
+    if (departmentFilterSelect) {
+        departmentFilterSelect.addEventListener('change', function() {
+            this.form.submit();
+        });
+    }
+</script>
 {% endblock %}

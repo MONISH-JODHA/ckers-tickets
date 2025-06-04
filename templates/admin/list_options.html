@@ -2,126 +2,49 @@
 
 {% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
 
-{% block content_header %}
-<div class="content-header-bar">
-    <h1 class="content-title">{{ title }} 🧑‍💻 </h1>
-    {% block page_actions %}
-        {% set new_url_name = 'admin_create_edit_' + model_name %}
-        <a href="{{ url_for(new_url_name) }}" class="btn btn-primary btn-animated">
-            <i class="fas fa-plus fa-fw mr-1"></i> New {{ model_name.replace('_', ' ').replace(' option', '').title() }}
-        </a>
-    {% endblock %}
-</div>
-{% endblock %}
-
-{% block content %}
-<div class="admin-section admin-options-list animated-list-view">
-    {% if items %}
-    <div class="card admin-card modern-table-card">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle"> 
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            {% if model_name == 'category' or model_name == 'severity_option' %}
-                                <th>Description</th>
-                            {% endif %}
-                            {% if model_name == 'severity_option' %}
-                                <th class="text-center">Order</th>
-                            {% endif %}
-                            
-                            {# MODIFIED CHECK for 'is_active' #}
-                            {% if items and items[0] is defined and items[0].is_active is defined %}
-                                <th class="text-center">Status</th>
-                            {% endif %}
-                            <th class="text-right" style="width: 200px;">Actions</th> 
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in items %}
-                        <tr class="animated-table-row">
-                            <td>
-                                <strong class="item-name">{{ item.name }}</strong>
-                            </td>
-                            
-                            {% if model_name == 'category' or model_name == 'severity_option' %}
-                                <td class="text-muted item-description">{{ item.description | default('N/A', true) | truncate(70) }}</td>
-                            {% endif %}
-
-                            {% if model_name == 'severity_option' %}
-                                <td class="text-center">
-                                    <span class="badge badge-light border item-order">{{ item.order | default('N/A', true) }}</span>
-                                </td>
-                            {% endif %}
-
-                            {# MODIFIED CHECK for 'is_active' #}
-                            {% if item.is_active is defined %} 
-                                <td class="text-center">
-                                    {% if item.is_active %}
-                                        <span class="badge badge-pill badge-success-light">Active</span>
-                                    {% else %}
-                                        <span class="badge badge-pill badge-secondary-light">Inactive</span>
-                                    {% endif %}
-                                </td>
-                            {% elif items and items[0] is defined and items[0].is_active is defined %} 
-                                {# Add an empty TD if the column exists but this item doesn't have the attr (unlikely with consistent models) #}
-                                <td></td>
-                            {% endif %}
-                            
-                            <td class="text-right action-buttons">
-                                {% set edit_url_name = 'admin_create_edit_' + model_name %}
-                                {% set delete_url_name = 'admin_delete_' + model_name %}
-                                <a href="{{ url_for(edit_url_name, item_id=item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit {{ item.name }}">
-                                    <i class="fas fa-pencil-alt fa-fw"></i> <span class="d-none d-md-inline">Edit</span>
-                                </a>
-                                <form action="{{ url_for(delete_url_name, item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete \'{{ item.name }}\'? This action cannot be undone.');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger btn-action-icon" title="Delete {{ item.name }}">
-                                        <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    {% else %}
-    <div class="empty-state-card text-center p-5 animated-empty-state">
-        <i class="fas {{ 'fa-tags' if model_name == 'category' else ('fa-layer-group' if model_name == 'severity_option' else 'fa-cubes') }} fa-3x text-muted mb-3"></i>
-        <h4>No {{ model_name.replace('_', ' ').replace(' option', '').lower() }}s found.</h4>
-        <p class="text-muted">Ready to add the first one to the system?</p>
-        <a href="{{ url_for(new_url_name) }}" class="btn btn-success mt-2 btn-animated">
-            <i class="fas fa-plus mr-1"></i> Create First {{ model_name.replace('_', ' ').replace(' option', '').title() }}
-        </a>
-    </div>
-    {% endif %}
-</div>
-{% endblock %}
-
-
 {% block head_extra %}
 {{ super() }}
 <style>
+    /* Ensure your :root variables are defined or inherited from base.html's style.css */
+    :root {
+        --primary-color: {{ app.config.get('THEME_PRIMARY_COLOR', '#007bff') }};
+        --primary-rgb: {{ '0,123,255' }};
+        --secondary-color: #6c757d;
+        --success-color: #28a745;
+        --danger-color: #dc3545;
+        --warning-color: #ffc107;
+        --info-color: #17a2b8;
+        --text-primary: #212529;
+        --text-secondary: #6c757d;
+        --card-bg: #ffffff;
+        --border-color: #dee2e6;
+        --border-radius: .375rem; /* Bootstrap 4 default */
+        --box-shadow-sm: 0 .125rem .25rem rgba(0,0,0,.075);
+        --box-shadow-md: 0 .5rem 1rem rgba(0,0,0,.15);
+        --transition-base: all .2s ease-in-out;
+
+        /* Added for badge styling consistency */
+        --bs-success-rgb: 40,167,69;
+        --bs-secondary-rgb: 108,117,125;
+    }
+
     .admin-options-list .modern-table-card {
         box-shadow: var(--box-shadow-md);
         border: none;
-        border-radius: var(--border-radius); /* Ensure card itself has radius */
-        overflow: hidden; /* To make table corners also appear rounded */
+        border-radius: var(--border-radius); 
+        overflow: hidden; 
     }
     .admin-options-list .table thead th {
-        font-size: 0.75rem; /* Slightly smaller header text */
+        font-size: 0.75rem; 
         text-transform: uppercase;
         letter-spacing: 0.05em;
         background-color: #f8f9fc; 
         color: var(--text-secondary);
         font-weight: 600;
-        border-bottom: 2px solid var(--border-color); /* Stronger bottom border for header */
+        border-bottom: 2px solid var(--border-color); 
         padding-top: 0.9rem;
         padding-bottom: 0.9rem;
+        white-space: nowrap; /* Prevent headers from wrapping */
     }
     .admin-options-list .table tbody td {
         padding: 0.9rem 1rem; 
@@ -134,7 +57,7 @@
     }
     .admin-options-list .item-description {
         font-size: 0.85rem;
-        color: #6b7280; /* Slightly darker than text-muted */
+        color: #6b7280; 
     }
     .admin-options-list .item-order {
         font-size: 0.8rem;
@@ -143,12 +66,12 @@
         border-color: #ced4da !important;
     }
     .badge-success-light {
-        background-color: rgba(var(--bs-success-rgb, 40,167,69), 0.15) !important;
+        background-color: rgba(var(--bs-success-rgb), 0.15) !important;
         color: var(--success-color) !important;
         font-weight: 500;
     }
     .badge-secondary-light {
-        background-color: rgba(var(--bs-secondary-rgb, 108,117,125), 0.15) !important;
+        background-color: rgba(var(--bs-secondary-rgb), 0.15) !important;
         color: var(--secondary-color) !important;
         font-weight: 500;
     }
@@ -187,7 +110,7 @@
     }
     {% for i in range(1, 16) %} 
     .animated-table-row:nth-child({{i}}) {
-        animation-delay: {{ (i-1) * 0.04 }}s; /* Slightly faster stagger */
+        animation-delay: {{ (i-1) * 0.04 }}s; 
     }
     {% endfor %}
 
@@ -209,5 +132,128 @@
     @keyframes zoomInEmpty {
         to { transform: scale(1); opacity: 1; }
     }
+
+    /* Specific for organization column */
+    .item-organization {
+        font-size: 0.85rem;
+        color: #495057; /* var(--text-medium) */
+    }
 </style>
+{% endblock %}
+
+{% block content_header %}
+<div class="content-header-bar">
+    <h1 class="content-title">{{ title }} 🧑‍💻 </h1>
+    {% block page_actions %}
+        {% set new_url_name = 'admin_create_edit_' + model_name %}
+        <a href="{{ url_for(new_url_name) }}" class="btn btn-primary btn-animated">
+            <i class="fas fa-plus fa-fw mr-1"></i> New {{ model_name.replace('_', ' ').replace(' option', '').title() }}
+        </a>
+    {% endblock %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="admin-section admin-options-list animated-list-view">
+    {% if items %}
+    <div class="card admin-card modern-table-card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle"> 
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            {# --- NEW: Conditional column for Department's Organization --- #}
+                            {% if model_name == 'department' %}
+                                <th>Parent Organization</th>
+                            {% endif %}
+                            {# --- END NEW --- #}
+
+                            {% if model_name == 'category' or model_name == 'severity_option' or model_name == 'department' %} {# Department also has description #}
+                                <th>Description</th>
+                            {% endif %}
+                            {% if model_name == 'severity_option' %}
+                                <th class="text-center">Order</th>
+                            {% endif %}
+                            
+                            {# MODIFIED CHECK for 'is_active' - This should be fine if all your "Option" models have `is_active` #}
+                            {% if items and items[0] is defined and items[0].is_active is defined %}
+                                <th class="text-center">Status</th>
+                            {% endif %}
+                            <th class="text-right" style="width: 200px;">Actions</th> 
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr class="animated-table-row">
+                            <td>
+                                <strong class="item-name">{{ item.name }}</strong>
+                            </td>
+
+                            {# --- NEW: Conditional cell for Department's Organization --- #}
+                            {% if model_name == 'department' %}
+                                <td class="item-organization">
+                                    {% if item.organization_option_ref %}
+                                        {{ item.organization_option_ref.name }}
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                            {# --- END NEW --- #}
+                            
+                            {% if model_name == 'category' or model_name == 'severity_option' or model_name == 'department' %}
+                                <td class="text-muted item-description">{{ item.description | default('N/A', true) | truncate(70) }}</td>
+                            {% endif %}
+
+                            {% if model_name == 'severity_option' %}
+                                <td class="text-center">
+                                    <span class="badge badge-light border item-order">{{ item.order | default('N/A', true) }}</span>
+                                </td>
+                            {% endif %}
+
+                            {% if item.is_active is defined %} 
+                                <td class="text-center">
+                                    {% if item.is_active %}
+                                        <span class="badge badge-pill badge-success-light">Active</span>
+                                    {% else %}
+                                        <span class="badge badge-pill badge-secondary-light">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            {% elif items and items[0] is defined and items[0].is_active is defined %} 
+                                <td></td>
+                            {% endif %}
+                            
+                            <td class="text-right action-buttons">
+                                {% set edit_url_name = 'admin_create_edit_' + model_name %}
+                                {% set delete_url_name = 'admin_delete_' + model_name %}
+                                <a href="{{ url_for(edit_url_name, item_id=item.id) }}" class="btn btn-sm btn-outline-primary mr-1" title="Edit {{ item.name }}">
+                                    <i class="fas fa-pencil-alt fa-fw"></i> <span class="d-none d-md-inline">Edit</span>
+                                </a>
+                                <form action="{{ url_for(delete_url_name, item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete \'{{ item.name }}\'? This action cannot be undone.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger btn-action-icon" title="Delete {{ item.name }}">
+                                        <i class="fas fa-trash-alt fa-fw"></i> <span class="d-none d-md-inline">Delete</span>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state-card text-center p-5 animated-empty-state">
+        {# Updated icon logic for 'department' #}
+        <i class="fas {{ 'fa-building' if model_name == 'department' else ('fa-tags' if model_name == 'category' else ('fa-layer-group' if model_name == 'severity_option' else 'fa-cubes')) }} fa-3x text-muted mb-3"></i>
+        <h4>No {{ model_name.replace('_', ' ').replace(' option', '').title() }}s found.</h4>
+        <p class="text-muted">Ready to add the first one to the system?</p>
+        <a href="{{ url_for(new_url_name) }}" class="btn btn-success mt-2 btn-animated">
+            <i class="fas fa-plus mr-1"></i> Create First {{ model_name.replace('_', ' ').replace(' option', '').title() }}
+        </a>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

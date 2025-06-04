@@ -1,146 +1,389 @@
 {% extends "base.html" %}
-{% set title = title %} {# Use the title variable passed from the route #}
+{% set title = title %}
 
 {% block head_extra %}
 <style>
-    .ticket-description-area {
-        max-height: 300px;
-        overflow-y: auto;
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: .25rem;
-        border: 1px solid #dee2e6;
-        white-space: pre-wrap; 
+    :root {
+        --primary-color: #3662E0; /* A more vibrant, modern blue */
+        --primary-color-dark: #2A4CB3;
+        --primary-color-light: #6B8DE8;
+        --primary-color-rgb: 54, 98, 224; /* Make sure this matches --primary-color */
+        --primary-glow: rgba(var(--primary-color-rgb), 0.2);
+        --primary-pale: #eef2ff; /* Very light blue for subtle backgrounds */
+
+        --accent-color: #EF5DA8; /* A contrasting pink/magenta for highlights */
+        --accent-color-dark: #D43F8D;
+
+        --success-color: #10B981; /* Emerald green */
+        --success-color-dark: #059669;
+        --success-rgb: 16, 185, 129; /* For success-glow */
+        --success-glow: rgba(var(--success-rgb), 0.2);
+
+
+        --warning-color: #F59E0B; /* Amber */
+        --warning-text: #78350F; /* Darker text for yellow bg */
+        --warning-glow: rgba(245, 158, 11, 0.2);
+
+        --danger-color: #EF4444; /* Tailwind red */
+        --danger-rgb: 239, 68, 68; /* For danger-glow */
+        --danger-glow: rgba(var(--danger-rgb), 0.2);
+
+        --info-color: #3B82F6; /* Brighter blue for info */
+        --info-rgb: 59,130,246; /* For info-glow */
+
+
+        --text-darkest: #111827; /* Almost black */
+        --text-dark: #374151;
+        --text-medium: #6B7280;
+        --text-light: #9CA3AF;
+        --text-on-primary: #FFFFFF;
+        --text-link: var(--primary-color);
+
+        --page-bg: #f9fafb; /* Very light grey */
+        --card-bg: #FFFFFF;
+        --card-border: #E5E7EB;
+        --card-shadow-light: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+        --card-shadow-strong: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+        --card-hover-shadow: 0 20px 25px -5px rgba(var(--primary-color-rgb), 0.1), 0 10px 10px -5px rgba(var(--primary-color-rgb), 0.06);
+
+
+        --input-bg: #F9FAFB;
+        --input-border: #D1D5DB;
+        --input-focus-border: var(--primary-color);
+        --input-focus-shadow: 0 0 0 3px var(--primary-glow);
+
+        --radius-sm: 4px;
+        --radius-md: 6px;
+        --radius-lg: 8px;
+        --radius-xl: 12px;
+
+        --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .apn-description-area {
-        max-height: 150px;
-        overflow-y: auto;
-        background-color: #f8f9fa;
-        padding: 0.5rem;
-        border-radius: .25rem;
-        border: 1px solid #dee2e6;
-        white-space: pre-wrap;
-        font-size: 0.9em;
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--page-bg);
+        color: var(--text-dark);
     }
-    .timeline {
-        list-style: none;
-        padding: 0;
-        position: relative;
-        font-size: 0.9rem;
+    .app-content {
+        background-color: transparent; /* Inherit from body */
+        padding: 2rem 1.5rem; /* More vertical padding */
     }
-    .timeline:before {
-        content: '';
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 18px; /* Adjusted for icon size */
-        width: 2px;
-        background-color: #e9ecef; /* Softer line color */
+
+    /* --- Enhanced Card Base --- */
+    .card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--card-shadow-strong);
+        margin-bottom: 2rem;
+        transition: var(--transition);
+        opacity: 0;
+        transform: translateY(20px);
+        animation: cardEntry 0.6s ease-out forwards;
     }
-    .timeline-date-group {
-        margin: 20px 0 10px 0;
-        padding-left: 0; /* No extra padding for the date group itself */
-        position: relative;
+    /* Stagger card animations */
+    .col-lg-8 > .card:nth-child(1) { animation-delay: 0.1s; }
+    .col-lg-8 > .card:nth-child(2) { animation-delay: 0.2s; }
+    .col-lg-8 > .card:nth-child(3) { animation-delay: 0.3s; }
+    .col-lg-4 > .card:nth-child(1) { animation-delay: 0.15s; }
+    .col-lg-4 > .card:nth-child(2) { animation-delay: 0.25s; }
+
+    @keyframes cardEntry {
+        to { opacity: 1; transform: translateY(0); }
     }
-    .timeline-date-group .badge {
-        font-size: 0.8rem;
-        font-weight: 600;
-        padding: .35em .65em;
-        display: inline-block; /* Allows margin/padding if needed, fits content */
+
+    .card:hover {
+        box-shadow: var(--card-hover-shadow);
+        transform: translateY(-3px);
     }
-    .timeline-item {
-        margin-bottom: 15px;
-        position: relative;
-        padding-left: 45px; /* Space for the icon */
-        min-height: 36px; /* Ensure space for icon and a bit of content */
+    .card-header {
+        background-color: var(--card-bg); 
+        border-bottom: 1px solid var(--card-border);
+        padding: 1.25rem 1.75rem;
+        border-top-left-radius: var(--radius-lg);
+        border-top-right-radius: var(--radius-lg);
     }
-    .timeline-icon {
-        position: absolute;
-        left: 0;
-        top: 0; /* Align icon with top of item */
-        width: 36px;  /* Diameter of the icon circle */
-        height: 36px; /* Diameter of the icon circle */
-        border-radius: 50%;
+    .card-header h4, .card-header h5 {
+        font-weight: 700; 
+        color: var(--text-darkest);
+        margin-bottom: 0;
         display: flex;
         align-items: center;
-        justify-content: center;
-        color: white;
-        z-index: 10; /* Above the timeline bar */
-        font-size: 1rem; /* Icon size within the circle */
-        border: 2px solid white; /* Creates a clean edge */
-        box-shadow: 0 0 0 1px #dee2e6; /* Subtle outer border for light icons */
     }
-    /* Remove box-shadow for icons that have their own background color */
-    .timeline-icon.bg-primary, .timeline-icon.bg-success, .timeline-icon.bg-info, .timeline-icon.bg-warning, .timeline-icon.bg-danger, .timeline-icon.bg-purple, .timeline-icon.bg-cyan {
-        box-shadow: none;
+    .card-header h4 .fas, .card-header h5 .fas { 
+        margin-right: 0.75em;
+        color: var(--primary-color);
+        font-size: 1.1em; 
+        opacity: 0.85;
     }
-    .timeline-icon.bg-light { color: #495057; } /* Ensure text visibility on light bg */
+    .card-body { padding: 1.75rem; }
+    .card-footer {
+        background-color: #fdfdff; 
+        border-top: 1px solid var(--card-border);
+        padding: 1.25rem 1.75rem;
+    }
 
-    .timeline-content {
-        padding: 0px 5px 5px 5px; /* Minimal padding around content */
-        position: relative;
-        line-height: 1.4;
+    /* --- Ticket Details Specific --- */
+    .ticket-main-header { 
+        background: linear-gradient(45deg, var(--primary-color-dark) 0%, var(--primary-color) 100%);
+        color: var(--text-on-primary);
+        border-bottom: none;
+        padding: 1.5rem 2rem;
     }
-    .timeline-content .item-timestamp {
-        font-size: 0.8em;
-        color: #6c757d;
+    .ticket-main-header h4, .ticket-main-header .badge {
+        color: var(--text-on-primary) !important;
     }
-    .timeline-content .item-title {
-        display: block;
+    .ticket-main-header h4 { font-size: 1.6rem; letter-spacing: -0.02em; }
+    .ticket-main-header .badge {
+        background-color: rgba(255,255,255,0.15) !important;
+        border: 1px solid rgba(255,255,255,0.25);
+        font-size: 0.9rem;
         font-weight: 500;
-        margin-bottom: 2px;
-        color: #343a40;
+        padding: 0.5em 0.9em;
+        border-radius: var(--radius-md);
     }
-    .timeline-content .item-description {
+
+    .ticket-section-title {
+        font-weight: 600;
+        color: var(--text-darkest);
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--card-border);
+        display: flex;
+        align-items: center;
+    }
+    .ticket-section-title .fas {
+        margin-right: 0.6em;
+        color: var(--primary-color);
         font-size: 0.9em;
-        color: #495057;
-        margin-bottom: 3px;
     }
-     .timeline-content .item-description strong {
-        font-weight: 600; /* Bootstrap default is 700, 600 is often nicer */
+
+    .ticket-description-area {
+        background-color: var(--primary-pale);
+        padding: 1.5rem;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--primary-color-light);
+        white-space: pre-wrap; 
+        line-height: 1.75;
+        font-size: 0.95rem;
+        color: var(--text-dark);
+        margin-top: 0.5rem;
+        margin-bottom: 1.5rem;
     }
-    .timeline-content .item-meta { /* For extra details like field names in changes */
-        font-size: 0.75em;
-        color: #6c757d;
+    .apn-description-area {
+        background-color: var(--primary-pale);
+        padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--primary-color-light);
+        font-size: 0.9rem; line-height: 1.6;
     }
-    .timeline-content .comment-preview {
-        padding-left: 10px;
-        border-left: 2px solid #e0e0e0;
-        margin-top: 5px;
-        font-size: 0.85em;
-        color: #555;
-        max-height: 60px; /* Limit preview height */
-        overflow: hidden;
-        text-overflow: ellipsis;
+
+    .details-grid { font-size: 0.9rem; }
+    .details-grid p {
+        margin-bottom: 0.9rem;
+        display: grid; 
+        grid-template-columns: 140px 1fr; 
+        align-items: baseline;
+        gap: 0.5rem;
     }
-    .card-header .btn-outline-secondary {
-        border-color: #ced4da;
-        color: #6c757d;
-        padding: 0.25rem 0.5rem;
-        font-size: 0.8rem;
+    .details-grid strong {
+        font-weight: 500;
+        color: var(--text-medium);
     }
-     .card-header .btn-outline-secondary i {
-        line-height: 1; /* Better vertical alignment for icons in small buttons */
+    .details-grid .badge { font-size: 0.85em; font-weight: 500; padding: 0.4em 0.7em; }
+    .tags-list .badge {
+        background-color: rgba(var(--primary-color-rgb), 0.1) !important; /* Use primary-rgb */
+        color: var(--primary-color-dark) !important;
+        border: 1px solid var(--primary-color-light) !important;
+        font-weight: 500; margin-right: 0.4em;
     }
-    .card-header .btn-outline-secondary:hover {
-        background-color: #e9ecef;
+
+    .first-response-banner {
+        padding: 1rem 1.25rem;
+        border-radius: var(--radius-md);
+        font-size: 0.9rem;
+        margin-top: 1.5rem;
+        display: flex;
+        align-items: center;
     }
+    .first-response-banner .fas { font-size: 1.2em; margin-right: 0.75em; }
+    .first-response-banner.success {
+        background-color: rgba(var(--success-rgb), 0.08); /* Use success-rgb */
+        border: 1px solid rgba(var(--success-rgb), 0.2);
+        color: var(--success-color-dark);
+    }
+    .first-response-banner.muted {
+        background-color: #f0f2f5;
+        border: 1px solid var(--card-border);
+        color: var(--text-medium);
+    }
+
+    /* --- Attachments --- */
+    .attachments-card .list-group-item {
+        border-color: var(--card-border);
+        padding: 1rem 1.5rem;
+        transition: var(--transition);
+    }
+    .attachments-card .list-group-item:hover {
+        background-color: var(--primary-pale);
+        transform: translateX(5px);
+    }
+    .attachments-card .attachment-name { color: var(--text-link); font-weight: 500; }
+    .attachments-card .attachment-meta { font-size: 0.8rem; color: var(--text-light); }
+    .attachments-card .btn-download-attachment {
+        background-color: var(--primary-color); color: var(--text-on-primary);
+        border: none; font-size: 0.85rem; padding: 0.4rem 0.9rem;
+    }
+    .attachments-card .btn-download-attachment:hover { background-color: var(--primary-color-dark); }
+
+    /* --- Discussion / Comments --- */
+    #comments-section .comment-item-wrapper { 
+        padding: 1.25rem;
+        border-bottom: 1px solid var(--card-border);
+    }
+    #comments-section .comment-item-wrapper:last-child { border-bottom: none; }
+    
+    #add-comment-form textarea {
+        min-height: 120px;
+        border-radius: var(--radius-md);
+        border-color: var(--input-border);
+        padding: 0.75rem 1rem; font-size: 0.95rem;
+    }
+    #add-comment-form textarea:focus {
+        border-color: var(--input-focus-border);
+        box-shadow: var(--input-focus-shadow);
+    }
+    #add-comment-form .btn-post-comment {
+        background-color: var(--success-color);
+        border-color: var(--success-color);
+        color: var(--text-on-primary);
+        font-weight: 600; padding: 0.65rem 1.5rem;
+        border-radius: var(--radius-md);
+    }
+    #add-comment-form .btn-post-comment:hover {
+        background-color: var(--success-color-dark);
+        border-color: var(--success-color-dark);
+    }
+
+
+    /* --- Interaction History (Timeline) --- */
+    .timeline-header-controls .btn {
+        background-color: var(--card-bg);
+        border: 1px solid var(--input-border);
+        color: var(--text-medium);
+        padding: 0.3rem 0.6rem; font-size: 0.8rem;
+    }
+    .timeline-header-controls .btn:hover { background-color: #e9ecef; }
+
     #interactionHistoryBody {
-        max-height: 500px; 
+        max-height: 70vh; 
         overflow-y: auto;
-        padding-top: 10px; /* Add some space from header */
+        padding: 1.5rem 0.75rem 1.5rem 1.75rem; 
     }
-    /* Custom Scrollbar for Interaction History */
-    #interactionHistoryBody::-webkit-scrollbar { width: 6px; }
-    #interactionHistoryBody::-webkit-scrollbar-track { background: #f1f1f1; }
-    #interactionHistoryBody::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
-    #interactionHistoryBody::-webkit-scrollbar-thumb:hover { background: #aaa; }
+    #interactionHistoryBody::-webkit-scrollbar { width: 8px; }
+    #interactionHistoryBody::-webkit-scrollbar-track { background: rgba(0,0,0,0.02); }
+    #interactionHistoryBody::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+    #interactionHistoryBody::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
 
-    /* Additional background colors for timeline icons */
+    .timeline { list-style: none; padding: 0; position: relative; }
+    .timeline::before { 
+        content: ''; position: absolute; top: 10px; bottom: 10px; left: 23px; 
+        width: 4px;
+        background: linear-gradient(to bottom, var(--primary-color-light), var(--accent-color), var(--primary-color-light));
+        border-radius: 2px;
+        box-shadow: 0 0 8px var(--primary-glow);
+    }
+    .timeline-date-chip {
+        display: inline-block;
+        background-color: var(--card-bg);
+        color: var(--primary-color-dark);
+        padding: 0.4em 1em;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        margin-bottom: 1.5rem;
+        margin-left: -5px; 
+        border: 1px solid var(--primary-color-light);
+        box-shadow: var(--card-shadow-light);
+        position: relative; z-index: 5;
+    }
+    .timeline-date-chip.today {
+        background-color: var(--primary-color);
+        color: var(--text-on-primary);
+        border-color: var(--primary-color-dark);
+    }
+
+    .timeline-event {
+        margin-bottom: 1.75rem; position: relative; padding-left: 65px; 
+        min-height: 50px;
+    }
+    .timeline-event-icon {
+        position: absolute; left: 0; top: 0px; 
+        width: 50px; height: 50px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--text-on-primary); z-index: 10; font-size: 1.3rem; 
+        border: 4px solid var(--page-bg); 
+        box-shadow: var(--card-shadow-strong);
+        transition: var(--transition);
+    }
+    .timeline-event:hover .timeline-event-icon {
+        transform: scale(1.1) rotate(-5deg);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+    .bg-primary { background-color: var(--primary-color) !important; }
+    .bg-success { background-color: var(--success-color) !important; }
+    .bg-info { background-color: var(--info-color) !important; }
+    .bg-warning { background-color: var(--warning-color) !important; color: var(--warning-text) !important;}
+    .bg-danger { background-color: var(--danger-color) !important; }
+    .bg-secondary { background-color: var(--text-medium) !important; }
     .bg-purple { background-color: #6f42c1 !important; }
-    .bg-cyan { background-color: #17a2b8 !important; } /* Bootstrap info/cyan */
-    .bg-teal { background-color: #20c997 !important; } /* Bootstrap teal */
+    .bg-teal { background-color: #20c997 !important; }
+    .bg-dark { background-color: var(--text-dark) !important; }
+    .bg-light { background-color: #e2e8f0 !important; color: var(--text-dark) !important; box-shadow: var(--card-shadow-light), 0 0 0 4px var(--page-bg); border: 1px solid #cbd5e0;}
 
+    .timeline-event-content {
+        background-color: var(--card-bg);
+        border-radius: var(--radius-md);
+        padding: 0.9rem 1.25rem;
+        box-shadow: var(--card-shadow-light);
+        border: 1px solid var(--card-border);
+        position: relative;
+    }
+    .timeline-event-content::before { 
+        content: ""; position: absolute; top: 15px; left: -10px;
+        border-style: solid; border-width: 10px 10px 10px 0;
+        border-color: transparent var(--card-bg) transparent transparent;
+    }
+
+    .timeline-event-time { font-size: 0.8rem; color: var(--text-light); float: right; }
+    .timeline-event-title { font-weight: 600; color: var(--text-darkest); margin-bottom: 0.3rem; font-size: 1rem; }
+    .timeline-event-description { font-size: 0.9rem; color: var(--text-medium); line-height: 1.6; }
+    .timeline-event-description strong { font-weight: 500; color: var(--text-dark); }
+    .timeline-comment-preview {
+        background-color: #f8f9fc; border-left: 3px solid var(--primary-color);
+        padding: 0.6rem 0.8rem; margin-top: 0.6rem; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        font-size: 0.85rem; color: var(--text-medium); font-style: italic;
+        max-height: 70px; overflow:hidden; text-overflow: ellipsis;
+    }
+
+    /* --- Agent Actions & Requester Info --- */
+    .agent-actions-form label { font-weight: 500; color: var(--text-dark); font-size: 0.9rem; }
+    .agent-actions-form .form-control, .agent-actions-form .custom-select {
+        background-color: var(--input-bg); border: 1px solid var(--input-border);
+        border-radius: var(--radius-md); font-size: 0.9rem; padding: 0.6rem 1rem;
+    }
+    .agent-actions-form .form-control:focus, .agent-actions-form .custom-select:focus {
+        background-color: var(--card-bg); border-color: var(--input-focus-border); box-shadow: var(--input-focus-shadow);
+    }
+    .agent-actions-form .btn { font-weight: 600; padding: 0.65rem 1.25rem; border-radius: var(--radius-md); }
+    
+    .requester-info p { margin-bottom: 0.6rem; font-size: 0.9rem; }
+    .requester-info strong { font-weight: 500; color: var(--text-dark); }
+
+    hr { border-top: 1px solid var(--card-border); opacity: 0.7;}
+    .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
 </style>
 {% endblock %}
 
@@ -148,21 +391,25 @@
 <div class="row">
     <div class="col-lg-8">
         {# Ticket Details Card #}
-        <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">Ticket #{{ ticket.id }}: {{ ticket.title }}</h4>
-                <div><span class="badge badge-light p-2">{{ ticket.status }}</span></div>
+        <div class="card ticket-main-details">
+            <div class="card-header ticket-main-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="fas fa-receipt"></i> Ticket #{{ ticket.id }}: {{ ticket.title }}</h4>
+                <div><span class="badge">{{ ticket.status }}</span></div>
             </div>
             <div class="card-body">
-                <h6>Description:</h6>
-                <div class="p-3 mb-3 ticket-description-area">
+                <h6 class="ticket-section-title"><i class="fas fa-align-left"></i>Description</h6>
+                <div class="ticket-description-area">
                     {{ ticket.description|nl2br }}
                 </div>
-                <hr>
-                <div class="row">
+                
+                <h6 class="ticket-section-title mt-4"><i class="fas fa-list-alt"></i>Details</h6>
+                <div class="details-grid row mt-2">
                     <div class="col-md-6">
-                        <p><strong>Organization:</strong> {{ ticket.organization_option_ref.name if ticket.organization_option_ref else 'N/A' }}</p>
-                        <p><strong>Form Type:</strong> {{ ticket.form_type_option_ref.name if ticket.form_type_option_ref else 'N/A' }}</p>
+                        <p><strong>Organization:</strong> <span>{{ ticket.organization_option_ref.name if ticket.organization_option_ref else 'N/A' }}</span></p>
+                        {# Display Department (Company) #}
+                        <p><strong>Company/Dept:</strong> <span>{{ ticket.department_ref.name if ticket.department_ref else 'N/A' }}</span></p>
+                        <p><strong>Customer Name:</strong> <span>{{ ticket.customer_name or 'N/A' }}</span></p>
+                        <p><strong>Form Type:</strong> <span>{{ ticket.form_type_option_ref.name if ticket.form_type_option_ref else 'N/A' }}</span></p>
                         <p><strong>Category:</strong> <span class="badge badge-secondary">{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</span></p>
                         <p><strong>Severity:</strong> <span class="badge badge-pill
                             {% if ticket.severity == 'Severity 1 (Critical)' %}badge-danger
@@ -170,89 +417,108 @@
                             {% elif ticket.severity == 'Severity 3 (Medium)' %}badge-info
                             {% elif ticket.severity == 'Severity 4 (Low)' %}badge-secondary
                             {% else %}badge-light text-dark border{% endif %}">{{ ticket.severity or 'N/A' }}</span></p>
-                        <p><strong>Cloud Provider:</strong> <span class="badge badge-light text-dark border">{{ ticket.cloud_provider or 'N/A' }}</span></p>
-                        {% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}
-                        <p><strong>AWS Service:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_service }}</span></p>
-                        {% endif %}
-                        <p><strong>Environment:</strong> <span class="badge badge-light text-dark border">{{ ticket.environment or 'N/A' }}</span></p>
-                         <p><strong>Customer Name:</strong> {{ ticket.customer_name or 'N/A' }}</p>
-                         <p><strong>AWS Account ID:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_account_id or 'N/A' }}</span></p>
                     </div>
                     <div class="col-md-6">
-                        <p><strong>Priority:</strong> <span class="badge p-1
+                        <p><strong>Priority:</strong> <span class="badge
                             {% if ticket.priority == 'Urgent' %}badge-danger
                             {% elif ticket.priority == 'High' %}badge-warning
                             {% elif ticket.priority == 'Medium' %}badge-info
                             {% else %}badge-secondary{% endif %}">{{ ticket.priority }}</span></p>
-                        <p><strong>Assigned to:</strong>
-                            {% if ticket.assignee %}
-                                {{ ticket.assignee.username }}
-                                {% if ticket.assignee.role == 'agent' %}<span class="badge badge-pill badge-info ml-1">Agent</span>{% endif %}
-                                {% if ticket.assignee.role == 'admin' %}<span class="badge badge-pill badge-danger ml-1">Admin</span>{% endif %}
-                            {% else %}
-                                <span class="text-muted">Unassigned</span>
-                            {% endif %}
-                        </p>
-                        <p><strong>Request Call Back:</strong> {{ ticket.request_call_back or 'N/A' }}</p>
-                        {% if ticket.request_call_back == 'Yes' and ticket.contact_details %}
-                        <p><strong>Contact Details:</strong> {{ ticket.contact_details }}</p>
+                        <p><strong>Cloud Provider:</strong> <span class="badge badge-light text-dark border">{{ ticket.cloud_provider or 'N/A' }}</span></p>
+                        {% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}
+                        <p><strong>AWS Service:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_service }}</span></p>
                         {% endif %}
-                        <p><strong>AWS Support Case ID:</strong> {{ ticket.aws_support_case_id or 'N/A' }}</p>
-                        <p><strong>Effort Required:</strong>
-                            {% set effort_display = EFFORT_CHOICES | selectattr(0, 'equalto', ticket.effort_required_to_resolve_min|string) | map(attribute=1) | first %}
-                            {{ effort_display if effort_display else (ticket.effort_required_to_resolve_min ~ " min" if ticket.effort_required_to_resolve_min is not none else 'N/A') }}
+                         <p><strong>AWS Account ID:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_account_id or 'N/A' }}</span></p>
+                        <p><strong>Environment:</strong> <span class="badge badge-light text-dark border">{{ ticket.environment or 'N/A' }}</span></p>
+                        <p><strong>Assigned to:</strong>
+                            <span>
+                            {% if ticket.assignee %}
+                                <i class="fas fa-user-shield mr-1" style="color: var(--primary-color);"></i>{{ ticket.assignee.username }}
+                                {% if ticket.assignee.role == 'agent' %}<span class="badge badge-info ml-1">Agent</span>{% endif %}
+                                {% if ticket.assignee.role == 'admin' %}<span class="badge badge-danger ml-1">Admin</span>{% endif %}
+                            {% else %}
+                                <span class="text-light">Unassigned</span>
+                            {% endif %}
+                            </span>
                         </p>
-                        <p><strong>Support Modal by Plan:</strong> {{ ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else 'N/A' }}</p>
-                        <p><strong>APN Opportunity:</strong> {{ ticket.apn_opportunity_option_ref.name if ticket.apn_opportunity_option_ref else 'N/A' }}</p>
                     </div>
                 </div>
-                <hr>
+                <hr class="my-3">
+                 <div class="details-grid row mt-2">
+                     <div class="col-md-6">
+                        <p><strong>Call Back:</strong> <span class="badge badge-{{'success' if ticket.request_call_back == 'Yes' else 'light text-dark border'}}">{{ ticket.request_call_back or 'N/A' }}</span></p>
+                        {% if ticket.request_call_back == 'Yes' and ticket.contact_details %}
+                        <p><strong>Contact:</strong> <span>{{ ticket.contact_details }}</span></p>
+                        {% endif %}
+                        <p><strong>AWS Case ID:</strong> <span>{{ ticket.aws_support_case_id or 'N/A' }}</span></p>
+                    </div>
+                     <div class="col-md-6">
+                        <p><strong>Effort:</strong>
+                            <span>
+                            {% set effort_display = EFFORT_CHOICES | selectattr(0, 'equalto', ticket.effort_required_to_resolve_min|string) | map(attribute=1) | first %}
+                            {{ effort_display if effort_display else (ticket.effort_required_to_resolve_min ~ " min" if ticket.effort_required_to_resolve_min is not none else 'N/A') }}
+                            </span>
+                        </p>
+                        <p><strong>Support Modal:</strong> <span>{{ ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else 'N/A' }}</span></p>
+                        <p><strong>APN Opportunity:</strong> <span>{{ ticket.apn_opportunity_option_ref.name if ticket.apn_opportunity_option_ref else 'N/A' }}</span></p>
+                    </div>
+                </div>
+
+
                 {% if ticket.apn_opportunity_description %}
-                    <p><strong>APN Opportunity Description:</strong></p>
-                    <div class="apn-description-area mb-2">{{ ticket.apn_opportunity_description|nl2br }}</div>
+                    <hr class="my-3">
+                    <p class="mb-1"><strong>APN Opportunity Description:</strong></p>
+                    <div class="apn-description-area mb-3">{{ ticket.apn_opportunity_description|nl2br }}</div>
                 {% endif %}
-                <p><strong>Tags:</strong>
+                
+                <hr class="my-3">
+                <div class="tags-list">
+                    <strong>Tags:</strong>
                     {% if ticket.tags %}
                         {% for tag in ticket.tags.split(',') %}
-                            <span class="badge badge-primary mr-1">{{ tag.strip() }}</span>
+                            <span class="badge">{{ tag.strip() }}</span>
                         {% endfor %}
                     {% else %}
-                        <span class="text-muted">None</span>
+                        <span class="text-light">None</span>
                     {% endif %}
-                </p>
+                </div>
                  {% if ticket.additional_email_recipients %}
-                    <p><strong>Additional Recipients:</strong> {{ ticket.additional_email_recipients }}</p>
+                    <p class="mt-2"><strong>Additional Recipients:</strong> <span class="text-medium">{{ ticket.additional_email_recipients }}</span></p>
                 {% endif %}
 
                 {% if ticket.first_response_at %}
-                    <p class="mt-3 text-success"><i class="fas fa-stopwatch mr-1"></i><strong>First Agent Response:</strong> {{ ticket.first_response_at.strftime('%Y-%m-%d %H:%M') }}
+                    <div class="first-response-banner success">
+                        <i class="fas fa-stopwatch"></i>
+                        <div><strong>First Agent Response:</strong> {{ ticket.first_response_at.strftime('%Y-%m-%d %H:%M') }}
                         {% if ticket.first_response_duration_minutes is not none %}
-                            ({{ ticket.first_response_duration_minutes }} minutes after creation)
+                            <small>({{ ticket.first_response_duration_minutes }} minutes after creation)</small>
                         {% endif %}
-                    </p>
+                        </div>
+                    </div>
                 {% else %}
-                     <p class="mt-3 text-muted"><em><i class="fas fa-hourglass-half mr-1"></i>First agent response not yet recorded.</em></p>
+                     <div class="first-response-banner muted">
+                        <i class="fas fa-hourglass-half"></i>
+                        <em>First agent response not yet recorded.</em>
+                    </div>
                 {% endif %}
             </div>
         </div>
 
         {% if attachments %}
-        <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-light">
-                <h5 class="mb-0"><i class="fas fa-paperclip mr-2"></i>Attachments ({{ attachments|length }})</h5>
-            </div>
+        <div class="card attachments-card">
+            <div class="card-header"><h5 class="mb-0"><i class="fas fa-paperclip"></i>Attachments ({{ attachments|length }})</h5></div>
             <ul class="list-group list-group-flush">
                 {% for attachment in attachments %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
-                        <i class="fas fa-file-alt mr-2 text-secondary"></i>
-                        <a href="{{ url_for('uploaded_file', filename=attachment.stored_filename) }}" target="_blank" title="Download {{ attachment.filename }}">
+                        <i class="fas fa-file-archive mr-2 text-medium"></i>
+                        <a href="{{ url_for('uploaded_file', filename=attachment.stored_filename) }}" target="_blank" class="attachment-name" title="Download {{ attachment.filename }}">
                             {{ attachment.filename }}
                         </a>
-                        <small class="text-muted ml-2"> (Uploaded by: {{ attachment.uploader.username }} on {{ attachment.uploaded_at.strftime('%b %d, %Y %H:%M') }})</small>
+                        <span class="attachment-meta ml-2"> (Uploaded by: {{ attachment.uploader.username }} on {{ attachment.uploaded_at.strftime('%b %d, %Y %H:%M') }})</span>
                     </div>
-                    <a href="{{ url_for('uploaded_file', filename=attachment.stored_filename) }}" class="btn btn-sm btn-outline-primary" download="{{ attachment.filename }}">
-                        <i class="fas fa-download"></i> Download
+                    <a href="{{ url_for('uploaded_file', filename=attachment.stored_filename) }}" class="btn btn-sm btn-download-attachment" download="{{ attachment.filename }}">
+                        <i class="fas fa-cloud-download-alt mr-1"></i> Download
                     </a>
                 </li>
                 {% endfor %}
@@ -260,23 +526,23 @@
         </div>
         {% endif %}
 
-        <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-light"><h5 class="mb-0"><i class="fas fa-comments mr-2"></i>Discussion ({{ comments|length }})</h5></div>
-            <div class="card-body" id="comments-section">
+        <div class="card discussion-card">
+            <div class="card-header"><h5 class="mb-0"><i class="fas fa-comments"></i>Discussion ({{ comments|length }})</h5></div>
+            <div id="comments-section">
                 {% if comments %}{% for comment in comments %}{% include '_comment_item.html' %}{% endfor %}
-                {% else %}<p class="text-muted">No comments yet.</p>{% endif %}
+                {% else %}<p class="text-light text-center p-4">No comments yet. Start the conversation!</p>{% endif %}
             </div>
         </div>
 
         {% if current_user.is_authenticated %}
-        <div class="card mb-3 shadow-sm" id="add-comment-form">
-            <div class="card-header bg-light"><h5 class="mb-0"><i class="fas fa-comment-dots mr-2"></i>Add Your Comment</h5></div>
+        <div class="card add-comment-card" id="add-comment-form">
+            <div class="card-header"><h5 class="mb-0"><i class="fas fa-reply"></i>Add Your Comment</h5></div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}">
                     {{ comment_form.hidden_tag() }}
                     <div class="form-group">
                         {{ comment_form.content.label(class="sr-only") }}
-                        {{ comment_form.content(class="form-control " + ("is-invalid" if comment_form.content.errors else ""), rows="4", placeholder="Type your comment...") }}
+                        {{ comment_form.content(class="form-control " + ("is-invalid" if comment_form.content.errors else ""), rows="5", placeholder="Type your comment...") }}
                         {% if comment_form.content.errors %}
                             <div class="invalid-feedback d-block">
                                 {% for error in comment_form.content.errors %}<span class="text-danger">{{ error }}</span>{% endfor %}
@@ -286,10 +552,10 @@
                     {% if comment_form.is_internal and is_privileged_user %}
                     <div class="form-group form-check">
                         {{ comment_form.is_internal(class="form-check-input") }}
-                        {{ comment_form.is_internal.label(class="form-check-label") }}
+                        {{ comment_form.is_internal.label(class="form-check-label text-medium") }}
                     </div>
                     {% endif %}
-                    <button type="submit" name="submit_comment" class="btn btn-success"><i class="fas fa-paper-plane mr-1"></i> Post Comment</button>
+                    <button type="submit" name="submit_comment" class="btn btn-post-comment"><i class="fas fa-paper-plane mr-1"></i> Post Comment</button>
                 </form>
             </div>
         </div>
@@ -298,107 +564,108 @@
 
     <div class="col-lg-4">
         {% if is_privileged_user %}
-            <div class="card mb-3 shadow-sm">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
-                    <h5 class="mb-0"><small>Interaction history</small></h5>
+            <div class="card interaction-history-card">
+                <div class="card-header d-flex justify-content-between align-items-center timeline-header-controls">
+                    <h5 class="mb-0"><small><i class="fas fa-stream mr-1"></i>Interaction History</small></h5>
                     <div>
-                        <button class="btn btn-sm btn-outline-secondary" title="Filter (Not implemented)" disabled><i class="fas fa-filter"></i></button>
-                        <button class="btn btn-sm btn-outline-secondary" title="Refresh" onclick="window.location.reload();"><i class="fas fa-sync-alt"></i></button>
-                        <button class="btn btn-sm btn-outline-secondary" data-toggle="collapse" href="#interactionHistoryBody" role="button" aria-expanded="true" aria-controls="interactionHistoryBody" title="Toggle visibility">
+                        <button class="btn btn-sm" title="Refresh" onclick="window.location.reload();"><i class="fas fa-redo-alt"></i></button>
+                        <button class="btn btn-sm" data-toggle="collapse" href="#interactionHistoryBody" role="button" aria-expanded="true" aria-controls="interactionHistoryBody" title="Toggle visibility">
                             <i class="fas fa-chevron-up"></i>
                         </button>
                     </div>
                 </div>
                 <div class="collapse show" id="interactionHistoryBody">
-                    <div class="card-body py-2 px-3">
-                        {% if sorted_interaction_dates %}
-                            <ul class="timeline">
-                                {% for display_date_obj in sorted_interaction_dates %}
-                                    <li class="timeline-date-group">
-                                        <span class="badge {% if loop.first %}badge-primary text-white{% else %}badge-light text-dark border{% endif %}">
-                                            {% if display_date_obj == today_date %}Today
-                                            {% elif display_date_obj == yesterday_date %}Yesterday
-                                            {% else %}{{ display_date_obj.strftime('%A, %b %d, %Y') }}{% endif %}
-                                        </span>
+                    {% if sorted_interaction_dates %}
+                        <ul class="timeline">
+                            {% for display_date_obj in sorted_interaction_dates %}
+                                <li class="timeline-date-group">
+                                    <span class="timeline-date-chip {% if display_date_obj == today_date %}today{% endif %}">
+                                        {% if display_date_obj == today_date %}Today
+                                        {% elif display_date_obj == yesterday_date %}Yesterday
+                                        {% else %}{{ display_date_obj.strftime('%A, %b %d') }}{% endif %}
+                                    </span>
+                                </li>
+                                {% for p_interaction in interactions_by_date[display_date_obj] %}
+                                    <li class="timeline-event">
+                                        <div class="timeline-event-icon
+                                            {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}bg-primary
+                                            {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}bg-success
+                                            {% elif 'STATUS_CHANGE' in p_interaction.obj.interaction_type %}
+                                                {% set new_status_val = p_interaction.obj.details.get('new_value', p_interaction.obj.details.get('new_status', '')) %}
+                                                {% if new_status_val in ['New', 'Open'] %}bg-warning
+                                                {% elif new_status_val == 'In Progress' %}bg-info
+                                                {% elif new_status_val in ['Resolved', 'Closed'] %}bg-secondary
+                                                {% else %}bg-light{% endif %}
+                                            {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}bg-purple
+                                            {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}bg-teal
+                                            {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}bg-dark
+                                            {% else %}bg-dark{% endif %}">
+                                            {# Icons based on type #}
+                                            {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}<i class="fas fa-ticket-alt"></i>
+                                            {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}<i class="fas fa-comment-alt"></i>
+                                            {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}<i class="fas fa-user-tag"></i>
+                                            {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}<i class="fas fa-stopwatch-20"></i>
+                                            {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}<i class="fas fa-pencil-alt"></i>
+                                            {% else %}<i class="fas fa-info"></i>{% endif %}
+                                        </div>
+                                        <div class="timeline-event-content">
+                                            <div class="timeline-event-time">{{ p_interaction.time_str }}</div>
+                                            <div class="timeline-event-title">{{ p_interaction.actor_name | truncate(30, True) }}</div>
+                                            <div class="timeline-event-description">
+                                                {{ p_interaction.message | safe }}
+                                            </div>
+                                            {% if p_interaction.obj.interaction_type == 'COMMENT_ADDED' and p_interaction.comment_preview %}
+                                                <div class="timeline-comment-preview">
+                                                    <em>{{ p_interaction.comment_preview | truncate(70, True) }}</em>
+                                                </div>
+                                            {% endif %}
+                                        </div>
                                     </li>
-                                    {% for p_interaction in interactions_by_date[display_date_obj] %}
-                                        <li class="timeline-item">
-                                            <div class="timeline-icon
-                                                {% if p_interaction.obj.interaction_type == 'TICKET_CREATED' %}bg-primary
-                                                {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}bg-success
-                                                {% elif p_interaction.obj.interaction_type == 'STATUS_CHANGE' %}
-                                                    {% set new_status_val = p_interaction.obj.details.get('new_value', p_interaction.obj.details.get('new_status')) %}
-                                                    {% if new_status_val == 'New' or new_status_val == 'Open' %}bg-warning
-                                                    {% elif new_status_val == 'In Progress' %}bg-info
-                                                    {% elif new_status_val == 'Resolved' or new_status_val == 'Closed' %}bg-secondary text-white
-                                                    {% else %}bg-light border text-dark{% endif %}
-                                                {% elif p_interaction.obj.interaction_type == 'ASSIGNMENT_CHANGE' %}bg-purple text-white
-                                                {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}bg-teal text-white
-                                                {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}bg-cyan text-white
-                                                {% else %}bg-dark text-white{% endif %}">
-
-                                                {% if p_interaction.obj.interaction_type == 'TICKET_CREATED' %}<i class="fas fa-ticket-alt"></i>
-                                                {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}<i class="fas fa-comment-dots"></i>
-                                                {% elif p_interaction.obj.interaction_type == 'ASSIGNMENT_CHANGE' %}<i class="fas fa-user-check"></i>
-                                                {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}<i class="fas fa-stopwatch"></i>
-                                                {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}<i class="fas fa-edit"></i>
-                                                {% else %}<i class="fas fa-info-circle"></i>{% endif %}
-                                            </div>
-                                            <div class="timeline-content">
-                                                <div class="item-timestamp float-right text-muted">
-                                                     {{ p_interaction.time_str }}
-                                                </div>
-                                                <div class="item-title">{{ p_interaction.title_for_display | truncate(25, True) }}</div>
-                                                <div class="item-description">
-                                                    {{ p_interaction.message | safe }}
-                                                </div>
-                                                {% if p_interaction.obj.interaction_type == 'COMMENT_ADDED' and p_interaction.comment_preview %}
-                                                    <div class="comment-preview">
-                                                        <small><em>{{ p_interaction.comment_preview | truncate(60, True) }}</em></small>
-                                                    </div>
-                                                {% endif %}
-                                            </div>
-                                        </li>
-                                    {% endfor %}
                                 {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p class="text-muted text-center my-3">No interactions recorded yet.</p>
-                        {% endif %}
-                    </div>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-light text-center my-4 p-3">No interactions recorded yet.</p>
+                    {% endif %}
                 </div>
             </div>
         {% endif %}
 
         {% if is_privileged_user and agent_update_form %}
-        <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-info text-white"><h5 class="mb-0"><i class="fas fa-cogs mr-2"></i>Ticket Properties & Actions</h5></div>
+        <div class="card agent-actions-form">
+            <div class="card-header"><h5 class="mb-0"><i class="fas fa-edit"></i>Ticket Properties & Actions</h5></div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}" id="agentUpdateForm">
                     {{ agent_update_form.hidden_tag() }}
-                    {# Standard Fields #}
-                    <div class="form-group">
-                        {{ agent_update_form.status.label(class="font-weight-bold") }}
+                    
+                     <div class="form-group">
+                        {{ agent_update_form.status.label() }}
                         {{ agent_update_form.status(class="form-control custom-select " + ("is-invalid" if agent_update_form.status.errors else "")) }}
                         {% for error in agent_update_form.status.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="form-group">
-                        {{ agent_update_form.priority.label(class="font-weight-bold") }}
+                        {{ agent_update_form.priority.label() }}
                         {{ agent_update_form.priority(class="form-control custom-select " + ("is-invalid" if agent_update_form.priority.errors else "")) }}
                         {% for error in agent_update_form.priority.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="form-group">
-                        {{ agent_update_form.assigned_to_id.label(class="font-weight-bold") }}
+                        {{ agent_update_form.assigned_to_id.label() }}
                         {{ agent_update_form.assigned_to_id(class="form-control custom-select " + ("is-invalid" if agent_update_form.assigned_to_id.errors else "")) }}
                         {% for error in agent_update_form.assigned_to_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
-                    <hr>
-                    <h6 class="font-weight-bold">Extended Details:</h6>
+                    <hr class="my-3">
+                    <h6 class="mb-3 font-weight-semibold">Extended Details:</h6>
                      <div class="form-group">
                         {{ agent_update_form.organization_id.label() }}
-                        {{ agent_update_form.organization_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.organization_id.errors else "")) }}
+                        {{ agent_update_form.organization_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.organization_id.errors else ""), id="agentUpdateOrganizationId") }}
                          {% for error in agent_update_form.organization_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    {# If agents can change department for a ticket, it would go here, with JS similar to user edit #}
+                    {# <div class="form-group">
+                        {{ agent_update_form.department_id.label() }}
+                        {{ agent_update_form.department_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.department_id.errors else ""), id="agentUpdateDepartmentId") }}
+                        {% for error in agent_update_form.department_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div> #}
                     <div class="form-group">
                         {{ agent_update_form.form_type_id.label() }}
                         {{ agent_update_form.form_type_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.form_type_id.errors else "")) }}
@@ -459,10 +726,10 @@
                         {{ agent_update_form.effort_required_to_resolve_min(class="form-control custom-select" + ("is-invalid" if agent_update_form.effort_required_to_resolve_min.errors else "")) }}
                         {% for error in agent_update_form.effort_required_to_resolve_min.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    {# Customer Name is no longer directly editable here via a text field #}
                     <div class="form-group">
-                        {{ agent_update_form.customer_name.label() }}
-                        {{ agent_update_form.customer_name(class="form-control" + ("is-invalid" if agent_update_form.customer_name.errors else ""), placeholder="Customer/Company Name") }}
-                        {% for error in agent_update_form.customer_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        <label class="form-control-label">Derived Customer Name</label>
+                        <div class="form-control readonly-display" title="Derived from Organization/Company">{{ ticket.customer_name or 'N/A' }}</div>
                     </div>
                      <div class="form-group">
                         {{ agent_update_form.apn_opportunity_id.label() }}
@@ -484,23 +751,28 @@
                         {{ agent_update_form.additional_email_recipients(class="form-control" + ("is-invalid" if agent_update_form.additional_email_recipients.errors else ""), placeholder="comma,separated,emails") }}
                         {% for error in agent_update_form.additional_email_recipients.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
-
-                    <button type="submit" name="submit_update" class="btn btn-primary btn-block"><i class="fas fa-save mr-1"></i> Update Ticket</button>
+                    <button type="submit" name="submit_update" class="btn btn-primary btn-block mt-3"><i class="fas fa-save mr-1"></i> Update Ticket</button>
                 </form>
                 {% if not ticket.assignee and ticket.status == 'Open' and current_user.is_agent %}
                     <hr>
-                    <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-success btn-block"><i class="fas fa-user-check mr-1"></i> Assign to Me</a>
+                    <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-success btn-block"><i class="fas fa-user-plus mr-1"></i> Assign to Me</a>
                 {% endif %}
             </div>
         </div>
         {% endif %}
 
-        <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-light"><h5 class="mb-0"><i class="fas fa-user-tag mr-2"></i>Requester</h5></div>
+        <div class="card requester-info">
+            <div class="card-header"><h5 class="mb-0"><i class="fas fa-user-circle"></i>Requester</h5></div>
             <div class="card-body">
                 <p><strong>User:</strong> {{ ticket.creator.username }}</p>
                 <p><strong>Email:</strong> {{ ticket.creator.email }}</p>
-                <p><strong>Role:</strong> {{ ticket.creator.role|capitalize }}</p>
+                <p><strong>Role:</strong> {{ ticket.creator.role|replace('_', ' ')|capitalize }}</p>
+                {% if ticket.creator.organization %}
+                    <p><strong>Organization:</strong> {{ ticket.creator.organization.name }}</p>
+                {% endif %}
+                {% if ticket.creator.department %}
+                    <p><strong>Company/Dept:</strong> {{ ticket.creator.department.name }}</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -511,60 +783,72 @@
 {{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var cloudProviderSelectAgent = document.getElementById('cloudProviderSelectAgent');
-    var awsServiceGroupAgent = document.getElementById('awsServiceGroupAgent');
-
+    // AWS Service toggle for Agent form
+    var cloudProviderSelectAgent = document.getElementById('cloudProviderSelectAgent'); // ID for agent form's cloud select
+    var awsServiceGroupAgent = document.getElementById('awsServiceGroupAgent'); // ID for agent form's AWS service group
     function toggleAwsServiceAgent() {
         if (cloudProviderSelectAgent && awsServiceGroupAgent) {
-            if (cloudProviderSelectAgent.value === 'AWS') {
-                awsServiceGroupAgent.style.display = 'block';
-            } else {
-                awsServiceGroupAgent.style.display = 'none';
-                var awsServiceSelect = awsServiceGroupAgent.querySelector('select');
-                if (awsServiceSelect) awsServiceSelect.value = '';
+            awsServiceGroupAgent.style.display = (cloudProviderSelectAgent.value === 'AWS') ? 'block' : 'none';
+            if (cloudProviderSelectAgent.value !== 'AWS') {
+                var awsServiceSelectAgent = awsServiceGroupAgent.querySelector('select');
+                if (awsServiceSelectAgent) awsServiceSelectAgent.value = '';
             }
         }
     }
-
     if (cloudProviderSelectAgent) {
         cloudProviderSelectAgent.addEventListener('change', toggleAwsServiceAgent);
-        toggleAwsServiceAgent(); // Call on load
+        toggleAwsServiceAgent(); 
     }
 
-
-    if(window.location.hash === '#add-comment-form') {
-        const element = document.getElementById('add-comment-form');
-        if (element) element.scrollIntoView({ behavior: 'smooth' });
-    } else if (window.location.hash === '#comments-section') { // Ensure this ID exists
-        const element = document.getElementById('comments-section');
-        if (element) element.scrollIntoView({ behavior: 'smooth' });
-    }
-
-
-    var interactionHistoryBody = document.getElementById('interactionHistoryBody');
-    var interactionHistoryTogglerButton = document.querySelector('button[data-toggle="collapse"][href="#interactionHistoryBody"]');
-    
-    if (interactionHistoryBody && interactionHistoryTogglerButton) {
-        var interactionHistoryTogglerIcon = interactionHistoryTogglerButton.querySelector('i');
-        if (interactionHistoryTogglerIcon) {
-            if (interactionHistoryBody.classList.contains('show')) {
-                interactionHistoryTogglerIcon.classList.remove('fa-chevron-down');
-                interactionHistoryTogglerIcon.classList.add('fa-chevron-up');
-            } else {
-                 interactionHistoryTogglerIcon.classList.remove('fa-chevron-up');
-                 interactionHistoryTogglerIcon.classList.add('fa-chevron-down');
-            }
-
-            $(interactionHistoryBody).on('show.bs.collapse', function () { // Using jQuery for Bootstrap events
-                interactionHistoryTogglerIcon.classList.remove('fa-chevron-down');
-                interactionHistoryTogglerIcon.classList.add('fa-chevron-up');
-            });
-            $(interactionHistoryBody).on('hide.bs.collapse', function () {
-                interactionHistoryTogglerIcon.classList.remove('fa-chevron-up');
-                interactionHistoryTogglerIcon.classList.add('fa-chevron-down');
-            });
+    // Scroll to hash
+    if(window.location.hash) {
+        const element = document.querySelector(window.location.hash);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
+
+    // Interaction History Toggler Icon
+    var interactionHistoryTogglerButton = document.querySelector('button[data-toggle="collapse"][href="#interactionHistoryBody"]');
+    if (interactionHistoryTogglerButton) {
+        var icon = interactionHistoryTogglerButton.querySelector('i');
+        $('#interactionHistoryBody').on('show.bs.collapse', function () {
+            if(icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+        }).on('hide.bs.collapse', function () {
+            if(icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
+        });
+        // Initialize icon state based on collapse state
+        if ($('#interactionHistoryBody').hasClass('show') && icon) {
+            icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up');
+        } else if (icon) {
+            icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down');
+        }
+    }
+
+    // If Agent is updating ticket organization, potentially clear/update department if that field were added to agent form
+    // var agentOrgSelect = document.getElementById('agentUpdateOrganizationId');
+    // var agentDeptSelect = document.getElementById('agentUpdateDepartmentId'); // Assuming this ID if field is added
+    // if(agentOrgSelect && agentDeptSelect) {
+    //     agentOrgSelect.addEventListener('change', function() {
+    //         // Similar logic to fetch departments for this new org_id for the agentDeptSelect
+    //         // updateDepartmentOptions(this.value, null, agentDeptSelect); // Pass the target select
+    //     });
+    // }
+
+    // Dynamic primary-rgb for CSS (if not already handled globally)
+    const rootStyles = getComputedStyle(document.documentElement);
+    function hexToRgb(hex) {
+        let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+    }
+    ['primary-color', 'success-color', 'danger-color', 'info-color'].forEach(varName => {
+        const colorHex = rootStyles.getPropertyValue(`--${varName}`).trim();
+        if (colorHex) {
+            const rgb = hexToRgb(colorHex);
+            if (rgb) { document.documentElement.style.setProperty(`--${varName}-rgb`, `${rgb.r},${rgb.g},${rgb.b}`); }
+        }
+    });
+
 });
 </script>
 {% endblock %}

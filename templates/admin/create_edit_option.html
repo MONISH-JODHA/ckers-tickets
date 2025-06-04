@@ -22,11 +22,30 @@
                     <form method="POST" novalidate>
                         {{ form.hidden_tag() }}
                         <fieldset>
+                            {# --- NAME --- #}
                             <div class="form-group floating-label-group">
-                                {{ form.name(class="form-control form-control-lg" + (" is-invalid" if form.name.errors else ""), placeholder=" ") }} {# Placeholder is a space for floating label #}
+                                {{ form.name(class="form-control form-control-lg" + (" is-invalid" if form.name.errors else ""), placeholder=" ") }} 
                                 {{ form.name.label(class="form-control-label") }}
                                 {% if form.name.errors %}<div class="invalid-feedback d-block">{% for e in form.name.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
                             </div>
+
+                            {# --- ORGANIZATION_ID (Specifically for DepartmentForm) --- #}
+                            {% if form.organization_id %}
+                            <div class="form-group floating-label-group">
+                                {# For SelectFields, floating labels are a bit trickier. 
+                                   A standard label above might be better for UX unless styled carefully.
+                                   Here, we'll keep the floating label concept but it might need CSS tweaks.
+                                #}
+                                {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else ""), placeholder=" ") }}
+                                {{ form.organization_id.label(class="form-control-label") }} {# Label will try to float #}
+                                {% if form.organization_id.errors %}<div class="invalid-feedback d-block">{% for e in form.organization_id.errors %}<span>{{e}}</span>{% endfor %}</div>{% endif %}
+                                {% if item_type_name == "Department" %}
+                                <small class="form-text text-muted">A department must belong to an organization.</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {# --- END ORGANIZATION_ID --- #}
+
 
                             {% if form.description %}
                             <div class="form-group floating-label-group">
@@ -80,120 +99,116 @@
     /* Floating Label Styling */
     .floating-label-group {
         position: relative;
-        margin-bottom: 2rem; /* Increased margin for floating labels */
+        margin-bottom: 2rem; 
     }
     .floating-label-group .form-control {
-        height: calc(2.5em + .75rem + 2px); /* Taller inputs for floating labels */
-        padding: 1.25rem .75rem .25rem; /* Padding to make space for label */
+        height: calc(2.5em + .75rem + 2px); 
+        padding: 1.25rem .75rem .25rem; 
     }
+    /* Adjust for select elements if they look too tall */
+    .floating-label-group .custom-select {
+        height: calc(2.5em + .75rem + 2px); /* Match input height */
+        padding-top: 1.25rem; /* Ensure text starts below where label would float */
+        padding-bottom: 0.25rem;
+        line-height: 1.5; /* Adjust line height for select content */
+    }
+
     .floating-label-group .form-control-label {
         position: absolute;
-        top: 0.625rem; /* Initial position inside input */
+        top: 0.625rem; 
         left: .75rem;
-        font-size: 0.95rem; /* Label size */
+        font-size: 0.95rem; 
         color: var(--text-secondary);
         pointer-events: none;
         transition: all 0.15s ease-in-out;
-        background-color: transparent; /* For inputs with background */
-        padding: 0 0.25rem; /* Padding for label background effect */
+        background-color: transparent; 
+        padding: 0 0.25rem; 
     }
-    .floating-label-group .form-control:focus ~ .form-control-label,
-    .floating-label-group .form-control:not(:placeholder-shown) ~ .form-control-label { /* :not(:placeholder-shown) requires placeholder=" " */
-        top: -0.6rem; /* Move label up */
+
+    /* Floating behavior for text inputs and textareas */
+    .floating-label-group .form-control:not(.custom-select):focus ~ .form-control-label,
+    .floating-label-group .form-control:not(.custom-select):not(:placeholder-shown) ~ .form-control-label {
+        top: -0.6rem; 
         left: .5rem;
-        font-size: 0.75rem; /* Smaller label when floated */
+        font-size: 0.75rem; 
         color: var(--primary-color);
-        background-color: var(--card-bg); /* Match card background */
+        background-color: var(--card-bg); 
         z-index: 10;
     }
+
+    /* Floating behavior for select (when an option is selected) */
+    /* This requires JS or more complex CSS for selects to truly "float" the label based on value */
+    /* For now, let's ensure label moves up if select is focused or has a value (other than placeholder) */
+    .floating-label-group .custom-select:focus ~ .form-control-label,
+    .floating-label-group .custom-select.has-value ~ .form-control-label { /* 'has-value' class to be added by JS */
+        top: -0.6rem;
+        left: .5rem;
+        font-size: 0.75rem;
+        color: var(--primary-color);
+        background-color: var(--card-bg);
+        z-index: 10;
+    }
+     /* If no JS, the select label might overlap content. A simpler non-floating label is often better for selects */
+
+
     .floating-label-group .form-control:focus {
-        padding-top: 1.25rem; /* Keep padding when focused */
+        padding-top: 1.25rem; 
         padding-bottom: 0.25rem;
     }
      .floating-label-group textarea.form-control {
-        min-height: 120px; /* Keep textarea height */
+        min-height: 120px; 
         padding-top: 1.25rem;
     }
-    .floating-label-group textarea.form-control ~ .form-control-label {
-         /* Adjust for textarea if needed */
-    }
 
-
-    .admin-form-section .form-control-lg { /* Applied to name field */
-        font-size: 1rem; /* Slightly smaller than previous for consistency */
+    .admin-form-section .form-control-lg { 
+        font-size: 1rem; 
     }
      .admin-form-section .form-control:focus,
     .admin-form-section .custom-select:focus {
         border-color: var(--primary-color);
-        box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb, 31,115,183), 0.2);
+        box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb, 31,115,183), 0.2); /* Use your actual primary RGB */
     }
 
     /* Custom Switch Styling - from previous */
-    .custom-switch-lg {
-        padding-left: 0; 
-        display: flex; 
-        align-items: center;
-    }
-    .custom-switch-lg .custom-control-input {
-        position: absolute; opacity: 0; width: 0; height: 0;
-    }
-    .custom-switch-lg .custom-control-label {
-        position: relative; cursor: pointer;
-        padding-left: calc(2.5rem + .75rem + 0.5rem); 
-        font-weight: 500; 
-        color: var(--text-secondary); 
-        font-size: 0.875rem; 
-        line-height: 1.5rem; 
-        margin-bottom: 0; 
-    }
-    .custom-switch-lg .custom-control-label::before { 
-        content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-        height: 1.5rem; width: calc(2.5rem + .75rem); 
-        background-color: #adb5bd; border-radius: 1.5rem; 
-        transition: background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
-        border: 1px solid #adb5bd;
-    }
-    .custom-switch-lg .custom-control-label::after { 
-        content: ""; position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
-        width: calc(1.5rem - 4px); height: calc(1.5rem - 4px);
-        background-color: white; border-radius: 50%;
-        transition: transform .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
-    }
-    .custom-switch-lg .custom-control-input:checked ~ .custom-control-label::before {
-        background-color: var(--success-color); border-color: var(--success-color);
-    }
-    .custom-switch-lg .custom-control-input:checked ~ .custom-control-label::after {
-        transform: translateY(-50%) translateX(1.75rem); 
-    }
-    .custom-switch-lg .custom-control-input:focus ~ .custom-control-label::before {
-        box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb, 31,115,183), 0.25);
-    }
+    .custom-switch-lg { padding-left: 0; display: flex; align-items: center; }
+    .custom-switch-lg .custom-control-input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .custom-switch-lg .custom-control-label { position: relative; cursor: pointer; padding-left: calc(2.5rem + .75rem + 0.5rem); font-weight: 500; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5rem; margin-bottom: 0; }
+    .custom-switch-lg .custom-control-label::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 1.5rem; width: calc(2.5rem + .75rem); background-color: #adb5bd; border-radius: 1.5rem; transition: background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out; border: 1px solid #adb5bd; }
+    .custom-switch-lg .custom-control-label::after { content: ""; position: absolute; left: 2px; top: 50%; transform: translateY(-50%); width: calc(1.5rem - 4px); height: calc(1.5rem - 4px); background-color: white; border-radius: 50%; transition: transform .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out; }
+    .custom-switch-lg .custom-control-input:checked ~ .custom-control-label::before { background-color: var(--success-color); border-color: var(--success-color); }
+    .custom-switch-lg .custom-control-input:checked ~ .custom-control-label::after { transform: translateY(-50%) translateX(1.75rem); }
+    .custom-switch-lg .custom-control-input:focus ~ .custom-control-label::before { box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb, 31,115,183), 0.25); }
     .custom-switch-lg .custom-control-input:disabled ~ .custom-control-label { color: #6c757d; cursor: not-allowed; }
     .custom-switch-lg .custom-control-input:disabled ~ .custom-control-label::before { background-color: #e9ecef; }
 
 
-    .admin-form-section .form-actions-footer {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center; /* Vertically align buttons */
-    }
-    .admin-form-section .submit-button {
-        min-width: 140px;
-    }
-    .animated-form-view {
-        animation: slideUpForm 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    @keyframes slideUpForm {
-        to { opacity: 1; transform: translateY(0); }
-    }
-    .btn-animated { /* For "New Category/Option" button and form buttons */
-        transition: var(--transition-base), transform 0.2s ease;
-    }
-    .btn-animated:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--box-shadow-sm);
-    }
+    .admin-form-section .form-actions-footer { display: flex; justify-content: flex-end; align-items: center; }
+    .admin-form-section .submit-button { min-width: 140px; }
+    .animated-form-view { animation: slideUpForm 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; opacity: 0; transform: translateY(20px); }
+    @keyframes slideUpForm { to { opacity: 1; transform: translateY(0); } }
+    .btn-animated { transition: var(--transition-base), transform 0.2s ease; }
+    .btn-animated:hover { transform: translateY(-2px); box-shadow: var(--box-shadow-sm); }
 </style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // JavaScript to help with floating labels for select elements
+    // if they have a value (other than the placeholder '0' or empty)
+    const selectElements = document.querySelectorAll('.floating-label-group .custom-select');
+    selectElements.forEach(select => {
+        function checkSelectValue() {
+            if (select.value && select.value !== "0" && select.value !== "") {
+                select.classList.add('has-value');
+            } else {
+                select.classList.remove('has-value');
+            }
+        }
+        checkSelectValue(); // Check on load
+        select.addEventListener('change', checkSelectValue); // Check on change
+    });
+});
+</script>
 {% endblock %}

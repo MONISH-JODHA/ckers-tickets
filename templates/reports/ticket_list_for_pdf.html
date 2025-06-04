@@ -17,6 +17,7 @@
 <body>
     <h1>{{ report_title or "Ticket Report" }}</h1>
     <p style="font-size:8pt; text-align:center;">Generated on: {{ generation_time_utc }} UTC</p>
+    {# In templates/reports/ticket_list_for_pdf.html #}
     <table>
         <thead>
             <tr>
@@ -28,33 +29,29 @@
                 <th>Created By</th>
                 <th>Assigned To</th>
                 <th>Organization</th>
-                <th class="timestamp">Created At</th>
-                <th class="timestamp">Updated At</th>
-                <th class="timestamp">Resolved At</th>
+                <th>Department</th> {# <-- NEW COLUMN #}
+                <th>Created At</th>
+                <th>Updated At</th>
+                <th>Resolved At</th>
             </tr>
         </thead>
         <tbody>
-            {% if tickets %}
-                {% for ticket in tickets %}
-                <tr>
-                    <td>{{ ticket.id }}</td>
-                    <td>{{ ticket.title }}</td>
-                    <td>{{ ticket.status }}</td>
-                    <td>{{ ticket.priority }}</td>
-                    <td>{{ ticket.category_ref.name if ticket.category_ref else '' }}</td>
-                    <td>{{ ticket.creator.username if ticket.creator else '' }}</td>
-                    <td>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</td>
-                    <td>{{ ticket.organization_option_ref.name if ticket.organization_option_ref else '' }}</td>
-                    <td class="timestamp">{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else '' }}</td>
-                    <td class="timestamp">{{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') if ticket.updated_at else '' }}</td>
-                    <td class="timestamp">{{ ticket.resolved_at.strftime('%Y-%m-%d %H:%M') if ticket.resolved_at else '' }}</td>
-                </tr>
-                {% endfor %}
-            {% else %}
-                <tr>
-                    <td colspan="11" style="text-align:center; padding: 20px;">No data available for this report.</td>
-                </tr>
-            {% endif %}
+            {% for ticket in tickets %}
+            <tr>
+                <td>{{ ticket.id }}</td>
+                <td>{{ ticket.title }}</td>
+                <td>{{ ticket.status }}</td>
+                <td>{{ ticket.priority }}</td>
+                <td>{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</td>
+                <td>{{ ticket.creator.username if ticket.creator else 'N/A' }}</td>
+                <td>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</td>
+                <td>{{ ticket.organization_option_ref.name if ticket.organization_option_ref else 'N/A' }}</td>
+                <td>{{ ticket.department_ref.name if ticket.department_ref else 'N/A' }}</td> {# <-- NEW CELL #}
+                <td>{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else '' }}</td>
+                <td>{{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') if ticket.updated_at else '' }}</td>
+                <td>{{ ticket.resolved_at.strftime('%Y-%m-%d %H:%M') if ticket.resolved_at else '' }}</td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
 </body>

@@ -5,21 +5,26 @@
 {% block head_extra %}
 <style>
     :root {
-        --primary-color: #1f73b7;
+        /* Ensure these are defined in base.html or define fallbacks here */
+        --primary-color: {{ app.config.get('THEME_PRIMARY_COLOR', '#1f73b7') }};
+        --primary-color-darker: {{ app.config.get('THEME_PRIMARY_DARKER_COLOR', '#165a91') }};
+        --danger-color: {{ app.config.get('THEME_DANGER_COLOR', '#dc3545') }};
         --border-color: #e5e7eb;
         --card-bg: #ffffff;
         --content-bg: #f9fafb;
         --text-primary: #111827;
         --text-secondary: #6b7280;
-        --form-label-color: #4a5568; /* Slightly darker for better contrast */
+        --form-label-color: #4a5568;
         --box-shadow-card: 0 4px 12px rgba(0,0,0,0.08);
         --border-radius-form: .375rem;
+        --border-radius-lg: .5rem; /* from base.html */
+        --border-radius-sm: .25rem; /* from base.html */
         --input-focus-border: var(--primary-color);
-        --input-focus-shadow: 0 0 0 0.2rem rgba(31, 115, 183, 0.2);
+        --input-focus-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb, 31, 115, 183), 0.25); /* Ensure primary-rgb is defined */
     }
 
     .admin-form-container {
-        max-width: 700px; /* Optimal width for forms */
+        max-width: 700px;
         margin: 2rem auto;
         padding: 0 15px;
         opacity: 0;
@@ -32,12 +37,12 @@
 
     .form-card-styled {
         background-color: var(--card-bg);
-        border-radius: var(--border-radius-lg, .5rem);
+        border-radius: var(--border-radius-lg);
         box-shadow: var(--box-shadow-card);
         border: 1px solid var(--border-color);
     }
     .form-card-header-styled {
-        background-color: #f8f9fa; /* Light header for forms */
+        background-color: #f8f9fa;
         border-bottom: 1px solid var(--border-color);
         padding: 1.25rem 1.75rem;
     }
@@ -59,7 +64,7 @@
     }
     .form-control, .custom-select {
         border-radius: var(--border-radius-form);
-        border-color: #d1d5db; /* Slightly darker for input borders */
+        border-color: #d1d5db;
         padding: .5rem .85rem;
         font-size: 0.9rem;
         transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
@@ -69,10 +74,10 @@
         box-shadow: var(--input-focus-shadow);
     }
     .form-control.is-invalid, .was-validated .form-control:invalid {
-        border-color: var(--danger-color, #dc3545);
+        border-color: var(--danger-color);
     }
     .form-control.is-invalid:focus, .was-validated .form-control:invalid:focus {
-        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+        box-shadow: 0 0 0 0.2rem rgba(var(--danger-rgb, 220, 53, 69), 0.25); /* Add danger-rgb or fallback */
     }
     .invalid-feedback.d-block { font-size: 0.8rem; margin-top: .25rem; }
 
@@ -80,7 +85,7 @@
         font-size: 0.8rem;
         padding: 0.5rem 0.75rem;
         background-color: #f8f9fa;
-        border-radius: var(--border-radius-sm, .25rem);
+        border-radius: var(--border-radius-sm);
         border: 1px solid var(--border-color);
     }
     hr.form-divider {
@@ -93,7 +98,7 @@
         padding-top: 1.5rem;
         border-top: 1px solid var(--border-color);
         display: flex;
-        justify-content: flex-start; /* Or flex-end */
+        justify-content: flex-start;
         gap: 0.75rem;
     }
     .form-actions .btn {
@@ -105,8 +110,8 @@
         border-color: var(--primary-color);
     }
     .form-actions .btn-primary:hover {
-        background-color: var(--primary-color-darker, #165a91);
-        border-color: var(--primary-color-darker, #165a91);
+        background-color: var(--primary-color-darker);
+        border-color: var(--primary-color-darker);
     }
     .form-actions .btn-outline-secondary {
         color: var(--text-secondary);
@@ -121,8 +126,7 @@
 {% endblock %}
 
 {% block content_header %}
-    {# The legend is passed from the route, use it for a prominent page title if desired #}
-    {# For this form, the card header will contain the title #}
+    {# Title is in the card header #}
 {% endblock %}
 
 {% block content %}
@@ -134,6 +138,11 @@
         <div class="form-card-body-styled">
             <form method="POST" novalidate>
                 {{ form.hidden_tag() }}
+                {# Pass user ID for JS password validation if editing #}
+                {% if user and user.id %}
+                <input type="hidden" name="_user_id_for_edit_check" value="{{ user.id }}">
+                {% endif %}
+
                 <fieldset>
                     <div class="form-row">
                         <div class="form-group col-md-6">
@@ -148,20 +157,27 @@
                         </div>
                     </div>
                     
+                    <div class="form-group">
+                        {{ form.role.label(class="form-control-label") }}
+                        {{ form.role(class="form-control custom-select" + (" is-invalid" if form.role.errors else ""), id="role_select") }}
+                        {% for error in form.role.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group col-md-6">
-                            {{ form.role.label(class="form-control-label") }}
-                            {{ form.role(class="form-control custom-select" + (" is-invalid" if form.role.errors else "")) }}
-                            {% for error in form.role.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            {{ form.organization_id.label(class="form-control-label") }}
+                            {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else ""), id="organization_id_select") }}
+                            {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
                         <div class="form-group col-md-6">
-                            {{ form.organization_id.label(class="form-control-label") }}
-                            {{ form.organization_id(class="form-control custom-select" + (" is-invalid" if form.organization_id.errors else "")) }}
-                            {% for error in form.organization_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            {{ form.department_id.label(class="form-control-label") }}
+                            {{ form.department_id(class="form-control custom-select" + (" is-invalid" if form.department_id.errors else ""), id="department_id_select") }}
+                            {% for error in form.department_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
                     </div>
                     <small class="form-text text-muted d-block mb-3">
-                        Assign user to an organization (optional). This can restrict their ticket visibility.
+                        Assign user to an Organization and, if applicable, a specific Company/Department.
+                        "Client (Company Specific)" role requires a Company/Department. "Org Client" requires an Organization but no specific Company/Department.
                     </small>
 
                     <hr class="form-divider">
@@ -198,16 +214,182 @@
 
 {% block scripts %}
 {{ super() }}
-{# Add any specific JS for this form if needed, e.g., password strength indicators #}
 <script>
-// Example: Add a little interaction or visual feedback if desired
-document.querySelectorAll('.form-control, .custom-select').forEach(input => {
-    input.addEventListener('focus', () => {
-        // You could add a class to the form-group for focused state styling
-        input.closest('.form-group')?.classList.add('is-focused');
-    });
-    input.addEventListener('blur', () => {
-        input.closest('.form-group')?.classList.remove('is-focused');
+document.addEventListener('DOMContentLoaded', function() {
+    const organizationSelect = document.getElementById('organization_id_select');
+    const departmentSelect = document.getElementById('department_id_select');
+    const roleSelect = document.getElementById('role_select');
+
+    function updateDepartmentOptions(organizationId, selectedDepartmentId = null) {
+        // Clear existing department options
+        while (departmentSelect.options.length > 0) {
+            departmentSelect.remove(0);
+        }
+
+        let defaultOptionText = '--- Select Department (Requires Org) ---';
+        if (!organizationId || organizationId === "0") {
+            departmentSelect.disabled = true;
+        } else {
+            defaultOptionText = '--- Select Department ---';
+            departmentSelect.disabled = false;
+        }
+        const defaultOption = new Option(defaultOptionText, '0');
+        departmentSelect.add(defaultOption);
+
+        if (!organizationId || organizationId === "0") {
+            return; 
+        }
+
+        // Add a temporary "Loading..." option
+        if(departmentSelect.options.length === 1) {
+            const loadingOpt = new Option('Loading...', '');
+            loadingOpt.disabled = true;
+            departmentSelect.add(loadingOpt);
+        }
+
+        fetch(`/api/departments_for_organization/${organizationId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(departments => {
+                // Clear current options again, keeping placeholder if needed
+                while (departmentSelect.options.length > 0 && departmentSelect.options[0].value === '0') {
+                    if (departmentSelect.options.length > 1) departmentSelect.remove(1);
+                    else break; // Only placeholder left
+                }
+                // Remove loading if it was the first
+                 if (departmentSelect.options.length > 0 && departmentSelect.options[0].text.toLowerCase().includes('loading')) {
+                    departmentSelect.remove(0); 
+                 }
+                 // Ensure a placeholder is there if it was removed
+                 if (departmentSelect.options.length === 0 || departmentSelect.options[0].value !== '0') {
+                    const placeholder = new Option('--- Select Department ---', '0');
+                    departmentSelect.insertBefore(placeholder, departmentSelect.firstChild);
+                 }
+
+
+                if (departments && departments.length > 0) {
+                    // Filter out the placeholder if API returns its own placeholder
+                    const actualDepartments = departments.filter(dept => dept.id !== 0); 
+                    
+                    if (actualDepartments.length > 0) {
+                        actualDepartments.forEach(dept => {
+                            const option = new Option(dept.name, dept.id);
+                            departmentSelect.add(option);
+                        });
+                        if (departmentSelect.options[0].text.toLowerCase().includes('no departments')) {
+                             departmentSelect.options[0].text = '--- Select Department ---';   
+                        }
+                    } else if (departments.length === 1 && departments[0].id === 0) { // API returned only its own placeholder
+                        departmentSelect.options[0].text = departments[0].name; // Use API's placeholder
+                    }
+                } else {
+                     departmentSelect.options[0].text = '--- No Departments in this Org ---';
+                }
+
+                if (selectedDepartmentId) {
+                    departmentSelect.value = selectedDepartmentId;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching departments:', error);
+                if (departmentSelect.options.length > 0 && departmentSelect.options[0].value === '0') {
+                   departmentSelect.options[0].text = 'Error loading departments';
+                } else {
+                   const errorOption = new Option('Error loading departments', '0');
+                   departmentSelect.add(errorOption);
+                }
+                departmentSelect.disabled = true;
+            });
+    }
+
+    function toggleDepartmentField() {
+        if (roleSelect.value === 'organization_client' || roleSelect.value === 'admin' || roleSelect.value === 'agent') {
+            departmentSelect.value = '0'; // Reset selection
+            departmentSelect.disabled = true;
+            // Optionally hide or just disable:
+            // departmentSelect.closest('.form-group').style.display = 'none';
+        } else { // 'client' role
+            departmentSelect.disabled = false;
+            // departmentSelect.closest('.form-group').style.display = 'block';
+            // If an organization is already selected, refresh department options
+            if (organizationSelect.value && organizationSelect.value !== "0") {
+                updateDepartmentOptions(organizationSelect.value, departmentSelect.value);
+            } else {
+                updateDepartmentOptions(null); // Reset to default placeholder and disable
+            }
+        }
+    }
+
+
+    if (organizationSelect && departmentSelect && roleSelect) {
+        organizationSelect.addEventListener('change', function() {
+            // Only update if the role allows/requires department selection
+            if (roleSelect.value === 'client') {
+                 updateDepartmentOptions(this.value);
+            } else {
+                updateDepartmentOptions(null); // Effectively disables/resets for other roles
+            }
+        });
+        roleSelect.addEventListener('change', toggleDepartmentField);
+
+        // Initial setup on page load
+        toggleDepartmentField(); // Set initial state of department field based on role
+        
+        // If editing, Python side should have pre-filled choices and data correctly.
+        // This JS handles dynamic changes *after* load.
+        // However, if it's a new form or an edit where org is not set, make sure dept is disabled.
+        if (!organizationSelect.value || organizationSelect.value === "0") {
+            if(roleSelect.value === 'client') { // only disable if client role and no org
+                 departmentSelect.disabled = true;
+            }
+        } else {
+            // If an org is pre-selected (e.g. editing or form error reload),
+            // ensure departments are loaded for it if role is client
+            if (roleSelect.value === 'client') {
+                // Python has already set form.department_id.choices correctly based on initial org_id
+                // and form.department_id.data if available.
+                // The `updateDepartmentOptions` might run again if we call it here,
+                // but it should correctly re-select the value if available.
+                // Let's trust Python's initial population for edit case.
+                // The primary job of JS here is for *changes* by the user.
+            }
+        }
+
+    }
+
+    // CSS Variables Fallback for RGB colors
+    function ensureRgbVar(cssVarName, fallbackHex) {
+        const rootStyles = getComputedStyle(document.documentElement);
+        let colorHex = rootStyles.getPropertyValue(`--${cssVarName}`).trim();
+        if (!colorHex) colorHex = fallbackHex;
+
+        const rgb = hexToRgb(colorHex);
+        if (rgb) {
+            document.documentElement.style.setProperty(`--${cssVarName}-rgb`, `${rgb.r},${rgb.g},${rgb.b}`);
+        } else {
+             document.documentElement.style.setProperty(`--${cssVarName}-rgb`, fallbackHex === '#007bff' ? '0,123,255' : '220,53,69'); // Default for primary or danger
+        }
+    }
+    function hexToRgb(hex) {
+        let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+    }
+    ensureRgbVar('primary-color', '#1f73b7'); // Default primary from your CSS
+    ensureRgbVar('danger-color', '#dc3545');  // Default danger from your CSS
+
+
+    // Form input focus styling (optional)
+    document.querySelectorAll('.form-control, .custom-select').forEach(input => {
+        input.addEventListener('focus', () => {
+            input.closest('.form-group')?.classList.add('is-focused');
+        });
+        input.addEventListener('blur', () => {
+            input.closest('.form-group')?.classList.remove('is-focused');
+        });
     });
 });
 </script>

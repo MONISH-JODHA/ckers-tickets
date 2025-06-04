@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 
+{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
+
 {% block head_extra %}
+{{ super() }}
 <style>
-    /* --- Root Variables (Consistent Theming) --- */
     :root {
         --primary-color: {{ app.config.get('THEME_PRIMARY_COLOR', '#007bff') }}; 
-        --primary-rgb: 0,123,255; 
+        --primary-rgb: {{ '0,123,255' }}; 
         --secondary-color: #6c757d; 
         --success-color: #28a745;   
         --danger-color: #dc3545;    
@@ -44,17 +46,19 @@
         --priority-low-border: #43a047;    
 
         /* Admin Stat Card Colors */
+        --stat-total-color: var(--primary-color);
         --stat-open-color: var(--info-color);
         --stat-inprogress-color: var(--warning-color);
         --stat-resolved-color: var(--success-color);
-        --stat-onhold-color: #fd7e14; 
+        --stat-onhold-color: #fd7e14; /* orange */
         --stat-closed-color: var(--secondary-color);
         --stat-unassigned-color: var(--danger-color);
+        --stat-users-color: #6610f2; /* purple */
     }
 
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    body { font-family: var(--font-sans); }
+    body { font-family: var(--font-sans); background-color: var(--page-bg); }
 
     .dashboard-welcome {
         padding: 1rem 0;
@@ -100,14 +104,14 @@
     .stat-card .stat-icon {
         font-size: 1.8rem; 
         margin-bottom: 0.75rem;
-        color: var(--primary-color); 
+        color: var(--primary-color); /* Fallback, will be overridden by specific styles */
         width: 48px; 
         height: 48px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: rgba(var(--primary-rgb), 0.1); 
+        background-color: rgba(var(--primary-rgb), 0.1); /* Fallback */
     }
     .stat-card .stat-value {
         font-size: 2.25rem; 
@@ -120,20 +124,29 @@
         color: var(--text-medium);
         margin-top: 0.25rem;
     }
-    .stat-card.border-total         { border-left-color: var(--primary-color); }
-    .stat-card.border-total .stat-icon { color: var(--primary-color); background-color: rgba(var(--primary-rgb), 0.1); }
+    .stat-card.border-total         { border-left-color: var(--stat-total-color); }
+    .stat-card.border-total .stat-icon { color: var(--stat-total-color); background-color: rgba(0,123,255,0.1); } 
+    
     .stat-card.border-open          { border-left-color: var(--stat-open-color); }
-    .stat-card.border-open .stat-icon { color: var(--stat-open-color); background-color: rgba(23, 162, 184, 0.1); }
+    .stat-card.border-open .stat-icon { color: var(--stat-open-color); background-color: rgba(23,162,184,0.1); }
+    
     .stat-card.border-inprogress    { border-left-color: var(--stat-inprogress-color); }
-    .stat-card.border-inprogress .stat-icon { color: var(--stat-inprogress-color); background-color: rgba(255, 193, 7, 0.1); }
+    .stat-card.border-inprogress .stat-icon { color: var(--stat-inprogress-color); background-color: rgba(255,193,7,0.1); }
+    
     .stat-card.border-resolved      { border-left-color: var(--stat-resolved-color); }
-    .stat-card.border-resolved .stat-icon { color: var(--stat-resolved-color); background-color: rgba(40, 167, 69, 0.1); }
+    .stat-card.border-resolved .stat-icon { color: var(--stat-resolved-color); background-color: rgba(40,167,69,0.1); }
+    
     .stat-card.border-onhold        { border-left-color: var(--stat-onhold-color); }
-    .stat-card.border-onhold .stat-icon { color: var(--stat-onhold-color); background-color: rgba(253, 126, 20, 0.1); }
+    .stat-card.border-onhold .stat-icon { color: var(--stat-onhold-color); background-color: rgba(253,126,20,0.1); }
+    
     .stat-card.border-closed        { border-left-color: var(--stat-closed-color); }
-    .stat-card.border-closed .stat-icon { color: var(--stat-closed-color); background-color: rgba(108, 117, 125, 0.1); }
+    .stat-card.border-closed .stat-icon { color: var(--stat-closed-color); background-color: rgba(108,117,125,0.1); }
+    
     .stat-card.border-unassigned    { border-left-color: var(--stat-unassigned-color); }
-    .stat-card.border-unassigned .stat-icon { color: var(--stat-unassigned-color); background-color: rgba(220, 53, 69, 0.1); }
+    .stat-card.border-unassigned .stat-icon { color: var(--stat-unassigned-color); background-color: rgba(220,53,69,0.1); }
+    
+    .stat-card.border-users         { border-left-color: var(--stat-users-color); }
+    .stat-card.border-users .stat-icon { color: var(--stat-users-color); background-color: rgba(102,16,242,0.1); }
 
     /* --- General Dashboard Section Styling --- */
     .dashboard-section {
@@ -152,7 +165,7 @@
         padding-bottom: 0.75rem;
         border-bottom: 1px solid var(--card-border);
     }
-    .dashboard-section-title i { opacity: 0.7; }
+    .dashboard-section-title i { opacity: 0.7; margin-right: 0.5em; }
     
     /* Admin: Recent Interactions */
     .recent-interactions-list .list-group-item {
@@ -160,6 +173,7 @@
         font-size: 0.9rem;
         border-top: 1px solid var(--card-border);
         border-left:none; border-right:none; border-bottom:none;
+        background-color: transparent;
     }
     .recent-interactions-list .list-group-item:first-child { border-top: none; }
     .interaction-actor { font-weight: 600; color: var(--primary-color); }
@@ -178,6 +192,11 @@
         background-color: transparent; 
         transition: background-color 0.15s ease;
     }
+    .quick-stats-list .list-group-item:not(:last-child),
+    .agent-dashboard-list .list-group-item:not(:last-child) {
+        border-bottom: 1px solid var(--card-border);
+    }
+
     .quick-stats-list .list-group-item:hover,
     .agent-dashboard-list .list-group-item:hover {
         background-color: #f8f9fa; 
@@ -268,91 +287,104 @@
         color: var(--text-dark);
     }
 
-    /* --- Client Dashboard Ticket Cards --- */
-    .ticket-card {
+    /* --- Client & Org Client Dashboard Ticket Cards --- */
+    .ticket-summary-card {
         background-color: var(--card-bg);
         border: 1px solid var(--card-border);
         border-radius: var(--radius-lg);
-        margin-bottom: 1.5rem;
-        padding: 1.5rem;
+        margin-bottom: 1rem;
+        padding: 1rem 1.25rem;
         box-shadow: var(--card-shadow);
         transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         position: relative; 
         overflow: hidden; 
     }
-    .ticket-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    .ticket-summary-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.08);
     }
-    .ticket-card-header {
+    .ticket-summary-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start; 
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
     }
-    .ticket-card-title {
-        font-size: 1.2rem;
+    .ticket-summary-title {
+        font-size: 1.1rem;
         font-weight: 600;
         color: var(--primary-color);
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.15rem;
         line-height: 1.3;
     }
-    .ticket-card-title a { color: inherit; text-decoration: none; }
-    .ticket-card-title a:hover { text-decoration: underline; }
-    .ticket-id { font-size: 0.8rem; color: var(--text-light); font-weight: 500; }
-    .ticket-status-badge {
+    .ticket-summary-title a { color: inherit; text-decoration: none; }
+    .ticket-summary-title a:hover { text-decoration: underline; }
+    
+    .ticket-summary-status {
         font-size: 0.75rem; font-weight: 600; padding: 0.3em 0.8em;
         border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;
         display: inline-flex; align-items: center;
+        white-space: nowrap;
     }
-    .ticket-status-badge .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .ticket-summary-status .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    
+    /* Re-using status-CLASS .status-dot from client/create_ticket.html for consistency */
     .status-open { background-color: var(--status-open-bg); color: var(--status-open-text); }
     .status-open .status-dot { background-color: var(--status-open-dot); }
-    .status-in-progress { background-color: var(--status-inprogress-bg); color: var(--status-inprogress-text); }
-    .status-in-progress .status-dot { background-color: var(--status-inprogress-dot); }
+    .status-in-progress, .status-inprogress { background-color: var(--status-inprogress-bg); color: var(--status-inprogress-text); }
+    .status-in-progress .status-dot, .status-inprogress .status-dot { background-color: var(--status-inprogress-dot); }
     .status-on-hold { background-color: var(--status-onhold-bg); color: var(--status-onhold-text); }
     .status-on-hold .status-dot { background-color: var(--status-onhold-dot); }
     .status-resolved { background-color: var(--status-resolved-bg); color: var(--status-resolved-text); }
     .status-resolved .status-dot { background-color: var(--status-resolved-dot); }
     .status-closed { background-color: var(--status-closed-bg); color: var(--status-closed-text); }
     .status-closed .status-dot { background-color: var(--status-closed-dot); }
-    .ticket-priority-indicator { position: absolute; top: 0; left: 0; width: 6px; height: 100%; }
+
+    .ticket-summary-priority-indicator { position: absolute; top: 0; left: 0; width: 5px; height: 100%; }
     .priority-urgent { background-color: var(--priority-urgent-border); }
     .priority-high { background-color: var(--priority-high-border); }
     .priority-medium { background-color: var(--priority-medium-border); }
     .priority-low { background-color: var(--priority-low-border); }
-    .ticket-meta { font-size: 0.85rem; color: var(--text-medium); margin-bottom: 0.3rem; }
-    .ticket-meta .fas, .ticket-meta .fab { margin-right: 0.4em; width: 1.1em; text-align: center; opacity:0.7; }
-    .ticket-meta strong { color: var(--text-dark); font-weight: 500; }
-    .ticket-description-preview {
-        font-size: 0.9rem; color: var(--text-medium); margin-top: 0.75rem;
-        line-height: 1.5; max-height: 3em; overflow: hidden; text-overflow: ellipsis;
-    }
-    .ticket-actions { margin-top: 1rem; text-align: right; }
-    .ticket-actions .btn-sm { font-size: 0.8rem; }
-    .view-all-btn-container { text-align: center; margin-top: 2rem; margin-bottom: 1rem; }
 
-    .text-purple { color: #6f42c1 !important; }
-    .text-orange { color: #fd7e14 !important; }
+    .ticket-summary-meta { font-size: 0.8rem; color: var(--text-medium); margin-bottom: 0.2rem; }
+    .ticket-summary-meta .fas, .ticket-summary-meta .fab { margin-right: 0.3em; width: 1em; text-align: center; opacity:0.6; }
+    .ticket-summary-meta strong { color: var(--text-dark); font-weight: 500; }
+    
+    .view-all-btn-container { text-align: center; margin-top: 1.5rem; margin-bottom: 1rem; }
+    .btn-view-all-tickets {
+        font-size: 0.9rem;
+        padding: 0.5rem 1.25rem;
+        border-radius: var(--radius-md);
+    }
+    .no-tickets-alert { /* Shared by client and org-client dashboards */
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 2rem;
+        text-align: center;
+        color: var(--text-medium);
+        margin-top: 1rem;
+        box-shadow: var(--card-shadow);
+    }
+    .no-tickets-alert i.fas { font-size: 2rem; margin-bottom: 0.75rem; color: var(--text-light); }
+    .no-tickets-alert h5 { font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem;}
 
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+    {# --- ADMIN DASHBOARD --- #}
     {% if current_user.is_admin %}
-        {# --- ADMIN DASHBOARD --- #}
         <div class="dashboard-welcome">
             <h2>Admin Dashboard</h2>
             <p>Overview of the ticket system and quick actions.</p>
         </div>
-
         <div class="row admin-stats-grid">
             <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
                 <a href="{{ url_for('admin_all_tickets') }}" class="stat-card-link">
                     <div class="stat-card border-total">
                         <div class="stat-icon"><i class="fas fa-layer-group"></i></div>
-                        <div class="stat-value">{{ total_tickets }}</div>
+                        <div class="stat-value">{{ total_tickets if total_tickets is defined else 'N/A' }}</div>
                         <div class="stat-label">Total Tickets</div>
                     </div>
                 </a>
@@ -361,7 +393,7 @@
                 <a href="{{ url_for('admin_all_tickets', status='Open') }}" class="stat-card-link">
                     <div class="stat-card border-open">
                         <div class="stat-icon"><i class="fas fa-folder-open"></i></div>
-                        <div class="stat-value">{{ open_tickets }}</div>
+                        <div class="stat-value">{{ open_tickets if open_tickets is defined else 'N/A' }}</div>
                         <div class="stat-label">Open Tickets</div>
                     </div>
                 </a>
@@ -370,7 +402,7 @@
                 <a href="{{ url_for('admin_all_tickets', status='In Progress') }}" class="stat-card-link">
                     <div class="stat-card border-inprogress">
                         <div class="stat-icon"><i class="fas fa-tasks"></i></div>
-                        <div class="stat-value">{{ inprogress_tickets }}</div>
+                        <div class="stat-value">{{ inprogress_tickets if inprogress_tickets is defined else 'N/A' }}</div>
                         <div class="stat-label">In Progress</div>
                     </div>
                 </a>
@@ -379,7 +411,7 @@
                 <a href="{{ url_for('admin_all_tickets', status='Resolved') }}" class="stat-card-link">
                      <div class="stat-card border-resolved">
                         <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-                        <div class="stat-value">{{ resolved_tickets }}</div>
+                        <div class="stat-value">{{ resolved_tickets if resolved_tickets is defined else 'N/A' }}</div>
                         <div class="stat-label">Resolved Tickets</div>
                     </div>
                 </a>
@@ -388,7 +420,7 @@
                 <a href="{{ url_for('admin_all_tickets', status='On Hold') }}" class="stat-card-link">
                      <div class="stat-card border-onhold">
                         <div class="stat-icon"><i class="fas fa-pause-circle"></i></div>
-                        <div class="stat-value">{{ on_hold_tickets }}</div>
+                        <div class="stat-value">{{ on_hold_tickets if on_hold_tickets is defined else 'N/A' }}</div>
                         <div class="stat-label">On Hold Tickets</div>
                     </div>
                 </a>
@@ -397,16 +429,16 @@
                 <a href="{{ url_for('admin_all_tickets', status='Open', assigned_to_id='0') }}" class="stat-card-link">
                      <div class="stat-card border-unassigned">
                         <div class="stat-icon"><i class="fas fa-user-plus"></i></div>
-                        <div class="stat-value">{{ unassigned_open_tickets }}</div>
+                        <div class="stat-value">{{ unassigned_open_tickets if unassigned_open_tickets is defined else 'N/A' }}</div>
                         <div class="stat-label">Unassigned Open</div>
                     </div>
                 </a>
             </div>
              <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
                 <a href="{{ url_for('admin_user_list') }}" class="stat-card-link">
-                     <div class="stat-card border-total" style="border-left-color: #6610f2;">
-                        <div class="stat-icon" style="color: #6610f2; background-color: rgba(102,16,242,0.1);"><i class="fas fa-users"></i></div>
-                        <div class="stat-value">{{ total_users }}</div>
+                     <div class="stat-card border-users">
+                        <div class="stat-icon"><i class="fas fa-users"></i></div>
+                        <div class="stat-value">{{ total_users if total_users is defined else 'N/A' }}</div>
                         <div class="stat-label">Total Users</div>
                     </div>
                 </a>
@@ -415,7 +447,7 @@
                 <a href="{{ url_for('admin_all_tickets', status='Closed') }}" class="stat-card-link">
                      <div class="stat-card border-closed">
                         <div class="stat-icon"><i class="fas fa-archive"></i></div>
-                        <div class="stat-value">{{ closed_tickets }}</div>
+                        <div class="stat-value">{{ closed_tickets if closed_tickets is defined else 'N/A' }}</div>
                         <div class="stat-label">Closed Tickets</div>
                     </div>
                 </a>
@@ -425,7 +457,7 @@
         <div class="row mt-2">
              <div class="col-lg-7 mb-4">
                 <div class="dashboard-section">
-                    <h4 class="dashboard-section-title"><i class="fas fa-history mr-2"></i>Recent System Interactions</h4>
+                    <h4 class="dashboard-section-title"><i class="fas fa-history"></i>Recent System Interactions</h4>
                     {% if recent_interactions %}
                     <ul class="list-group list-group-flush recent-interactions-list">
                         {% for interaction in recent_interactions %}
@@ -444,7 +476,7 @@
                                                 {% endif %}
                                             {% elif interaction.details.get('comment_id') %}
                                                 added a {% if interaction.details.is_internal %}internal {% endif %}comment
-                                            {% elif interaction.details.get('title') and (interaction.interaction_type == 'TICKET_CREATED' or interaction.interaction_type == 'TICKET_CREATED_GDOC') %}
+                                            {% elif interaction.details.get('title') and (interaction.interaction_type == 'TICKET_CREATED' or interaction.interaction_type == 'EMAIL_TICKET_CREATED' or interaction.interaction_type == 'TICKET_CREATED_GDOC') %}
                                                 created ticket: <em>{{ interaction.details.title|truncate(25) }}</em>
                                             {% elif interaction.interaction_type == 'TICKET_RESOLVED_TIMESTAMPED' %}
                                                 marked ticket as <strong>{{ interaction.details.status_changed_to }}</strong>
@@ -470,29 +502,30 @@
             </div>
             <div class="col-lg-5 mb-4">
                 <div class="dashboard-section">
-                    <h4 class="dashboard-section-title"><i class="fas fa-rocket mr-2"></i>Quick Actions</h4>
+                    <h4 class="dashboard-section-title"><i class="fas fa-rocket"></i>Quick Actions</h4>
                     <div class="list-group quick-actions-grid">
                         <a href="{{ url_for('create_ticket') }}" class="list-group-item list-group-item-action"><i class="fas fa-plus-circle text-success"></i> Create New Ticket</a>
                         <a href="{{ url_for('admin_user_list') }}" class="list-group-item list-group-item-action"><i class="fas fa-users-cog text-primary"></i> Manage Users</a>
                         <a href="{{ url_for('register_agent') }}" class="list-group-item list-group-item-action"><i class="fas fa-user-plus text-info"></i> Add New Agent</a>
                         <a href="{{ url_for('admin_kb_article_list') }}" class="list-group-item list-group-item-action"><i class="fas fa-book text-purple"></i> Manage KB Articles</a>
                         <a href="{{ url_for('admin_create_edit_kb_article') }}" class="list-group-item list-group-item-action"><i class="fas fa-feather-alt text-orange"></i> Create KB Article</a>
+                         <a href="{{ url_for('analytics_dashboard_page') }}" class="list-group-item list-group-item-action"><i class="fas fa-chart-bar text-warning"></i> View Analytics</a>
                     </div>
                 </div>
                 <div class="dashboard-section mt-4">
-                    <h4 class="dashboard-section-title"><i class="fas fa-chart-pie mr-2"></i>System Stats</h4>
+                    <h4 class="dashboard-section-title"><i class="fas fa-chart-pie"></i>System Stats</h4>
                      <ul class="list-group list-group-flush quick-stats-list">
                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Total Users <span class="badge badge-primary badge-pill">{{ total_users }}</span>
+                            Total Users <span class="badge badge-primary badge-pill">{{ total_users if total_users is defined else 'N/A' }}</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Agents & Admins <span class="badge badge-info badge-pill">{{ total_agents }}</span>
+                            Agents & Admins <span class="badge badge-info badge-pill">{{ total_agents if total_agents is defined else 'N/A' }}</span>
                         </li>
                          <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Client Users <span class="badge badge-secondary badge-pill">{{ total_clients }}</span>
+                            Client Users <span class="badge badge-secondary badge-pill">{{ total_clients if total_clients is defined else 'N/A' }}</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            KB Categories <span class="badge badge-success badge-pill">{{ active_categories_count }}</span>
+                            Ticket Categories <span class="badge badge-success badge-pill">{{ active_categories_count if active_categories_count is defined else 'N/A' }}</span>
                         </li>
                     </ul>
                 </div>
@@ -506,25 +539,25 @@
             <p>Your overview for today and this week.</p>
         </div>
 
-        <h4 class="dashboard-section-title" style="font-size: 1.1rem; margin-bottom: 0.75rem; border-bottom:none;"><i class="fas fa-chart-line mr-2"></i>Your Activity</h4>
+        <h4 class="dashboard-section-title" style="font-size: 1.1rem; margin-bottom: 0.75rem; border-bottom:none;"><i class="fas fa-chart-line"></i>Your Activity</h4>
         <div class="agent-stats-panel">
             <div class="agent-stat-item">
-                <span class="stat-value resolved">{{ agent_stats.resolved_today }}</span>
+                <span class="stat-value resolved">{{ agent_stats.resolved_today if agent_stats else 'N/A' }}</span>
                 <span class="stat-label">Tickets Resolved</span>
                 <span class="stat-period">Today</span>
             </div>
             <div class="agent-stat-item">
-                <span class="stat-value resolved">{{ agent_stats.resolved_week }}</span>
+                <span class="stat-value resolved">{{ agent_stats.resolved_week if agent_stats else 'N/A' }}</span>
                 <span class="stat-label">Tickets Resolved</span>
                 <span class="stat-period">This Week</span>
             </div>
             <div class="agent-stat-item">
-                <span class="stat-value responded">{{ agent_stats.responded_today }}</span>
+                <span class="stat-value responded">{{ agent_stats.responded_today if agent_stats else 'N/A' }}</span>
                 <span class="stat-label">Tickets Responded To</span>
                 <span class="stat-period">Today</span>
             </div>
             <div class="agent-stat-item">
-                <span class="stat-value responded">{{ agent_stats.responded_week }}</span>
+                <span class="stat-value responded">{{ agent_stats.responded_week if agent_stats else 'N/A' }}</span>
                 <span class="stat-label">Tickets Responded To</span>
                 <span class="stat-period">This Week</span>
             </div>
@@ -535,10 +568,9 @@
         <div class="row">
             <div class="col-lg-7 mb-4">
                 <div class="dashboard-section"> 
-                    <h4 class="dashboard-section-title"><i class="fas fa-bell mr-2 text-warning"></i>Needs Your Attention: Client Replies</h4>
-                    {% if tickets_with_client_reply_data %} {# Use the new variable name #}
+                    <h4 class="dashboard-section-title"><i class="fas fa-bell text-warning"></i>Needs Your Attention: Client Replies</h4>
+                    {% if tickets_with_client_reply_data %}
                         <ul class="list-group list-group-flush client-reply-list">
-                            {# UPDATED LOOP to access elements of the Row object/tuple #}
                             {% for ticket_obj, client_username, comment_time in tickets_with_client_reply_data %}
                                 <li class="list-group-item">
                                     <a href="{{ url_for('view_ticket', ticket_id=ticket_obj.id) }}" class="ticket-title-link">{{ ticket_obj.title|truncate(70) }}</a> (#{{ticket_obj.id}})
@@ -558,7 +590,7 @@
 
             <div class="col-lg-5 mb-4">
                  <div class="dashboard-section"> 
-                    <h4 class="dashboard-section-title"><i class="fas fa-user-clock mr-2"></i>Your Assigned Tickets (Unsolved)</h4>
+                    <h4 class="dashboard-section-title"><i class="fas fa-user-clock"></i>Your Assigned Tickets (Unsolved)</h4>
                     {% if my_assigned_tickets %}
                         <ul class="list-group list-group-flush agent-dashboard-list">
                             {% for ticket in my_assigned_tickets %}
@@ -583,7 +615,7 @@
         <div class="row">
             <div class="col-lg-12">  
                  <div class="dashboard-section">
-                    <h4 class="dashboard-section-title"><i class="fas fa-inbox mr-2"></i>Unassigned Open Tickets</h4>
+                    <h4 class="dashboard-section-title"><i class="fas fa-inbox"></i>Unassigned Open Tickets</h4>
                     {% if unassigned_tickets %}
                          <ul class="list-group list-group-flush agent-dashboard-list">
                             {% for ticket in unassigned_tickets %}
@@ -608,71 +640,161 @@
             </div>
         </div>
 
-    {% else %}
-        {# --- CLIENT DASHBOARD --- #}
+    {# --- ORGANIZATION CLIENT DASHBOARD (is_org_client_view is True) --- #}
+    {% elif is_org_client_view %} 
         <div class="dashboard-welcome">
-            <h2>My Dashboard</h2>
-            <p>Welcome back, {{ current_user.username }}! Here's what's happening with your tickets.</p>
+            <h2>{{ title }}</h2> {# e.g., "Org Name - Dashboard" #}
+            <p>Welcome back, {{ current_user.username }}! Recent tickets within {{ current_user.organization.name }}.</p>
         </div>
-
-        <h4><i class="fas fa-history mr-2"></i>My Recent Tickets</h4>
-        {% if my_tickets %}
-            <div class="row">
-                {% for ticket in my_tickets %}
-                <div class="col-lg-6 col-md-12"> 
-                    <div class="ticket-card">
-                        <div class="ticket-priority-indicator priority-{{ ticket.priority|lower }}"></div>
-                        <div class="ticket-card-header">
-                            <div>
-                                <h5 class="ticket-card-title">
-                                    <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">{{ ticket.title }}</a>
-                                </h5>
-                                <span class="ticket-id">#{{ ticket.id }}</span>
+        <div class="row">
+            <div class="col-12">
+                <div class="dashboard-section">
+                    <h4 class="dashboard-section-title"><i class="fas fa-history mr-1"></i>Recent Organization Tickets</h4>
+                    {% if my_tickets and my_tickets|length > 0 %} {# my_tickets = org_tickets from route #}
+                        {% for ticket in my_tickets %}
+                        <div class="ticket-summary-card">
+                             <div class="ticket-summary-priority-indicator priority-{{ ticket.priority|lower }}"></div>
+                            <div class="ticket-summary-header">
+                                <div>
+                                    <h5 class="ticket-summary-title mb-0">
+                                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">{{ ticket.title|truncate(70) }}</a>
+                                    </h5>
+                                    <span class="ticket-id">#{{ ticket.id }}</span>
+                                    <small class="text-muted d-block mt-1">
+                                        <i class="fas fa-building"></i> Company: {{ ticket.department_ref.name if ticket.department_ref else "Organization-Wide" }}
+                                    </small>
+                                </div>
+                                <span class="ticket-summary-status status-{{ ticket.status|lower|replace(' ', '-') }}">
+                                    <span class="status-dot"></span>{{ ticket.status }}
+                                </span>
                             </div>
-                            <span class="ticket-status-badge status-{{ ticket.status|lower|replace(' ', '-') }}">
-                                <span class="status-dot"></span>{{ ticket.status }}
-                            </span>
+                            <div class="ticket-summary-meta mt-2">
+                                <i class="fas fa-user-edit"></i> Created by: <strong>{{ ticket.creator.username }}</strong> | 
+                                <i class="fas fa-tags ml-2"></i> Category: <strong>{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</strong>
+                            </div>
+                            <div class="ticket-summary-meta">
+                               <i class="fas fa-clock"></i> Last Update: <strong>{{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</strong>
+                            </div>
                         </div>
-                        
-                        <div class="ticket-meta">
-                            <i class="fas fa-layer-group"></i>Category: <strong>{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</strong>
-                        </div>
-                         <div class="ticket-meta">
-                             <i class="fas {{ 'fa-exclamation-circle text-danger' if ticket.priority == 'Urgent' else ('fa-arrow-alt-circle-up text-warning' if ticket.priority == 'High' else ('fa-arrow-alt-circle-right text-primary' if ticket.priority == 'Medium' else 'fa-arrow-alt-circle-down text-secondary')) }}"></i>
-                             Priority: <strong>{{ ticket.priority }}</strong>
-                        </div>
-                        <div class="ticket-meta">
-                            <i class="fas fa-user"></i>Assigned: <strong>{{ ticket.assignee.username if ticket.assignee else 'Unassigned' }}</strong>
-                        </div>
-                        <div class="ticket-meta">
-                           <i class="fas fa-clock"></i>Last Updated: <strong>{{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</strong>
-                        </div>
-                        {% if ticket.description %}
-                        <p class="ticket-description-preview">{{ ticket.description|striptags|truncate(120) }}</p>
-                        {% endif %}
-                        <div class="ticket-actions">
-                            <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-eye mr-1"></i>View Details
+                        {% endfor %}
+                        <div class="view-all-btn-container">
+                            <a href="{{ url_for('tickets_overview') }}" class="btn btn-primary btn-view-all-tickets">
+                                <i class="fas fa-list-ul mr-1"></i>View All Organization Tickets
                             </a>
                         </div>
-                    </div>
+                    {% else %}
+                        <div class="no-tickets-alert">
+                            <i class="fas fa-info-circle"></i>
+                            <h5>No Recent Tickets</h5>
+                            <p>No recent tickets found for your organization.</p>
+                        </div>
+                    {% endif %}
                 </div>
-                {% endfor %}
             </div>
-        {% else %}
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle mr-2"></i>You haven't submitted any tickets yet.
-                <a href="{{ url_for('create_ticket') }}" class="alert-link ml-2">Create your first ticket now!</a>
-            </div>
-        {% endif %}
-
-        {% if my_tickets %}
-        <div class="view-all-btn-container">
-            <a href="{{ url_for('my_tickets') }}" class="btn btn-primary">
-                <i class="fas fa-list-ul mr-2"></i>View All My Tickets
-            </a>
         </div>
-        {% endif %}
+
+    {# --- DEPARTMENT CLIENT DASHBOARD (is_dept_client_view is True) --- #}
+    {% elif is_dept_client_view %}
+        <div class="dashboard-welcome">
+            <h2>{{ title }}</h2> {# e.g., "Dept Name - Dashboard" #}
+            <p>Welcome back, {{ current_user.username }}! Recent tickets for your company, {{ current_user.department.name }}.</p>
+        </div>
+         <div class="row">
+            <div class="col-12">
+                <div class="dashboard-section">
+                    <h4 class="dashboard-section-title"><i class="fas fa-history mr-1"></i>Recent Company Tickets</h4>
+                    {% if my_tickets and my_tickets|length > 0 %} {# my_tickets = dept_tickets from route #}
+                        {% for ticket in my_tickets %}
+                         <div class="ticket-summary-card">
+                            <div class="ticket-summary-priority-indicator priority-{{ ticket.priority|lower }}"></div>
+                            <div class="ticket-summary-header">
+                                <div>
+                                    <h5 class="ticket-summary-title mb-0">
+                                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">{{ ticket.title|truncate(70) }}</a>
+                                    </h5>
+                                     <span class="ticket-id">#{{ ticket.id }}</span>
+                                </div>
+                                <span class="ticket-summary-status status-{{ ticket.status|lower|replace(' ', '-') }}">
+                                   <span class="status-dot"></span>{{ ticket.status }}
+                                </span>
+                            </div>
+                            <div class="ticket-summary-meta mt-2">
+                                <i class="fas fa-user-edit"></i> Created by: <strong>{{ ticket.creator.username }}</strong> | 
+                                <i class="fas fa-tags ml-2"></i> Category: <strong>{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</strong>
+                            </div>
+                            <div class="ticket-summary-meta">
+                               <i class="fas fa-clock"></i> Last Update: <strong>{{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</strong>
+                            </div>
+                        </div>
+                        {% endfor %}
+                         <div class="view-all-btn-container">
+                            <a href="{{ url_for('tickets_overview') }}" class="btn btn-primary btn-view-all-tickets">
+                                <i class="fas fa-list-ul mr-1"></i>View All Company Tickets
+                            </a>
+                        </div>
+                    {% else %}
+                         <div class="no-tickets-alert">
+                             <i class="fas fa-info-circle"></i>
+                             <h5>No Recent Tickets</h5>
+                             <p>No recent tickets found for your company.</p>
+                         </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    
+    {# --- DEFAULT CLIENT DASHBOARD (Tickets created by them, if not caught by specific views above) --- #}
+    {% else %} 
+        <div class="dashboard-welcome">
+            <h2>My Dashboard</h2>
+            <p>Welcome back, {{ current_user.username }}! Your recently submitted tickets.</p>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <div class="dashboard-section">
+                    <h4 class="dashboard-section-title"><i class="fas fa-ticket-alt mr-1"></i>My Submitted Tickets</h4>
+                     {% if my_tickets and my_tickets|length > 0 %} {# These are tickets created_by_id=current_user.id #}
+                        {% for ticket in my_tickets %}
+                        <div class="ticket-summary-card">
+                            <div class="ticket-summary-priority-indicator priority-{{ ticket.priority|lower }}"></div>
+                            <div class="ticket-summary-header">
+                                <div>
+                                    <h5 class="ticket-summary-title mb-0">
+                                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">{{ ticket.title|truncate(70) }}</a>
+                                    </h5>
+                                     <span class="ticket-id">#{{ ticket.id }}</span>
+                                     <small class="text-muted d-block mt-1">
+                                        <i class="fas fa-sitemap"></i> Associated with: {{ ticket.customer_name }}
+                                    </small>
+                                </div>
+                                 <span class="ticket-summary-status status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
+                            </div>
+                            <div class="ticket-summary-meta mt-2">
+                               <i class="fas fa-tags"></i> Category: <strong>{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</strong>
+                            </div>
+                            <div class="ticket-summary-meta">
+                               <i class="fas fa-clock"></i> Last Update: <strong>{{ ticket.updated_at.strftime('%b %d, %Y %H:%M') }}</strong>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        <div class="view-all-btn-container">
+                            <a href="{{ url_for('my_tickets') }}" class="btn btn-primary btn-view-all-tickets"> 
+                                <i class="fas fa-list-ul mr-1"></i>View All My Submitted Tickets
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="no-tickets-alert">
+                            <i class="fas fa-folder-open"></i>
+                            <h5>No Tickets Submitted Yet!</h5>
+                            <p>Ready to create one?</p>
+                            <a href="{{ url_for('create_ticket') }}" class="btn btn-success mt-2">
+                                <i class="fas fa-plus-circle"></i> Create New Ticket
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     {% endif %}
 </div>
 {% endblock %}
@@ -681,7 +803,7 @@
 {{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const clientTicketCards = document.querySelectorAll('.ticket-card'); 
+        const clientTicketCards = document.querySelectorAll('.ticket-summary-card'); 
         clientTicketCards.forEach((card, index) => {
             card.style.animation = `fadeInUp 0.5s ${index * 0.07}s ease-out forwards`;
             card.style.opacity = '0'; 
@@ -693,21 +815,45 @@
             card.style.opacity = '0';
             card.style.transform = 'scale(0.9)';
         });
+
+        function hexToRgb(hex) {
+            let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        const rootStyles = getComputedStyle(document.documentElement);
+        const primaryColorHex = rootStyles.getPropertyValue('--primary-color').trim();
+        if (primaryColorHex) {
+            const rgb = hexToRgb(primaryColorHex);
+            if (rgb) {
+                document.documentElement.style.setProperty('--primary-rgb', `${rgb.r},${rgb.g},${rgb.b}`);
+            }
+        }
     });
 
-    const keyframesCSS = `
-        @keyframes fadeInUp { 
-            from { opacity: 0; transform: translateY(20px); } 
-            to { opacity: 1; transform: translateY(0); } 
-        }
-        @keyframes adminStatPopIn {
-            from { opacity: 0; transform: scale(0.9) translateY(10px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-    `;
-    const styleSheet = document.createElement("style");
-    styleSheet.type = "text/css";
-    styleSheet.innerText = keyframesCSS;
-    document.head.appendChild(styleSheet);
+    // Keyframes moved to <style> block in <head_extra> for better practice,
+    // but if you prefer them here for some reason, ensure they are correctly defined.
+    // For example:
+    if (!document.getElementById('dashboardKeyframes')) {
+        const keyframesCSS = `
+            @keyframes fadeInUp { 
+                from { opacity: 0; transform: translateY(20px); } 
+                to { opacity: 1; transform: translateY(0); } 
+            }
+            @keyframes adminStatPopIn {
+                from { opacity: 0; transform: scale(0.9) translateY(10px); }
+                to { opacity: 1; transform: scale(1) translateY(0); }
+            }
+        `;
+        const styleSheet = document.createElement("style");
+        styleSheet.id = "dashboardKeyframes"; // Add an ID to prevent multiple additions
+        styleSheet.type = "text/css";
+        styleSheet.innerText = keyframesCSS;
+        document.head.appendChild(styleSheet);
+    }
 </script>
 {% endblock %}

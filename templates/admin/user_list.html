@@ -10,6 +10,8 @@
         --danger-color: #dc3545;
         --info-color: #17a2b8;
         --success-color: #28a745;
+        --warning-color: #ffc107; 
+        --purple-color: #6f42c1;  
         --text-secondary: #6b7280;
         --border-color: #e5e7eb;
         --card-bg: #ffffff;
@@ -106,6 +108,7 @@
     .badge-role.admin { background-color: var(--danger-color); color: white; }
     .badge-role.agent { background-color: var(--info-color); color: white; }
     .badge-role.client { background-color: var(--success-color); color: white; }
+    .badge-role.organization_client { background-color: var(--purple-color); color: white; } 
 
     .actions-cell .btn {
         padding: 0.25rem 0.6rem;
@@ -134,20 +137,15 @@
     #shareCredentialsModal.modal {
         z-index: 1050; 
     }
-
-    /* --- KEY CHANGE HERE --- */
     .modal-backdrop.show {
         z-index: 1040; 
         opacity: 0.5 !important; 
-        pointer-events: none !important; /* Allow clicks/typing to pass through the backdrop */
+        pointer-events: none !important; 
     }
-    /* --- END OF KEY CHANGE --- */
-
     .modal-content {
         pointer-events: auto !important; 
         z-index: 1051; 
     }
-
     #modal_recipient_email {
         pointer-events: auto !important;
         background-color: #fff !important; 
@@ -159,12 +157,15 @@
         opacity: 1; 
     }
 
-
+    @media (max-width: 992px) { /* Adjusted breakpoint for better responsiveness */
+        .users-table .d-none-md { display: none !important; } /* Hide less critical columns on medium screens */
+    }
     @media (max-width: 768px) {
         .actions-cell .btn .btn-text { display: none; } 
         .actions-cell .btn { padding: 0.4rem; }
         .actions-cell .btn i { margin-right: 0; }
         .users-table thead th, .users-table td { padding: 0.75rem; }
+        .users-table .d-none-sm { display: none !important; } /* Hide more columns on small screens */
     }
 </style>
 {% endblock %}
@@ -189,10 +190,12 @@
                     <tr>
                         <th>ID</th>
                         <th>Username</th>
-                        <th>Email</th>
+                        <th class="d-none-sm">Email</th> {# Hide email on small screens #}
                         <th>Role</th>
-                        <th>Created At</th>
-                        <th class="actions-cell-header" style="width: 220px;">Actions</th>
+                        <th class="d-none-md">Organization</th> {# Hide Org on medium and smaller #}
+                        <th class="d-none-md">Department</th>   {# Hide Dept on medium and smaller #}
+                        <th class="d-none-sm">Created At</th> {# Hide Created At on small screens #}
+                        <th class="actions-cell-header" style="min-width: 180px; width: auto;">Actions</th> {# Adjusted width for actions #}
                     </tr>
                 </thead>
                 <tbody>
@@ -205,11 +208,13 @@
                                 {{ user_item.username }}
                             </div>
                         </td>
-                        <td>{{ user_item.email }}</td>
+                        <td class="d-none-sm">{{ user_item.email }}</td>
                         <td>
-                            <span class="badge badge-pill badge-role {{ user_item.role }}">{{ user_item.role|capitalize }}</span>
+                            <span class="badge badge-pill badge-role {{ user_item.role|replace(' ', '_')|lower }}">{{ user_item.role|replace('_', ' ')|capitalize }}</span>
                         </td>
-                        <td>{{ user_item.created_at.strftime('%b %d, %Y %H:%M') if user_item.created_at else 'N/A' }}</td>
+                        <td class="d-none-md">{{ user_item.organization.name if user_item.organization else 'N/A' }}</td>
+                        <td class="d-none-md">{{ user_item.department.name if user_item.department else 'N/A' }}</td>
+                        <td class="d-none-sm">{{ user_item.created_at.strftime('%b %d, %Y %H:%M') if user_item.created_at else 'N/A' }}</td>
                         <td class="actions-cell">
                             <a href="{{ url_for('admin_create_edit_user', user_id=user_item.id) }}" class="btn btn-sm btn-outline-primary" title="Edit User">
                                 <i class="fas fa-edit"></i> <span class="btn-text">Edit</span>
@@ -237,7 +242,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="no-users-placeholder">
+                        <td colspan="8" class="no-users-placeholder"> {# Adjusted colspan #}
                             <i class="fas fa-users"></i><br>
                             No users found. You can create one using the button above.
                         </td>
@@ -308,11 +313,8 @@ $(document).ready(function() {
 
     $('#shareCredentialsModal').on('shown.bs.modal', function () {
         var emailInput = $(this).find('#modal_recipient_email');
-        // console.log("Modal shown, attempting to focus email input:", emailInput.length > 0);
         if (emailInput.length > 0) {
             emailInput.focus(); 
-            // console.log("Email input is visible:", emailInput.is(':visible'));
-            // console.log("Email input is disabled:", emailInput.is(':disabled'));
         }
     });
 });

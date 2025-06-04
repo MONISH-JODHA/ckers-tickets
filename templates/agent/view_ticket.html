@@ -7,7 +7,7 @@
         --primary-color: #3662E0; /* A more vibrant, modern blue */
         --primary-color-dark: #2A4CB3;
         --primary-color-light: #6B8DE8;
-        --primary-color-rgb: 54, 98, 224;
+        --primary-color-rgb: 54, 98, 224; /* Make sure this matches --primary-color */
         --primary-glow: rgba(var(--primary-color-rgb), 0.2);
         --primary-pale: #eef2ff; /* Very light blue for subtle backgrounds */
 
@@ -16,16 +16,21 @@
 
         --success-color: #10B981; /* Emerald green */
         --success-color-dark: #059669;
-        --success-glow: rgba(16, 185, 129, 0.2);
+        --success-rgb: 16, 185, 129; /* For success-glow */
+        --success-glow: rgba(var(--success-rgb), 0.2);
+
 
         --warning-color: #F59E0B; /* Amber */
         --warning-text: #78350F; /* Darker text for yellow bg */
         --warning-glow: rgba(245, 158, 11, 0.2);
 
         --danger-color: #EF4444; /* Tailwind red */
-        --danger-glow: rgba(239, 68, 68, 0.2);
+        --danger-rgb: 239, 68, 68; /* For danger-glow */
+        --danger-glow: rgba(var(--danger-rgb), 0.2);
 
         --info-color: #3B82F6; /* Brighter blue for info */
+        --info-rgb: 59,130,246; /* For info-glow */
+
 
         --text-darkest: #111827; /* Almost black */
         --text-dark: #374151;
@@ -96,34 +101,34 @@
         transform: translateY(-3px);
     }
     .card-header {
-        background-color: var(--card-bg); /* Keep header light for content focus */
+        background-color: var(--card-bg); 
         border-bottom: 1px solid var(--card-border);
         padding: 1.25rem 1.75rem;
         border-top-left-radius: var(--radius-lg);
         border-top-right-radius: var(--radius-lg);
     }
     .card-header h4, .card-header h5 {
-        font-weight: 700; /* Bolder headings */
+        font-weight: 700; 
         color: var(--text-darkest);
         margin-bottom: 0;
         display: flex;
         align-items: center;
     }
-    .card-header h4 .fas, .card-header h5 .fas { /* Icon styling in headers */
+    .card-header h4 .fas, .card-header h5 .fas { 
         margin-right: 0.75em;
         color: var(--primary-color);
-        font-size: 1.1em; /* Slightly larger icons */
+        font-size: 1.1em; 
         opacity: 0.85;
     }
     .card-body { padding: 1.75rem; }
     .card-footer {
-        background-color: #fdfdff; /* Very subtle difference */
+        background-color: #fdfdff; 
         border-top: 1px solid var(--card-border);
         padding: 1.25rem 1.75rem;
     }
 
     /* --- Ticket Details Specific --- */
-    .ticket-main-header { /* The very first card header */
+    .ticket-main-header { 
         background: linear-gradient(45deg, var(--primary-color-dark) 0%, var(--primary-color) 100%);
         color: var(--text-on-primary);
         border-bottom: none;
@@ -178,8 +183,8 @@
     .details-grid { font-size: 0.9rem; }
     .details-grid p {
         margin-bottom: 0.9rem;
-        display: grid; /* Using grid for better alignment */
-        grid-template-columns: 140px 1fr; /* Label fixed width, value takes rest */
+        display: grid; 
+        grid-template-columns: 140px 1fr; 
         align-items: baseline;
         gap: 0.5rem;
     }
@@ -189,7 +194,7 @@
     }
     .details-grid .badge { font-size: 0.85em; font-weight: 500; padding: 0.4em 0.7em; }
     .tags-list .badge {
-        background-color: var(--primary-color-translucent) !important;
+        background-color: rgba(var(--primary-color-rgb), 0.1) !important; /* Use primary-rgb */
         color: var(--primary-color-dark) !important;
         border: 1px solid var(--primary-color-light) !important;
         font-weight: 500; margin-right: 0.4em;
@@ -205,8 +210,8 @@
     }
     .first-response-banner .fas { font-size: 1.2em; margin-right: 0.75em; }
     .first-response-banner.success {
-        background-color: rgba(var(--success-color-rgb), 0.08);
-        border: 1px solid rgba(var(--success-color-rgb), 0.2);
+        background-color: rgba(var(--success-rgb), 0.08); /* Use success-rgb */
+        border: 1px solid rgba(var(--success-rgb), 0.2);
         color: var(--success-color-dark);
     }
     .first-response-banner.muted {
@@ -234,13 +239,11 @@
     .attachments-card .btn-download-attachment:hover { background-color: var(--primary-color-dark); }
 
     /* --- Discussion / Comments --- */
-    /* (Assuming _comment_item.html will inherit some styles or you'll create specific ones) */
-    #comments-section .comment-item-wrapper { /* Style for your included comment items */
+    #comments-section .comment-item-wrapper { 
         padding: 1.25rem;
         border-bottom: 1px solid var(--card-border);
     }
     #comments-section .comment-item-wrapper:last-child { border-bottom: none; }
-    /* ... (More refined comment styles would go here or in _comment_item.html) ... */
     
     #add-comment-form textarea {
         min-height: 120px;
@@ -265,7 +268,7 @@
     }
 
 
-    /* --- Interaction History (Timeline) - "AWE" --- */
+    /* --- Interaction History (Timeline) --- */
     .timeline-header-controls .btn {
         background-color: var(--card-bg);
         border: 1px solid var(--input-border);
@@ -275,9 +278,9 @@
     .timeline-header-controls .btn:hover { background-color: #e9ecef; }
 
     #interactionHistoryBody {
-        max-height: 70vh; /* Generous height */
+        max-height: 70vh; 
         overflow-y: auto;
-        padding: 1.5rem 0.75rem 1.5rem 1.75rem; /* Asymmetric padding */
+        padding: 1.5rem 0.75rem 1.5rem 1.75rem; 
     }
     #interactionHistoryBody::-webkit-scrollbar { width: 8px; }
     #interactionHistoryBody::-webkit-scrollbar-track { background: rgba(0,0,0,0.02); }
@@ -285,7 +288,7 @@
     #interactionHistoryBody::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
 
     .timeline { list-style: none; padding: 0; position: relative; }
-    .timeline::before { /* The vibrant connecting line */
+    .timeline::before { 
         content: ''; position: absolute; top: 10px; bottom: 10px; left: 23px; 
         width: 4px;
         background: linear-gradient(to bottom, var(--primary-color-light), var(--accent-color), var(--primary-color-light));
@@ -301,7 +304,7 @@
         font-weight: 600;
         font-size: 0.8rem;
         margin-bottom: 1.5rem;
-        margin-left: -5px; /* Align with icons */
+        margin-left: -5px; 
         border: 1px solid var(--primary-color-light);
         box-shadow: var(--card-shadow-light);
         position: relative; z-index: 5;
@@ -321,7 +324,7 @@
         width: 50px; height: 50px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
         color: var(--text-on-primary); z-index: 10; font-size: 1.3rem; 
-        border: 4px solid var(--page-bg); /* "Punched out" look */
+        border: 4px solid var(--page-bg); 
         box-shadow: var(--card-shadow-strong);
         transition: var(--transition);
     }
@@ -329,7 +332,6 @@
         transform: scale(1.1) rotate(-5deg);
         box-shadow: 0 8px 20px rgba(0,0,0,0.15);
     }
-    /* Icon Colors - Must define all used bg-* classes */
     .bg-primary { background-color: var(--primary-color) !important; }
     .bg-success { background-color: var(--success-color) !important; }
     .bg-info { background-color: var(--info-color) !important; }
@@ -349,7 +351,7 @@
         border: 1px solid var(--card-border);
         position: relative;
     }
-    .timeline-event-content::before { /* Pointy arrow */
+    .timeline-event-content::before { 
         content: ""; position: absolute; top: 15px; left: -10px;
         border-style: solid; border-width: 10px 10px 10px 0;
         border-color: transparent var(--card-bg) transparent transparent;
@@ -404,6 +406,9 @@
                 <div class="details-grid row mt-2">
                     <div class="col-md-6">
                         <p><strong>Organization:</strong> <span>{{ ticket.organization_option_ref.name if ticket.organization_option_ref else 'N/A' }}</span></p>
+                        {# Display Department (Company) #}
+                        <p><strong>Company/Dept:</strong> <span>{{ ticket.department_ref.name if ticket.department_ref else 'N/A' }}</span></p>
+                        <p><strong>Customer Name:</strong> <span>{{ ticket.customer_name or 'N/A' }}</span></p>
                         <p><strong>Form Type:</strong> <span>{{ ticket.form_type_option_ref.name if ticket.form_type_option_ref else 'N/A' }}</span></p>
                         <p><strong>Category:</strong> <span class="badge badge-secondary">{{ ticket.category_ref.name if ticket.category_ref else 'N/A' }}</span></p>
                         <p><strong>Severity:</strong> <span class="badge badge-pill
@@ -412,12 +417,6 @@
                             {% elif ticket.severity == 'Severity 3 (Medium)' %}badge-info
                             {% elif ticket.severity == 'Severity 4 (Low)' %}badge-secondary
                             {% else %}badge-light text-dark border{% endif %}">{{ ticket.severity or 'N/A' }}</span></p>
-                        <p><strong>Cloud Provider:</strong> <span class="badge badge-light text-dark border">{{ ticket.cloud_provider or 'N/A' }}</span></p>
-                        {% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}
-                        <p><strong>AWS Service:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_service }}</span></p>
-                        {% endif %}
-                         <p><strong>Customer Name:</strong> <span>{{ ticket.customer_name or 'N/A' }}</span></p>
-                         <p><strong>AWS Account ID:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_account_id or 'N/A' }}</span></p>
                     </div>
                     <div class="col-md-6">
                         <p><strong>Priority:</strong> <span class="badge
@@ -425,6 +424,11 @@
                             {% elif ticket.priority == 'High' %}badge-warning
                             {% elif ticket.priority == 'Medium' %}badge-info
                             {% else %}badge-secondary{% endif %}">{{ ticket.priority }}</span></p>
+                        <p><strong>Cloud Provider:</strong> <span class="badge badge-light text-dark border">{{ ticket.cloud_provider or 'N/A' }}</span></p>
+                        {% if ticket.cloud_provider == 'AWS' and ticket.aws_service %}
+                        <p><strong>AWS Service:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_service }}</span></p>
+                        {% endif %}
+                         <p><strong>AWS Account ID:</strong> <span class="badge badge-light text-dark border">{{ ticket.aws_account_id or 'N/A' }}</span></p>
                         <p><strong>Environment:</strong> <span class="badge badge-light text-dark border">{{ ticket.environment or 'N/A' }}</span></p>
                         <p><strong>Assigned to:</strong>
                             <span>
@@ -437,11 +441,18 @@
                             {% endif %}
                             </span>
                         </p>
+                    </div>
+                </div>
+                <hr class="my-3">
+                 <div class="details-grid row mt-2">
+                     <div class="col-md-6">
                         <p><strong>Call Back:</strong> <span class="badge badge-{{'success' if ticket.request_call_back == 'Yes' else 'light text-dark border'}}">{{ ticket.request_call_back or 'N/A' }}</span></p>
                         {% if ticket.request_call_back == 'Yes' and ticket.contact_details %}
                         <p><strong>Contact:</strong> <span>{{ ticket.contact_details }}</span></p>
                         {% endif %}
                         <p><strong>AWS Case ID:</strong> <span>{{ ticket.aws_support_case_id or 'N/A' }}</span></p>
+                    </div>
+                     <div class="col-md-6">
                         <p><strong>Effort:</strong>
                             <span>
                             {% set effort_display = EFFORT_CHOICES | selectattr(0, 'equalto', ticket.effort_required_to_resolve_min|string) | map(attribute=1) | first %}
@@ -452,6 +463,7 @@
                         <p><strong>APN Opportunity:</strong> <span>{{ ticket.apn_opportunity_option_ref.name if ticket.apn_opportunity_option_ref else 'N/A' }}</span></p>
                     </div>
                 </div>
+
 
                 {% if ticket.apn_opportunity_description %}
                     <hr class="my-3">
@@ -516,7 +528,7 @@
 
         <div class="card discussion-card">
             <div class="card-header"><h5 class="mb-0"><i class="fas fa-comments"></i>Discussion ({{ comments|length }})</h5></div>
-            <div id="comments-section"> {# Removed card-body, comment items handle padding #}
+            <div id="comments-section">
                 {% if comments %}{% for comment in comments %}{% include '_comment_item.html' %}{% endfor %}
                 {% else %}<p class="text-light text-center p-4">No comments yet. Start the conversation!</p>{% endif %}
             </div>
@@ -576,29 +588,29 @@
                                 {% for p_interaction in interactions_by_date[display_date_obj] %}
                                     <li class="timeline-event">
                                         <div class="timeline-event-icon
-                                            {% if p_interaction.obj.interaction_type == 'TICKET_CREATED' %}bg-primary
+                                            {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}bg-primary
                                             {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}bg-success
-                                            {% elif p_interaction.obj.interaction_type == 'STATUS_CHANGE' %}
-                                                {% set new_status_val = p_interaction.obj.details.get('new_value', p_interaction.obj.details.get('new_status')) %}
-                                                {% if new_status_val == 'New' or new_status_val == 'Open' %}bg-warning
+                                            {% elif 'STATUS_CHANGE' in p_interaction.obj.interaction_type %}
+                                                {% set new_status_val = p_interaction.obj.details.get('new_value', p_interaction.obj.details.get('new_status', '')) %}
+                                                {% if new_status_val in ['New', 'Open'] %}bg-warning
                                                 {% elif new_status_val == 'In Progress' %}bg-info
-                                                {% elif new_status_val == 'Resolved' or new_status_val == 'Closed' %}bg-secondary
+                                                {% elif new_status_val in ['Resolved', 'Closed'] %}bg-secondary
                                                 {% else %}bg-light{% endif %}
-                                            {% elif p_interaction.obj.interaction_type == 'ASSIGNMENT_CHANGE' %}bg-purple
+                                            {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}bg-purple
                                             {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}bg-teal
                                             {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}bg-dark
                                             {% else %}bg-dark{% endif %}">
                                             {# Icons based on type #}
-                                            {% if p_interaction.obj.interaction_type == 'TICKET_CREATED' %}<i class="fas fa-ticket-alt"></i>
+                                            {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}<i class="fas fa-ticket-alt"></i>
                                             {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}<i class="fas fa-comment-alt"></i>
-                                            {% elif p_interaction.obj.interaction_type == 'ASSIGNMENT_CHANGE' %}<i class="fas fa-user-tag"></i>
+                                            {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}<i class="fas fa-user-tag"></i>
                                             {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}<i class="fas fa-stopwatch-20"></i>
                                             {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}<i class="fas fa-pencil-alt"></i>
                                             {% else %}<i class="fas fa-info"></i>{% endif %}
                                         </div>
                                         <div class="timeline-event-content">
                                             <div class="timeline-event-time">{{ p_interaction.time_str }}</div>
-                                            <div class="timeline-event-title">{{ p_interaction.title_for_display | truncate(30, True) }}</div>
+                                            <div class="timeline-event-title">{{ p_interaction.actor_name | truncate(30, True) }}</div>
                                             <div class="timeline-event-description">
                                                 {{ p_interaction.message | safe }}
                                             </div>
@@ -625,7 +637,7 @@
             <div class="card-body">
                 <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}" id="agentUpdateForm">
                     {{ agent_update_form.hidden_tag() }}
-                    {# ... Agent form fields ... (kept original structure for brevity) ... #}
+                    
                      <div class="form-group">
                         {{ agent_update_form.status.label() }}
                         {{ agent_update_form.status(class="form-control custom-select " + ("is-invalid" if agent_update_form.status.errors else "")) }}
@@ -645,9 +657,15 @@
                     <h6 class="mb-3 font-weight-semibold">Extended Details:</h6>
                      <div class="form-group">
                         {{ agent_update_form.organization_id.label() }}
-                        {{ agent_update_form.organization_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.organization_id.errors else "")) }}
+                        {{ agent_update_form.organization_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.organization_id.errors else ""), id="agentUpdateOrganizationId") }}
                          {% for error in agent_update_form.organization_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    {# If agents can change department for a ticket, it would go here, with JS similar to user edit #}
+                    {# <div class="form-group">
+                        {{ agent_update_form.department_id.label() }}
+                        {{ agent_update_form.department_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.department_id.errors else ""), id="agentUpdateDepartmentId") }}
+                        {% for error in agent_update_form.department_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div> #}
                     <div class="form-group">
                         {{ agent_update_form.form_type_id.label() }}
                         {{ agent_update_form.form_type_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.form_type_id.errors else "")) }}
@@ -708,10 +726,10 @@
                         {{ agent_update_form.effort_required_to_resolve_min(class="form-control custom-select" + ("is-invalid" if agent_update_form.effort_required_to_resolve_min.errors else "")) }}
                         {% for error in agent_update_form.effort_required_to_resolve_min.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    {# Customer Name is no longer directly editable here via a text field #}
                     <div class="form-group">
-                        {{ agent_update_form.customer_name.label() }}
-                        {{ agent_update_form.customer_name(class="form-control" + ("is-invalid" if agent_update_form.customer_name.errors else ""), placeholder="Customer/Company Name") }}
-                        {% for error in agent_update_form.customer_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        <label class="form-control-label">Derived Customer Name</label>
+                        <div class="form-control readonly-display" title="Derived from Organization/Company">{{ ticket.customer_name or 'N/A' }}</div>
                     </div>
                      <div class="form-group">
                         {{ agent_update_form.apn_opportunity_id.label() }}
@@ -733,7 +751,6 @@
                         {{ agent_update_form.additional_email_recipients(class="form-control" + ("is-invalid" if agent_update_form.additional_email_recipients.errors else ""), placeholder="comma,separated,emails") }}
                         {% for error in agent_update_form.additional_email_recipients.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
-                    {# End of Agent form fields #}
                     <button type="submit" name="submit_update" class="btn btn-primary btn-block mt-3"><i class="fas fa-save mr-1"></i> Update Ticket</button>
                 </form>
                 {% if not ticket.assignee and ticket.status == 'Open' and current_user.is_agent %}
@@ -749,7 +766,13 @@
             <div class="card-body">
                 <p><strong>User:</strong> {{ ticket.creator.username }}</p>
                 <p><strong>Email:</strong> {{ ticket.creator.email }}</p>
-                <p><strong>Role:</strong> {{ ticket.creator.role|capitalize }}</p>
+                <p><strong>Role:</strong> {{ ticket.creator.role|replace('_', ' ')|capitalize }}</p>
+                {% if ticket.creator.organization %}
+                    <p><strong>Organization:</strong> {{ ticket.creator.organization.name }}</p>
+                {% endif %}
+                {% if ticket.creator.department %}
+                    <p><strong>Company/Dept:</strong> {{ ticket.creator.department.name }}</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -760,15 +783,15 @@
 {{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // AWS Service toggle
-    var cloudProviderSelectAgent = document.getElementById('cloudProviderSelectAgent');
-    var awsServiceGroupAgent = document.getElementById('awsServiceGroupAgent');
+    // AWS Service toggle for Agent form
+    var cloudProviderSelectAgent = document.getElementById('cloudProviderSelectAgent'); // ID for agent form's cloud select
+    var awsServiceGroupAgent = document.getElementById('awsServiceGroupAgent'); // ID for agent form's AWS service group
     function toggleAwsServiceAgent() {
         if (cloudProviderSelectAgent && awsServiceGroupAgent) {
             awsServiceGroupAgent.style.display = (cloudProviderSelectAgent.value === 'AWS') ? 'block' : 'none';
             if (cloudProviderSelectAgent.value !== 'AWS') {
-                var awsServiceSelect = awsServiceGroupAgent.querySelector('select');
-                if (awsServiceSelect) awsServiceSelect.value = '';
+                var awsServiceSelectAgent = awsServiceGroupAgent.querySelector('select');
+                if (awsServiceSelectAgent) awsServiceSelectAgent.value = '';
             }
         }
     }
@@ -794,12 +817,38 @@ document.addEventListener('DOMContentLoaded', function() {
         }).on('hide.bs.collapse', function () {
             if(icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
         });
+        // Initialize icon state based on collapse state
         if ($('#interactionHistoryBody').hasClass('show') && icon) {
             icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up');
         } else if (icon) {
             icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down');
         }
     }
+
+    // If Agent is updating ticket organization, potentially clear/update department if that field were added to agent form
+    // var agentOrgSelect = document.getElementById('agentUpdateOrganizationId');
+    // var agentDeptSelect = document.getElementById('agentUpdateDepartmentId'); // Assuming this ID if field is added
+    // if(agentOrgSelect && agentDeptSelect) {
+    //     agentOrgSelect.addEventListener('change', function() {
+    //         // Similar logic to fetch departments for this new org_id for the agentDeptSelect
+    //         // updateDepartmentOptions(this.value, null, agentDeptSelect); // Pass the target select
+    //     });
+    // }
+
+    // Dynamic primary-rgb for CSS (if not already handled globally)
+    const rootStyles = getComputedStyle(document.documentElement);
+    function hexToRgb(hex) {
+        let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+    }
+    ['primary-color', 'success-color', 'danger-color', 'info-color'].forEach(varName => {
+        const colorHex = rootStyles.getPropertyValue(`--${varName}`).trim();
+        if (colorHex) {
+            const rgb = hexToRgb(colorHex);
+            if (rgb) { document.documentElement.style.setProperty(`--${varName}-rgb`, `${rgb.r},${rgb.g},${rgb.b}`); }
+        }
+    });
+
 });
 </script>
 {% endblock %}

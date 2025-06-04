@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set title = title or "Reports Center" %} {# Changed title slightly #}
+{% set title = title or "Reports Center" %}
 
 {% block head_extra %}
 {{ super() }}
@@ -8,20 +8,23 @@
     :root {
         --primary-color: {{ app.config.get('THEME_PRIMARY_COLOR', '#007bff') }};
         --primary-rgb: {{ app.config.get('THEME_PRIMARY_RGB', '0,123,255') }};
+        --primary-color-darker: #0056b3; 
         --secondary-color: #6c757d;
         --success-color: #28a745;
         --danger-color: #dc3545;
         --info-color: #17a2b8;
         --warning-color: #ffc107;
+        --warning-text: #212529; 
         --light-color: #f8f9fa;
         --dark-color: #343a40;
 
-        --text-heading: #2c3e50; /* Slightly softer black for headings */
-        --text-body: #596275;   /* Main body text */
+        --text-heading: #2c3e50; 
+        --text-body: #596275;   
         --text-muted: #7f8c8d;
+        --text-light: #adb5bd; 
         --border-color-soft: #e9ecef;
         --border-color-strong: #ced4da;
-        --page-background: #f4f7f9; /* Light background for the whole page */
+        --page-background: #f4f7f9; 
         --card-background: #ffffff;
         --shadow-sm: 0 .125rem .25rem rgba(0,0,0,.075);
         --shadow-md: 0 .5rem 1rem rgba(0,0,0,.1);
@@ -36,7 +39,7 @@
         font-size: 1.85rem;
         font-weight: 700;
         color: var(--text-heading);
-        margin-bottom: 0.5rem; /* Align with page actions better */
+        margin-bottom: 0.5rem;
     }
     .reports-page .page-subtitle {
         font-size: 1rem;
@@ -44,7 +47,6 @@
         margin-bottom: 1.5rem;
     }
 
-    /* Enhanced Filter Panel */
     .filters-panel {
         background-color: var(--card-background);
         border-radius: var(--radius-lg);
@@ -63,25 +65,13 @@
     }
     .filters-panel-header:hover { background-color: #fcfdff; }
     .filters-panel-header.open { border-bottom-color: var(--border-color-soft); background-color: #f8f9fc;}
-    .filters-panel-header h2 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--text-heading);
-        margin:0;
-    }
+    .filters-panel-header h2 { font-size: 1.1rem; font-weight: 600; color: var(--text-heading); margin:0; }
     .filters-panel-header .fas.fa-filter { color: var(--primary-color); opacity: 0.8; margin-right: 0.7em;}
     .filters-panel-header .toggle-icon { transition: transform var(--transition-medium); color: var(--text-muted); }
     .filters-panel-header.open .toggle-icon { transform: rotate(180deg); }
     .filters-panel-body { padding: 1.5rem; }
     .filters-panel .form-group { margin-bottom: 1rem; }
-    .filters-panel .form-control-label {
-        font-size: 0.8rem;
-        font-weight: 500;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        margin-bottom: 0.4rem;
-    }
+    .filters-panel .form-control-label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.4rem; }
     .filters-panel .form-control, 
     .filters-panel .custom-select, 
     #dateRangePickerDisplayReports {
@@ -90,12 +80,13 @@
         background-color: var(--card-background); 
         font-size: 0.9rem;
         padding: 0.55rem 0.9rem;
-        box-shadow: none; /* Flatter inputs */
+        box-shadow: none; 
         transition: var(--transition-fast);
         color: var(--text-body);
     }
     #dateRangePickerDisplayReports { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-    #dateRangePickerDisplayReports i { color: var(--text-light); }
+    #dateRangePickerDisplayReports i.fa-calendar-alt { margin-right: 0.5rem;}
+    #dateRangePickerDisplayReports i.fa-caret-down { margin-left: 0.5rem;}
     .filters-panel .form-control:focus, 
     .filters-panel .custom-select:focus, 
     #dateRangePickerDisplayReports.active {
@@ -103,50 +94,19 @@
         box-shadow: 0 0 0 0.15rem rgba(var(--primary-rgb), 0.2);
         background-color: var(--card-background);
     }
-    .filters-panel .btn {
-        font-weight: 500;
-        padding: 0.6rem 1.25rem;
-        font-size: 0.9rem;
-        border-radius: var(--radius-md);
-        transition: var(--transition-fast);
-        box-shadow: var(--shadow-sm);
-    }
+    .filters-panel .btn { font-weight: 500; padding: 0.6rem 1.25rem; font-size: 0.9rem; border-radius: var(--radius-md); transition: var(--transition-fast); box-shadow: var(--shadow-sm); }
     .filters-panel .btn-primary { background-color: var(--primary-color); border-color: var(--primary-color); color: white; }
     .filters-panel .btn-primary:hover { background-color: var(--primary-color-darker); border-color: var(--primary-color-darker); transform: translateY(-1px); box-shadow: 0 2px 5px rgba(var(--primary-rgb),0.15); }
     .filters-panel .btn .fas { margin-right: 0.5em; }
+    .filters-panel .btn-outline-secondary { color: var(--text-muted); border-color: var(--border-color-strong); }
+    .filters-panel .btn-outline-secondary:hover { background-color: var(--secondary-color); color: white; border-color: var(--secondary-color); }
 
-
-    /* Report Container & Actions */
-    .report-container {
-        background-color: var(--card-background);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-md); /* Slightly more prominent shadow for report */
-        margin-top: 1.5rem;
-        border: 1px solid var(--border-color-soft);
-    }
-    .report-header-bar { /* Replaces report-actions-bar for header area */
-        padding: 1rem 1.5rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        border-bottom: 1px solid var(--border-color-soft);
-    }
-    .report-header-bar .report-title {
-        font-size: 1.3rem;
-        font-weight: 600;
-        color: var(--text-heading);
-        margin: 0;
-    }
+    .report-container { background-color: var(--card-background); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-top: 1.5rem; border: 1px solid var(--border-color-soft); }
+    .report-header-bar { padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--border-color-soft); }
+    .report-header-bar .report-title { font-size: 1.3rem; font-weight: 600; color: var(--text-heading); margin: 0; }
     .report-action-buttons { display: flex; gap: 0.6rem; }
-    .report-action-buttons .btn {
-        font-size: 0.8rem;
-        padding: 0.45rem 0.9rem;
-        border-radius: var(--radius-sm);
-        font-weight: 500;
-    }
+    .report-action-buttons .btn { font-size: 0.8rem; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); font-weight: 500; }
     .report-action-buttons .btn i { margin-right: 0.4em; }
-    .report-action-buttons .btn-outline-secondary { color: var(--text-muted); border-color: var(--border-color-strong); }
     .report-action-buttons .btn-outline-secondary:hover { background-color: var(--text-muted); color: white; }
     .report-action-buttons .btn-outline-info { color: var(--info-color); border-color: var(--info-color); }
     .report-action-buttons .btn-outline-info:hover { background-color: var(--info-color); color: white; }
@@ -154,65 +114,38 @@
     .report-download-options .dropdown-item { padding: 0.5rem 1.2rem; }
     .report-download-options .dropdown-item i { width: 1.3em; opacity: 0.8; }
 
-    .report-content-area { padding: 1.5rem; } /* Where table/chart will go */
+    .report-content-area { padding: 1.5rem; }
     .report-table-wrapper { overflow-x: auto; }
-    .report-table {
-        width: 100%;
-        font-size: 0.875rem;
-        border-collapse: collapse;
-        color: var(--text-body);
-    }
-    .report-table th, .report-table td {
-        padding: 0.75rem 1rem; /* Increased padding for readability */
-        white-space: nowrap;
-        border: 1px solid var(--border-color-soft);
-        vertical-align: middle;
-    }
-    .report-table thead th {
-        font-weight: 600;
-        background-color: #f8f9fc; /* Very light header */
-        color: var(--text-heading);
-        text-transform: capitalize;
-        border-bottom-width: 2px;
-        border-bottom-color: var(--border-color-strong);
-    }
+    .report-table { width: 100%; font-size: 0.875rem; border-collapse: collapse; color: var(--text-body); }
+    .report-table th, .report-table td { padding: 0.75rem 1rem; white-space: nowrap; border: 1px solid var(--border-color-soft); vertical-align: middle; }
+    .report-table thead th { font-weight: 600; background-color: #f8f9fc; color: var(--text-heading); text-transform: capitalize; border-bottom-width: 2px; border-bottom-color: var(--border-color-strong); }
     .report-table tbody tr:nth-child(even) { background-color: #fdfdfe; }
-    .report-table tbody tr:hover { background-color: #f1f5f9; } /* Softer hover */
+    .report-table tbody tr:hover { background-color: #f1f5f9; }
     .report-table td a { font-weight: 500; color: var(--primary-color); }
     .report-table td a:hover { text-decoration: underline; color: var(--primary-color-darker); }
     .report-table .badge { font-size: 0.7rem; padding: .3em .6em; font-weight: 500; border-radius: var(--radius-sm); }
-    /* Use Bootstrap badge styles or define custom ones */
-    .report-table .badge-info { background-color: var(--info-color); color:white; }
-    .report-table .badge-secondary { background-color: var(--secondary-color); color:white; }
+    .report-table .badge-light { background-color: var(--light-color); color: var(--dark-color); border: 1px solid var(--border-color-strong); }
+    /* Status and Priority Badges in Table */
+    .status-badge, .priority-badge { font-size: 0.75rem; font-weight: 600; padding: 0.3em 0.7em; border-radius: 10px; text-transform: capitalize; min-width: 80px; text-align: center; display: inline-block; }
+    .status-badge.status-open { background-color: var(--success-color); color: white; }
+    .status-badge.status-in-progress { background-color: var(--primary-color); color: white; }
+    .status-badge.status-on-hold { background-color: var(--warning-color); color: var(--warning-text); }
+    .status-badge.status-resolved { background-color: var(--secondary-color); color: white; }
+    .status-badge.status-closed { background-color: var(--text-dark); color: white; }
+    .priority-badge.priority-low { background-color: #e6f4ea; color: #28a745; border: 1px solid #a3d3ab;}
+    .priority-badge.priority-medium { background-color: #e3f2fd; color: #1e88e5; border: 1px solid #90caf9;}
+    .priority-badge.priority-high { background-color: #fff8e1; color: #f57f17; border: 1px solid #ffd54f;}
+    .priority-badge.priority-urgent { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a;}
 
-
-    .report-footer-controls { /* Replaces report-pagination-controls */
-        padding: 1rem 1.5rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-top: 1px solid var(--border-color-soft);
-        font-size: 0.85rem;
-        background-color: #f8f9fc;
-        border-bottom-left-radius: var(--radius-lg);
-        border-bottom-right-radius: var(--radius-lg);
-    }
+    .report-footer-controls { padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color-soft); font-size: 0.85rem; background-color: #f8f9fc; border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-lg); }
     .report-footer-controls .btn { font-size: 0.8rem; padding: 0.35rem 0.75rem; }
     .report-footer-controls #reportPageInfo { color: var(--text-muted); }
-
-    .report-loading, .report-no-data {
-        text-align: center;
-        padding: 3rem 1rem; 
-        color: var(--text-muted);
-        font-style: italic;
-        font-size: 1rem; 
-    }
+    .report-loading, .report-no-data { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-style: italic; font-size: 1rem; }
     .report-loading i { margin-right: 0.5em; font-size: 1.2em; }
 
-    /* Modal styles (using Bootstrap defaults, can be enhanced) */
     #shareReportModal .modal-header { background-color: var(--light-color); border-bottom-color: var(--border-color-soft); }
     #shareReportModal .modal-title { font-weight: 600; color: var(--text-heading); }
-    #shareReportModal .modal-body { padding-bottom: 0.5rem; } /* Adjust if needed */
+    #shareReportModal .modal-body { padding-bottom: 0.5rem; }
     #shareReportModal .form-group { margin-bottom: 1.25rem; }
     #shareReportModal .form-control-label { font-weight: 500; color: var(--text-body); font-size:0.9rem; }
     #shareReportModal .form-control { font-size: 0.9rem; }
@@ -269,19 +202,31 @@
                         <div class="col-lg-2 col-md-6 form-group">
                             <label for="reportFilterCategory" class="form-control-label">Category</label>
                             <select id="reportFilterCategory" name="category_id" class="form-control custom-select">
-                                <option value="all" selected>All Categories</option>
+                                <option value="all" selected>All Categories</option> 
                                 {% for cat_opt in all_categories %}<option value="{{ cat_opt.id }}">{{ cat_opt.name }}</option>{% endfor %}
                             </select>
                         </div>
                          <div class="col-lg-3 col-md-6 form-group">
                             <label for="reportFilterOrganization" class="form-control-label">Organization</label>
                             <select id="reportFilterOrganization" name="organization_id" class="form-control custom-select">
-                                <option value="all" selected>All Organizations</option>
+                                <option value="all" selected>All Organizations</option> 
                                 {% for org_opt in all_organizations %}<option value="{{ org_opt.id }}">{{ org_opt.name }}</option>{% endfor %}
                             </select>
                         </div>
                     </div>
                     <div class="row mt-2">
+                        <div class="col-lg-3 col-md-6 form-group">
+                            <label for="reportFilterDepartment" class="form-control-label">Department</label>
+                            <select id="reportFilterDepartment" name="department_id" class="form-control custom-select" disabled>
+                                <option value="all" selected>All Departments in Org</option>
+                                {% if request.args.get('organization_id') and request.args.get('organization_id') not in ['all', '0'] and initial_departments_for_filter %}
+                                    {% for dept_opt in initial_departments_for_filter %}
+                                        <option value="{{ dept_opt.id }}" {% if request.args.get('department_id') == dept_opt.id|string %}selected{% endif %}>{{ dept_opt.name }}</option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small id="reportFilterDepartmentHelp" class="form-text text-muted-custom" {% if request.args.get('organization_id') and request.args.get('organization_id') not in ['all', '0'] %}style="display:none;"{% else %}style="display:block;"{% endif %}>Select an organization first.</small>
+                        </div>
                         <div class="col-lg-3 col-md-6 form-group">
                             <label for="reportFilterAgent" class="form-control-label">Assigned To</label>
                             <select id="reportFilterAgent" name="assigned_to_id" class="form-control custom-select">
@@ -304,6 +249,11 @@
                                 <i class="fas fa-cogs"></i> Generate
                             </button>
                         </div>
+                         <div class="col-lg-2 col-md-3 form-group d-flex align-items-end">
+                            <button type="button" id="clearReportFiltersBtn" class="btn btn-outline-secondary btn-block">
+                                <i class="fas fa-eraser"></i> Clear
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -314,14 +264,14 @@
         <div class="report-header-bar">
             <h3 class="report-title">Ticket List</h3>
             <div class="report-action-buttons">
-                <div class="btn-group report-download-options">
-                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <i class="fas fa-download"></i> Download As
+                <div class="dropdown report-download-options">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="downloadReportDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-download"></i> Download
                     </button>
-                    <div class="dropdown-menu dropdown-menu-right">
-                        <a class="dropdown-item" href="#" id="downloadCsvBtn"><i class="fas fa-file-csv fa-fw mr-2"></i>CSV</a>
-                        <a class="dropdown-item" href="#" id="downloadXlsxBtn"><i class="fas fa-file-excel fa-fw mr-2"></i>XLSX (Excel)</a>
-                        <a class="dropdown-item" href="#" id="downloadPdfBtn"><i class="fas fa-file-pdf fa-fw mr-2"></i>PDF</a>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="downloadReportDropdown">
+                        <a class="dropdown-item" href="#" id="downloadCsvBtn"><i class="fas fa-file-csv"></i> CSV</a>
+                        <a class="dropdown-item" href="#" id="downloadXlsxBtn"><i class="fas fa-file-excel"></i> XLSX</a>
+                        <a class="dropdown-item" href="#" id="downloadPdfBtn"><i class="fas fa-file-pdf"></i> PDF</a>
                     </div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-info report-share-options" id="shareReportEmailBtn" data-toggle="modal" data-target="#shareReportModal">
@@ -332,7 +282,7 @@
 
         <div class="report-content-area">
             <div class="report-table-wrapper">
-                <table class="table table-hover report-table" id="ticketListReportTable"> {# Added table-hover #}
+                <table class="table table-hover report-table" id="ticketListReportTable">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -343,6 +293,7 @@
                             <th>Created By</th>
                             <th>Assigned To</th>
                             <th>Organization</th>
+                            <th>Department</th>
                             <th>Created At</th>
                             <th>Updated At</th>
                             <th>Resolved At</th>
@@ -424,6 +375,7 @@
 <script>
     $(document).ready(function() {
         let currentReportPage = 1;
+        const reportsFiltersForm = $('#reportsFiltersForm');
 
         function initializeReportsDateRangePicker() {
             const storedStartDate = localStorage.getItem('reportsStartDate');
@@ -431,7 +383,7 @@
             let start = storedStartDate ? moment(storedStartDate) : moment().subtract(29, 'days');
             let end = storedEndDate ? moment(storedEndDate) : moment();
 
-            if (start.isAfter(end)) {
+            if (!moment(start).isValid() || !moment(end).isValid() || moment(start).isAfter(end)) {
                 start = moment().subtract(29, 'days');
                 end = moment();
             }
@@ -455,11 +407,118 @@
                    'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
                 }
             }, cb);
-            cb(start, end);
+            cb(start, end); // Initial call
+             $('#dateRangePickerDisplayReports').on('apply.daterangepicker', function(ev, picker) {
+                cb(picker.startDate, picker.endDate);
+            });
+             $('#dateRangePickerDisplayReports').on('cancel.daterangepicker', function(ev, picker) {
+                const defaultStart = moment().subtract(29, 'days');
+                const defaultEnd = moment();
+                cb(defaultStart, defaultEnd);
+            });
         }
 
         initializeReportsDateRangePicker();
 
+        const organizationFilterEl = $('#reportFilterOrganization');
+        const departmentFilterEl = $('#reportFilterDepartment');
+        const departmentFilterHelpEl = $('#reportFilterDepartmentHelp');
+
+        function updateReportDepartmentFilter(organizationId, preSelectedDepartmentId = null) {
+            if (!departmentFilterEl.length) return;
+
+            const defaultAllDeptsOptionText = 'All Departments in Org';
+            // Clear existing options but ensure the default "All Departments in Org" (value 'all') is there.
+            departmentFilterEl.empty().append($('<option>', { value: 'all', text: defaultAllDeptsOptionText }));
+
+
+            if (!organizationId || organizationId === 'all' || organizationId === '0') { // Check for '0' as well if it means "All Orgs"
+                departmentFilterEl.prop('disabled', true).val('all');
+                if (departmentFilterHelpEl.length) departmentFilterHelpEl.show();
+                return;
+            }
+
+            departmentFilterEl.prop('disabled', false);
+            if (departmentFilterHelpEl.length) departmentFilterHelpEl.hide();
+            departmentFilterEl.find('option[value="all"]').text('Loading...'); 
+
+            // Define DUMMY_ID_FOR_URL within the scope where it's used by url_for
+            {% set DUMMY_ID_FOR_URL = 0 %} // Use 0 or another valid integer for placeholder
+            // This Jinja variable is now available for url_for
+
+            let urlTemplate = "{{ url_for('api_departments_for_organization', organization_id=DUMMY_ID_FOR_URL) }}";
+            const fetchUrl = urlTemplate.replace(String({{ DUMMY_ID_FOR_URL }}), organizationId);
+
+
+            fetch(fetchUrl)
+                .then(response => {
+                    if (!response.ok) {
+                         return response.json().then(err => { throw new Error(err.detail || `HTTP error ${response.status} fetching departments`); });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    departmentFilterEl.empty(); // Clear loading/previous options
+                    
+                    // Ensure "All Departments in Org" is always the first option
+                    departmentFilterEl.append($('<option>', { value: 'all', text: defaultAllDeptsOptionText }));
+                    let hasActualDepartments = false;
+                    
+                    if (data && data.length > 0) {
+                        data.forEach(dept => {
+                            // The API might return its own "All/No Depts" with ID 0. We only want actual depts here.
+                            if (String(dept.id) !== '0') { 
+                                departmentFilterEl.append($('<option>', { value: dept.id, text: dept.name }));
+                                hasActualDepartments = true;
+                            } else if (data.length === 1 && String(data[0].id) === '0' && !hasActualDepartments) {
+                                // If API only returned a placeholder like "No Depts in this Org" (and it has ID 0)
+                                // We replace our default "All Departments in Org" with this more specific message.
+                                departmentFilterEl.find('option[value="all"]').text(dept.name);
+                            }
+                        });
+                    }
+                    
+                    if (!hasActualDepartments && !(data && data.length === 1 && String(data[0].id) === '0')) {
+                        // If no actual depts and API didn't send a specific "No Depts" placeholder
+                        departmentFilterEl.find('option[value="all"]').text('No Departments Available');
+                    }
+                    
+                    // Set selected value
+                    if (preSelectedDepartmentId && String(preSelectedDepartmentId) !== 'all' && String(preSelectedDepartmentId) !== '0') {
+                         if (departmentFilterEl.find(`option[value="${preSelectedDepartmentId}"]`).length) {
+                            departmentFilterEl.val(String(preSelectedDepartmentId));
+                         } else {
+                            departmentFilterEl.val('all'); 
+                         }
+                    } else {
+                        departmentFilterEl.val('all'); 
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching departments for report filter:", error);
+                    departmentFilterEl.empty().append($('<option>', { value: 'all', text: 'Error Loading Depts' })).prop('disabled', true);
+                });
+        }
+
+        if (organizationFilterEl.length) {
+            organizationFilterEl.on('change', function() {
+                updateReportDepartmentFilter($(this).val(), 'all'); 
+            });
+
+            const initialOrgId = new URLSearchParams(window.location.search).get('organization_id') || organizationFilterEl.val(); 
+            const initialDeptId = new URLSearchParams(window.location.search).get('department_id');
+            
+            if (initialOrgId && initialOrgId !== 'all' && initialOrgId !== '0') {
+                if (organizationFilterEl.val() !== initialOrgId) { 
+                    organizationFilterEl.val(initialOrgId);
+                }
+                updateReportDepartmentFilter(initialOrgId, initialDeptId || 'all');
+            } else {
+                 if (departmentFilterEl.length) departmentFilterEl.prop('disabled', true);
+                 if (departmentFilterHelpEl.length) departmentFilterHelpEl.show();
+            }
+        }
+        
         async function fetchTicketListReport(page = 1) {
             currentReportPage = page;
             const $loadingDiv = $('#ticketListReportLoading');
@@ -468,12 +527,9 @@
             const $paginationControls = $('#ticketListReportPagination');
             const $generateBtn = $('#generateReportBtn');
 
-            $loadingDiv.show();
-            $tableBody.empty();
-            $noDataDiv.hide();
+            $loadingDiv.show(); $tableBody.empty(); $noDataDiv.hide();
             $paginationControls.hide();
             $generateBtn.prop('disabled', true).find('i').removeClass('fa-cogs').addClass('fa-spinner fa-spin');
-
 
             const params = new URLSearchParams();
             params.append('page', page);
@@ -481,31 +537,45 @@
             
             if ($('#reportStartDate').val()) params.append('start_date', $('#reportStartDate').val());
             if ($('#reportEndDate').val()) params.append('end_date', $('#reportEndDate').val());
-            if ($('#reportFilterStatus').val() !== 'all') params.append('status', $('#reportFilterStatus').val());
-            if ($('#reportFilterPriority').val() !== 'all') params.append('priority', $('#reportFilterPriority').val());
-            if ($('#reportFilterCategory').val() !== 'all') params.append('category_id', $('#reportFilterCategory').val());
-            if ($('#reportFilterOrganization').val() !== 'all') params.append('organization_id', $('#reportFilterOrganization').val());
-            if ($('#reportFilterAgent').val() !== 'all') params.append('assigned_to_id', $('#reportFilterAgent').val());
+            
+            const statusVal = $('#reportFilterStatus').val(); if (statusVal !== 'all') params.append('status', statusVal);
+            const prioVal = $('#reportFilterPriority').val(); if (prioVal !== 'all') params.append('priority', prioVal);
+            const catVal = $('#reportFilterCategory').val(); if (catVal !== 'all' && catVal !== '0') params.append('category_id', catVal);
+            
+            const orgVal = $('#reportFilterOrganization').val(); 
+            if (orgVal !== 'all' && orgVal !== '0') {
+                params.append('organization_id', orgVal);
+                const deptVal = $('#reportFilterDepartment').val();
+                if (deptVal !== 'all' && deptVal !== '0' && !$('#reportFilterDepartment').prop('disabled')) {
+                    params.append('department_id', deptVal);
+                }
+            }
+            const agentVal = $('#reportFilterAgent').val(); if (agentVal !== 'all') params.append('assigned_to_id', agentVal);
 
             try {
                 const response = await fetch(`{{ url_for('api_report_ticket_list_data') }}?${params.toString()}`);
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP error ${response.status}: ${errorText.substring(0,100)}`);
+                    const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
                 const data = await response.json();
 
                 if (data.tickets && data.tickets.length > 0) {
                     data.tickets.forEach(ticket => {
+                        // Corrected and safer way to build view_ticket URL
+                        let viewTicketUrl = "{{ url_for('view_ticket', ticket_id=12345) }}"; // Use a unique placeholder
+                        viewTicketUrl = viewTicketUrl.replace('12345', ticket.id);
+
                         const row = `<tr>
-                            <td><a href="{{ url_for('view_ticket', ticket_id=0) }}${ticket.id}" target="_blank">${ticket.id}</a></td>
-                            <td>${escapeHtml(ticket.title)}</td>
-                            <td><span class="badge badge-pill badge-info">${escapeHtml(ticket.status)}</span></td>
-                            <td><span class="badge badge-pill badge-secondary">${escapeHtml(ticket.priority)}</span></td>
+                            <td><span class="badge badge-light">#${ticket.id}</span></td>
+                            <td class="ticket-title-cell"><a href="${viewTicketUrl}" target="_blank">${escapeHtml(ticket.title)}</a></td>
+                            <td><span class="status-badge status-${escapeHtml(ticket.status || '').toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(ticket.status)}</span></td>
+                            <td><span class="priority-badge priority-${escapeHtml(ticket.priority || '').toLowerCase()}">${escapeHtml(ticket.priority)}</span></td>
                             <td>${escapeHtml(ticket.category)}</td>
                             <td>${escapeHtml(ticket.created_by)}</td>
                             <td>${escapeHtml(ticket.assigned_to)}</td>
                             <td>${escapeHtml(ticket.organization)}</td>
+                            <td>${escapeHtml(ticket.department || 'N/A')}</td>
                             <td>${escapeHtml(ticket.created_at)}</td>
                             <td>${escapeHtml(ticket.updated_at)}</td>
                             <td>${escapeHtml(ticket.resolved_at)}</td>
@@ -521,35 +591,59 @@
                 }
             } catch (error) {
                 console.error("Error fetching ticket list report:", error);
-                $tableBody.html('<tr><td colspan="11" class="text-danger text-center py-4">Error loading report data. Please check console and try again.</td></tr>');
-                 $noDataDiv.hide(); // Hide no data if error occurred
+                $tableBody.html(`<tr><td colspan="12" class="text-danger text-center py-4">Error loading report data: ${escapeHtml(error.message)}. Please try again.</td></tr>`);
+                $noDataDiv.hide();
             } finally {
                 $loadingDiv.hide();
-                 $generateBtn.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin').addClass('fa-cogs');
+                $generateBtn.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin').addClass('fa-cogs');
             }
         }
         
         function escapeHtml(unsafe) {
             if (unsafe === null || typeof unsafe === 'undefined') return '';
-            return String(unsafe)
-                 .replace(/&/g, "&")
-                 .replace(/</g, "<")
-                 .replace(/>/g, ">")
-                 .replace(/"/g, '"')
-                 .replace(/'/g, "'");
+            return String(unsafe).replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">").replace(/"/g, '"').replace(/'/g, "'");
         }
 
         function getCurrentReportParams() {
             const params = new URLSearchParams();
             if ($('#reportStartDate').val()) params.append('start_date', $('#reportStartDate').val());
             if ($('#reportEndDate').val()) params.append('end_date', $('#reportEndDate').val());
-            if ($('#reportFilterStatus').val() !== 'all') params.append('status', $('#reportFilterStatus').val());
-            if ($('#reportFilterPriority').val() !== 'all') params.append('priority', $('#reportFilterPriority').val());
-            if ($('#reportFilterCategory').val() !== 'all') params.append('category_id', $('#reportFilterCategory').val());
-            if ($('#reportFilterOrganization').val() !== 'all') params.append('organization_id', $('#reportFilterOrganization').val());
-            if ($('#reportFilterAgent').val() !== 'all') params.append('assigned_to_id', $('#reportFilterAgent').val());
+            
+            const statusVal = $('#reportFilterStatus').val(); if (statusVal !== 'all') params.append('status', statusVal);
+            const prioVal = $('#reportFilterPriority').val(); if (prioVal !== 'all') params.append('priority', prioVal);
+            const catVal = $('#reportFilterCategory').val(); if (catVal !== 'all' && catVal !== '0') params.append('category_id', catVal);
+            
+            const orgVal = $('#reportFilterOrganization').val(); 
+            if (orgVal !== 'all' && orgVal !== '0') {
+                params.append('organization_id', orgVal);
+                const deptVal = $('#reportFilterDepartment').val();
+                if (deptVal !== 'all' && deptVal !== '0' && !$('#reportFilterDepartment').prop('disabled')) {
+                    params.append('department_id', deptVal);
+                }
+            }
+            const agentVal = $('#reportFilterAgent').val(); if (agentVal !== 'all') params.append('assigned_to_id', agentVal);
             return params.toString();
         }
+
+        $('#clearReportFiltersBtn').on('click', function() {
+            reportsFiltersForm[0].reset();
+            const defaultStart = moment().subtract(29, 'days');
+            const defaultEnd = moment();
+            $('#dateRangePickerDisplayReports span').html(defaultStart.format('MMM D, YYYY') + ' - ' + defaultEnd.format('MMM D, YYYY'));
+            $('#reportStartDate').val(defaultStart.format('YYYY-MM-DD'));
+            $('#reportEndDate').val(defaultEnd.format('YYYY-MM-DD'));
+            localStorage.setItem('reportsStartDate', defaultStart.format('YYYY-MM-DD'));
+            localStorage.setItem('reportsEndDate', defaultEnd.format('YYYY-MM-DD'));
+            
+            $('#reportFilterOrganization').val('all'); 
+            if (departmentFilterEl.length) { 
+                departmentFilterEl.empty().append($('<option>', { value: 'all', text: 'All Departments in Org' })).val('all').prop('disabled', true);
+            }
+            if (departmentFilterHelpEl.length) departmentFilterHelpEl.show();
+            $('#reportPerPage').val('25'); 
+            
+            fetchTicketListReport(1);
+        });
 
         $('#downloadCsvBtn').on('click', function(e) { e.preventDefault(); const p = getCurrentReportParams(); window.location.href = `{{ url_for('download_report_file', format='csv') }}?${p}`; });
         $('#downloadXlsxBtn').on('click', function(e) { e.preventDefault(); const p = getCurrentReportParams(); window.location.href = `{{ url_for('download_report_file', format='xlsx') }}?${p}`; });
@@ -596,11 +690,12 @@
         $('#reportNextPage').on('click', function() { fetchTicketListReport(currentReportPage + 1); });
         $('#reportPerPage').on('change', function() { fetchTicketListReport(1); });
 
+        // Filter panel collapse toggle
         const filtersPanelHeader = $('#reportsFiltersPanel .filters-panel-header');
         const filtersCollapseBody = $('#reportsFiltersCollapseBody');
         const toggleIcon = filtersPanelHeader.find('.toggle-icon');
         
-        filtersPanelHeader.on('click', function() { /* Bootstrap handles toggle via data-toggle */ });
+        // Use Bootstrap's event for collapse
         filtersCollapseBody.on('show.bs.collapse', function () {
             filtersPanelHeader.addClass('open');
             if(toggleIcon.length) { toggleIcon.removeClass('fa-chevron-down').addClass('fa-chevron-up'); }
@@ -608,6 +703,7 @@
             filtersPanelHeader.removeClass('open');
             if(toggleIcon.length) { toggleIcon.removeClass('fa-chevron-up').addClass('fa-chevron-down'); }
         });
+        // Initial state check
         if (filtersCollapseBody.hasClass('show')) { 
             filtersPanelHeader.addClass('open');
             if(toggleIcon.length) { toggleIcon.removeClass('fa-chevron-down').addClass('fa-chevron-up'); }
@@ -615,7 +711,7 @@
             if(toggleIcon.length) { toggleIcon.removeClass('fa-chevron-up').addClass('fa-chevron-down'); }
         }
         
-        fetchTicketListReport(1); // Initial load
+        fetchTicketListReport(1); // Initial load of the report data
     });
 </script>
 {% endblock %}

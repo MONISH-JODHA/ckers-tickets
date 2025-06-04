@@ -15,15 +15,17 @@
     {% set agent_views_active = request.endpoint == 'agent_ticket_list' or request.endpoint == 'agent_kanban_board' %}
     {% set tools_active = request.endpoint in ['gdoc_importer_page', 'chatbot_page_render'] %}
     {% set administration_active = request.endpoint in ['admin_user_list', 'admin_all_tickets', 'analytics_dashboard_page'] %}
-    
-    {# UPDATED: kb_management_active now includes public KB views for admins #}
     {% set kb_management_active = request.endpoint in ['admin_kb_category_list', 'admin_kb_article_list', 'kb_category_view', 'kb_article_view'] %}
-
+    {% set reports_active = request.endpoint.startswith('reports_') or request.endpoint == 'reports_overview' %}
     {% set system_options_active = request.endpoint in [
         'admin_category_list', 'admin_cloud_provider_list', 'admin_severity_list', 
         'admin_environment_list', 'admin_organization_list', 'admin_form_type_list', 
         'admin_apn_opportunity_list', 'admin_support_modal_list'
     ] %}
+
+    {# --- NEW: Variable to check if "Company/Org Tickets" link should be active --- #}
+    {% set company_org_tickets_active = request.endpoint == 'tickets_overview' %}
+
 
     <div class="app-layout">
         <nav class="app-sidebar" id="appSidebar">
@@ -49,12 +51,29 @@
                         </a>
                     </li>
                      <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'my_tickets' and current_user.is_client %}active{% endif %}" href="{{ url_for('my_tickets') }}">
-                            <i class="fas fa-list-ul fa-fw"></i><span class="sidebar-item-text">My Tickets</span>
+                        {# "My Tickets" now refers to "My Submitted Tickets" which is correct #}
+                        <a class="nav-link {% if request.endpoint == 'my_tickets' %}active{% endif %}" href="{{ url_for('my_tickets') }}">
+                            <i class="fas fa-list-ul fa-fw"></i><span class="sidebar-item-text">My Submitted Tickets</span>
                         </a>
                     </li>
 
-                    {# --- Accordion Item: AGENT VIEWS --- (No change here) #}
+                    {# --- NEW: Conditional Links for Company/Organization Tickets --- #}
+                    {% if current_user.role == 'client' and current_user.department_id %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if company_org_tickets_active %}active{% endif %}" href="{{ url_for('tickets_overview') }}">
+                                <i class="fas fa-building fa-fw"></i><span class="sidebar-item-text">Company Tickets</span>
+                            </a>
+                        </li>
+                    {% elif current_user.role == 'organization_client' and current_user.organization_id %}
+                         <li class="nav-item">
+                            <a class="nav-link {% if company_org_tickets_active %}active{% endif %}" href="{{ url_for('tickets_overview') }}">
+                                <i class="fas fa-sitemap fa-fw"></i><span class="sidebar-item-text">Organization Tickets</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                    {# --- END NEW --- #}
+                    
+                    {# --- Accordion Item: AGENT VIEWS --- #}
                     {% if current_user.is_agent or current_user.is_admin %}
                     <li class="nav-item accordion-item">
                         <a class="nav-link accordion-toggle {% if agent_views_active %}active-parent open{% endif %}" 
@@ -68,7 +87,6 @@
                         <div class="collapse sub-nav-collapse {% if agent_views_active %}show{% endif %}" 
                              id="agentViewsCollapse" data-parent="#sidebarAccordion">
                             <ul class="nav flex-column">
-                                {# ... agent view sub-links ... #}
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'agent_ticket_list' and request.view_args.get('view_name') == 'my_unsolved' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='my_unsolved') }}"><i class="fas fa-user-clock fa-fw sub-icon"></i>My Unsolved</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'agent_ticket_list' and request.view_args.get('view_name') == 'unassigned' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='unassigned') }}"><i class="fas fa-inbox fa-fw sub-icon"></i>Unassigned</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'agent_ticket_list' and request.view_args.get('view_name') == 'all_unsolved' %}active{% endif %}" href="{{ url_for('agent_ticket_list', view_name='all_unsolved') }}"><i class="fas fa-folder-open fa-fw sub-icon"></i>All Unsolved</a></li>
@@ -82,7 +100,7 @@
                     </li>
                     {% endif %}
 
-                    {# --- Accordion Item: TOOLS --- (No change here) #}
+                    {# --- Accordion Item: TOOLS --- #}
                     <li class="nav-item accordion-item">
                         <a class="nav-link accordion-toggle {% if tools_active %}active-parent open{% endif %}" 
                            data-toggle="collapse" href="#toolsCollapse" role="button" 
@@ -101,10 +119,45 @@
                         </div>
                     </li>
 
-                    {# --- REMOVED Old KNOWLEDGE BASE (Public Facing) Accordion Item --- #}
+                    {# --- Accordion Item: KNOWLEDGE BASE (Visible to all authenticated users) --- #}
+                     <li class="nav-item accordion-item">
+                        <a class="nav-link accordion-toggle {% if kb_management_active %}active-parent open{% endif %}"
+                           data-toggle="collapse" href="#kbManagementCollapse" role="button" 
+                           aria-expanded="{% if kb_management_active %}true{% else %}false{% endif %}"
+                           aria-controls="kbManagementCollapse">
+                            <i class="fas fa-book-open fa-fw"></i>
+                            <span class="sidebar-item-text">Knowledge Base</span>
+                            <i class="fas fa-chevron-down fa-xs ml-auto expand-icon"></i>
+                        </a>
+                        <div class="collapse sub-nav-collapse {% if kb_management_active %}show{% endif %}"
+                             id="kbManagementCollapse" data-parent="#sidebarAccordion">
+                            <ul class="nav flex-column">
+                               {# Viewing Links - Visible to all authenticated users #}
+                               <li class="nav-item nav-item-heading sub-heading"><small>VIEW KB</small></li>
+                               <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'kb_category_view' and not request.view_args.get('slug') %}active{% endif %}" href="{{ url_for('kb_category_view') }}"><i class="fas fa-book-reader fa-fw sub-icon"></i>All Articles</a></li>
+                                {% if kb_nav_categories %}
+                                    {% for cat_nav in kb_nav_categories %}
+                                    <li class="nav-item">
+                                        <a class="nav-link sub-nav-link {% if request.endpoint == 'kb_category_view' and request.view_args.get('slug') == cat_nav.slug %}active{% endif %}" 
+                                           href="{{ url_for('kb_category_view', slug=cat_nav.slug) }}">
+                                           <i class="fas fa-folder fa-fw sub-icon"></i>{{ cat_nav.name }}
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                {% endif %}
+
+                               {# Management Links - Visible only to Agents and Admins #}
+                               {% if current_user.is_agent or current_user.is_admin %}
+                                   <li class="nav-item nav-item-heading sub-heading" style="margin-top: 0.5rem;"><small>MANAGE KB</small></li>
+                                   <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_kb_category_list' %}active{% endif %}" href="{{ url_for('admin_kb_category_list') }}"><i class="fas fa-sitemap fa-fw sub-icon"></i>KB Categories</a></li>
+                                   <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_kb_article_list' %}active{% endif %}" href="{{ url_for('admin_kb_article_list') }}"><i class="fas fa-book fa-fw sub-icon"></i>KB Articles</a></li>
+                               {% endif %}
+                            </ul>
+                        </div>
+                    </li>
                     
                     {% if current_user.is_admin %}
-                    {# --- Accordion Item: ADMINISTRATION --- (No change here) #}
+                    {# --- Accordion Item: ADMINISTRATION --- #}
                     <li class="nav-item accordion-item">
                         <a class="nav-link accordion-toggle {% if administration_active %}active-parent open{% endif %}" 
                            data-toggle="collapse" href="#adminCollapse" role="button" 
@@ -123,16 +176,18 @@
                             </ul>
                         </div>
                     </li>
-                    <li class="nav-item accordion-item"> {# Make it an accordion item if it will have sub-reports #}
-                        <a class="nav-link accordion-toggle {% if request.endpoint.startswith('reports_') %}active-parent open{% endif %}"
+                    
+                    {# --- Accordion Item: REPORTS --- #}
+                    <li class="nav-item accordion-item"> 
+                        <a class="nav-link accordion-toggle {% if reports_active %}active-parent open{% endif %}"
                             data-toggle="collapse" href="#reportsCollapse" role="button"
-                            aria-expanded="{% if request.endpoint.startswith('reports_') %}true{% else %}false{% endif %}"
+                            aria-expanded="{% if reports_active %}true{% else %}false{% endif %}"
                             aria-controls="reportsCollapse">
                             <i class="fas fa-file-alt fa-fw"></i>
                             <span class="sidebar-item-text">Reports</span>
                             <i class="fas fa-chevron-down fa-xs ml-auto expand-icon"></i>
                         </a>
-                        <div class="collapse sub-nav-collapse {% if request.endpoint.startswith('reports_') %}show{% endif %}"
+                        <div class="collapse sub-nav-collapse {% if reports_active %}show{% endif %}"
                                 id="reportsCollapse" data-parent="#sidebarAccordion">
                             <ul class="nav flex-column">
                                 <li class="nav-item">
@@ -141,45 +196,11 @@
                                     </a>
                                 </li>
                                 {# Add more sub-links here for other predefined reports as you create them #}
-                                {# e.g., <li class="nav-item"><a class="nav-link sub-nav-link" href="#">Agent Performance</a></li> #}
-                            </ul>
-                        </div>
-                    </li>
-                    {# --- Accordion Item: KB MANAGEMENT (Now includes viewing links) --- #}
-                     <li class="nav-item accordion-item">
-                        <a class="nav-link accordion-toggle {% if kb_management_active %}active-parent open{% endif %}"
-                           data-toggle="collapse" href="#kbManagementCollapse" role="button" {# Changed ID #}
-                           aria-expanded="{% if kb_management_active %}true{% else %}false{% endif %}"
-                           aria-controls="kbManagementCollapse"> {# Changed ID #}
-                            <i class="fas fa-book-open fa-fw"></i> {# More general icon #}
-                            <span class="sidebar-item-text">Knowledge Base</span> {# Renamed for clarity #}
-                            <i class="fas fa-chevron-down fa-xs ml-auto expand-icon"></i>
-                        </a>
-                        <div class="collapse sub-nav-collapse {% if kb_management_active %}show{% endif %}"
-                             id="kbManagementCollapse" data-parent="#sidebarAccordion"> {# Changed ID #}
-                            <ul class="nav flex-column">
-                               {# Viewing Links - moved here #}
-                               <li class="nav-item nav-item-heading sub-heading"><small>VIEW KB</small></li>
-                               <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'kb_category_view' and not request.view_args.get('slug') %}active{% endif %}" href="{{ url_for('kb_category_view') }}"><i class="fas fa-book-reader fa-fw sub-icon"></i>All Articles</a></li>
-                                {% if kb_nav_categories %}
-                                    {% for cat_nav in kb_nav_categories %}
-                                    <li class="nav-item">
-                                        <a class="nav-link sub-nav-link {% if request.endpoint == 'kb_category_view' and request.view_args.get('slug') == cat_nav.slug %}active{% endif %}" 
-                                           href="{{ url_for('kb_category_view', slug=cat_nav.slug) }}">
-                                           <i class="fas fa-folder fa-fw sub-icon"></i>{{ cat_nav.name }}
-                                        </a>
-                                    </li>
-                                    {% endfor %}
-                                {% endif %}
-                               {# Admin Management Links #}
-                               <li class="nav-item nav-item-heading sub-heading" style="margin-top: 0.5rem;"><small>MANAGE KB</small></li>
-                               <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_kb_category_list' %}active{% endif %}" href="{{ url_for('admin_kb_category_list') }}"><i class="fas fa-sitemap fa-fw sub-icon"></i>KB Categories</a></li>
-                               <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_kb_article_list' %}active{% endif %}" href="{{ url_for('admin_kb_article_list') }}"><i class="fas fa-book fa-fw sub-icon"></i>KB Articles</a></li>
                             </ul>
                         </div>
                     </li>
 
-                    {# --- Accordion Item: SYSTEM OPTIONS --- (No change here) #}
+                    {# --- Accordion Item: SYSTEM OPTIONS --- #}
                     <li class="nav-item accordion-item">
                         <a class="nav-link accordion-toggle {% if system_options_active %}active-parent open{% endif %}" 
                            data-toggle="collapse" href="#systemOptionsCollapse" role="button" 
@@ -192,12 +213,12 @@
                         <div class="collapse sub-nav-collapse {% if system_options_active %}show{% endif %}" 
                              id="systemOptionsCollapse" data-parent="#sidebarAccordion">
                             <ul class="nav flex-column">
-                                {# ... system options sub-links ... #}
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_category_list' %}active{% endif %}" href="{{ url_for('admin_category_list') }}">Categories</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_cloud_provider_list' %}active{% endif %}" href="{{ url_for('admin_cloud_provider_list') }}">Cloud Providers</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_severity_list' %}active{% endif %}" href="{{ url_for('admin_severity_list') }}">Severities</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_environment_list' %}active{% endif %}" href="{{ url_for('admin_environment_list') }}">Environments</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_organization_list' %}active{% endif %}" href="{{ url_for('admin_organization_list') }}">Organizations</a></li>
+                                <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_department_list' %}active{% endif %}" href="{{ url_for('admin_department_list') }}">Departments</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_form_type_list' %}active{% endif %}" href="{{ url_for('admin_form_type_list') }}">Dificulty-level</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_apn_opportunity_list' %}active{% endif %}" href="{{ url_for('admin_apn_opportunity_list') }}">APN Opportunities</a></li>
                                 <li class="nav-item"><a class="nav-link sub-nav-link {% if request.endpoint == 'admin_support_modal_list' %}active{% endif %}" href="{{ url_for('admin_support_modal_list') }}">Support Modals</a></li>
@@ -289,37 +310,35 @@
                 if (!$(e.target).is('.collapse')) {
                     return;
                 }
-                sidebarAccordion.find('.collapse.show').not(this).collapse('hide');
+                // Do not hide other open sections when one is shown
+                // sidebarAccordion.find('.collapse.show').not(this).collapse('hide'); 
             });
 
             sidebarAccordion.on('shown.bs.collapse', '.collapse', function (e) {
                 if (!$(e.target).is('.collapse')) {
                     return;
                 }
-                $(this).prev('.accordion-toggle').addClass('open').removeClass('collapsed'); // Ensure .open and remove .collapsed
-                 // Update aria-expanded for the toggle that was just opened
+                $(this).prev('.accordion-toggle').addClass('open').removeClass('collapsed');
                 $(this).prev('.accordion-toggle').attr('aria-expanded', 'true');
             });
             sidebarAccordion.on('hidden.bs.collapse', '.collapse', function (e) {
                  if (!$(e.target).is('.collapse')) {
                     return;
                 }
-                $(this).prev('.accordion-toggle').removeClass('open').addClass('collapsed'); // Add .collapsed
-                // Update aria-expanded for the toggle that was just closed
+                $(this).prev('.accordion-toggle').removeClass('open').addClass('collapsed');
                 $(this).prev('.accordion-toggle').attr('aria-expanded', 'false');
             });
     
-            // Initialize 'open' class and aria-expanded for accordion toggles based on Jinja 'active-parent open'
+            // Initialize 'open' class and aria-expanded for accordion toggles based on Jinja active state
             sidebarAccordion.find('.accordion-toggle').each(function(){
-                if ($(this).hasClass('open') || $(this).hasClass('active-parent')) {
-                    $(this).attr('aria-expanded', 'true').removeClass('collapsed');
-                     // Ensure corresponding collapse div has 'show' if toggle has 'open'
-                    const targetCollapseId = $(this).attr('href');
-                    if (targetCollapseId) {
-                        $(targetCollapseId).addClass('show');
+                const targetCollapseId = $(this).attr('href');
+                if ($(this).hasClass('active-parent') || $(this).hasClass('open') || (targetCollapseId && $(targetCollapseId).hasClass('show'))) {
+                    $(this).attr('aria-expanded', 'true').removeClass('collapsed').addClass('open');
+                     if (targetCollapseId) {
+                        $(targetCollapseId).addClass('show'); 
                     }
                 } else {
-                    $(this).attr('aria-expanded', 'false').addClass('collapsed');
+                    $(this).attr('aria-expanded', 'false').addClass('collapsed').removeClass('open');
                 }
             });
     
