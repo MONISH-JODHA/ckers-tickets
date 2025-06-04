@@ -195,6 +195,16 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 # --- Models ---
+# In app.py
+
+# Ensure these imports are at the top of your app.py
+from itsdangerous import URLSafeTimedSerializer as Serializer 
+from flask import current_app # Should already be there
+# from flask_sqlalchemy import SQLAlchemy # Should already be there
+# from flask_login import UserMixin # Should already be there
+# from werkzeug.security import generate_password_hash, check_password_hash # Should already be there
+# from . import db # Assuming db is initialized in __init__.py or globally in app.py
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -213,8 +223,11 @@ class User(UserMixin, db.Model):
     tickets_assigned = db.relationship('Ticket', foreign_keys='Ticket.assigned_to_id', backref='assignee', lazy='dynamic')
     comments = db.relationship('Comment', backref='author', lazy='dynamic')
 
-    def set_password(self, password): self.password_hash = generate_password_hash(password)
-    def check_password(self, password): return check_password_hash(self.password_hash or "", password)
+    def set_password(self, password): 
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password): 
+        return check_password_hash(self.password_hash or "", password)
 
     @property
     def is_admin(self): return self.role == 'admin'
@@ -225,13 +238,32 @@ class User(UserMixin, db.Model):
     @property
     def is_department_client(self): return self.role == 'client' and self.department_id is not None
     @property
-    def is_organization_client(self): return self.role == 'organization_client' or (self.role == 'client' and self.organization_id and not self.department_id)
+    def is_organization_client(self): 
+        # An OrgClient has role 'organization_client' OR they are 'client' with an org but no specific dept (less common setup)
+        return self.role == 'organization_client' or \
+               (self.role == 'client' and self.organization_id and not self.department_id)
 
 
     def get_organization_name(self): return self.organization.name if self.organization else None
     def get_department_name(self): return self.department.name if self.department else None
+    
     def __repr__(self): return f'<User {self.username} ({self.role})>'
 
+    # --- Password Reset Token Methods ---
+    def get_reset_password_token(self, expires_sec=1800): # Token expires in 30 minutes
+        s = Serializer(current_app.config['SECRET_KEY'])
+        return s.dumps({'user_id': self.id})
+
+    @staticmethod
+    def verify_reset_password_token(token, expires_sec=1800):
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token, max_age=expires_sec)
+            user_id = data.get('user_id')
+        except Exception as e: 
+            current_app.logger.warning(f"Password reset token verification failed: {e}")
+            return None
+        return db.session.get(User, user_id)
 
 class Category(db.Model):
     __tablename__ = 'categories'
@@ -769,13 +801,9 @@ def assign_ticket_page(ticket_id):
 
 
 
+# In app.py - --- Routes --- section
 
-
-
-
-
-
-
+# I
 
 
 
@@ -1023,6 +1051,16 @@ def register_agent():
     return render_template('register_user.html', title='Register New Agent', form=form, registration_type='Agent', info_text='Register new support agents to assist clients.')
 
 
+
+
+
+
+
+
+
+
+
+
 # ... (other imports and code) ...
 
 @app.route('/dashboard')
@@ -1133,6 +1171,106 @@ def dashboard():
         page_title = 'My Dashboard'
         my_tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(Ticket.updated_at.desc()).limit(10).all()
         return render_template('dashboard.html', title=page_title, my_tickets=my_tickets)
+
+
+
+
+
+
+
+# In app.py - --- Forms --- section
+
+class RequestPasswordResetForm(FlaskForm):
+    email = StringField('Email Address', validators=[DataRequired(), Email(), Length(max=120)])
+    submit = SubmitField('Request Password Reset')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data.lower()).first()
+        if not user:
+            # Don't reveal if email exists for security, but log it for admin
+            current_app.logger.info(f"Password reset request for non-existent email: {email.data}")
+            # Raise a generic error or just let it pass and show a generic success message
+            # For better UX, sometimes a generic "If that email is in our system..." message is shown
+            # For now, we'll just proceed and show success if no errors
+            pass 
+            # raise ValidationError('There is no account with that email. You must register first.')
+
+
+class PasswordResetForm(FlaskForm):
+    password = PasswordField('New Password', validators=[DataRequired(), Length(min=6)])
+    password2 = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Reset Password')
+
+
+
+
+def send_password_reset_email(user):
+    token = user.get_reset_password_token()
+    # Ensure you have MAIL_DEFAULT_SENDER_EMAIL configured or fallback
+    sender_email = current_app.config.get('MAIL_DEFAULT_SENDER_EMAIL') or current_app.config.get('MAIL_USERNAME')
+    if not sender_email:
+        current_app.logger.error("MAIL_DEFAULT_SENDER_EMAIL or MAIL_USERNAME not configured. Cannot send password reset email.")
+        return False
+
+    msg = Message('Password Reset Request - Ticket CMS',
+                  sender=('TicketSys Admin', sender_email), # Use tuple for sender name and email
+                  recipients=[user.email])
+    reset_url = url_for('reset_password_with_token', token=token, _external=True)
+    msg.body = f'''To reset your password, visit the following link:
+{reset_url}
+
+If you did not make this request then simply ignore this email and no changes will be made.
+This link will expire in 30 minutes.
+'''
+    # Optional: Create an HTML version (msg.html)
+    # msg.html = render_template('email/reset_password_email.html', user=user, reset_url=reset_url)
+    try:
+        mail.send(msg)
+        current_app.logger.info(f"Password reset email sent to {user.email}")
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Failed to send password reset email to {user.email}: {e}", exc_info=True)
+        return False
+
+
+@app.route('/reset_password_request', methods=['GET', 'POST'])
+def reset_password_request():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    form = RequestPasswordResetForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data.lower()).first()
+        if user:
+            if send_password_reset_email(user):
+                flash('An email has been sent with instructions to reset your password.', 'info')
+            else:
+                flash('There was an issue sending the password reset email. Please try again later or contact support.', 'danger')
+        else:
+            # To prevent email enumeration, show a generic success message even if email not found.
+            # Log the attempt for admin review.
+            current_app.logger.info(f"Password reset requested for non-existent or unverified email: {form.email.data}")
+            flash('If an account with that email exists, instructions to reset your password have been sent.', 'info')
+        return redirect(url_for('login')) # Always redirect to login to obscure if email was valid
+    return render_template('auth/request_reset.html', title='Reset Password Request', form=form)
+
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password_with_token(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    user = User.verify_reset_password_token(token)
+    if not user:
+        flash('That is an invalid or expired token. Please request a new one.', 'warning')
+        return redirect(url_for('reset_password_request'))
+    
+    form = PasswordResetForm()
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        db.session.commit()
+        log_interaction(None, 'PASSWORD_RESET_COMPLETED', user_id=user.id, details={'username': user.username}) # Log to general system log or user activity if ticket_id is None
+        flash('Your password has been reset successfully! You can now log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('auth/reset_password.html', title='Reset Your Password', form=form, token=token)
 
 
 

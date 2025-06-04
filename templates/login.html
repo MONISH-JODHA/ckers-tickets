@@ -2,48 +2,47 @@
 {% set title = "Login" %}
 
 {% block head_extra %}
+{{ super() }}
 <style>
     :root {
         /* Re-establishing key variables for this page, can be same as style.css */
-        --primary-color: #1f73b7;
-        --primary-color-darker: #165a91;
-        --primary-color-lighter: #5fa8d3;
-        --primary-color-rgb: 31, 115, 183;
+        --primary-color: {{ app.config.get('THEME_PRIMARY_COLOR', '#1f73b7') }}; /* Using your example color */
+        --primary-color-darker: {{ app.config.get('THEME_PRIMARY_DARKER', '#165a91') }};
+        --primary-color-lighter: {{ app.config.get('THEME_PRIMARY_LIGHTER', '#5fa8d3') }};
+        --primary-color-rgb: {{ app.config.get('THEME_PRIMARY_RGB', '31,115,183') }};
 
         --text-primary-dark: #111827; 
         --text-secondary-muted: #6b7280; 
         --text-on-primary: #ffffff;
 
-        --page-content-bg: #f9fafb; /* Matches --content-bg from style.css */
+        --page-content-bg: #f9fafb; 
         --card-bg: #ffffff;
-        --card-border-color: #e0e6f0; /* Softer border */
+        --card-border-color: #e0e6f0; 
         --input-border-color: #ced4da;
         --input-focus-border-color: var(--primary-color);
         --input-focus-box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
+        --danger-color: #dc3545; /* For invalid fields */
+
 
         --border-radius: .375rem;
         --border-radius-lg: .5rem;
         
-        --box-shadow-card: 0 8px 25px rgba(0,0,0,0.1); /* Softer, more spread shadow */
+        --box-shadow-card: 0 8px 25px rgba(0,0,0,0.1); 
         --box-shadow-button-hover: 0 4px 15px -2px rgba(var(--primary-color-rgb), 0.35);
         
         --transition-smooth: all 0.3s ease;
     }
 
-    /* Apply page background if not already set by base.html body */
-    .app-content { /* Assuming this is the direct parent of login card's row */
+    .app-content { 
         background-color: var(--page-content-bg);
-        /* Use flex to center card vertically IF desired, and if app-content can take full height */
-        /* display: flex; */
-        /* align-items: center; */
-        /* min-height: calc(100vh - var(--app-header-height, 60px) - var(--app-footer-height, 50px)); */
-        /* The mt-5 on row already pushes it down, so vertical centering might not be needed */
     }
 
     .login-card-wrapper {
-        max-width: 480px; /* Control max width of the card */
-        margin-top: 3rem; /* Adjust top margin as needed */
+        max-width: 480px; 
+        margin-top: 3rem; 
         margin-bottom: 3rem;
+        margin-left: auto;
+        margin-right: auto;
         opacity: 0;
         transform: translateY(20px);
         animation: fadeInUp 0.6s 0.2s ease-out forwards;
@@ -60,14 +59,14 @@
         border: 1px solid var(--card-border-color);
         border-radius: var(--border-radius-lg);
         box-shadow: var(--box-shadow-card);
-        overflow: hidden; /* Ensures header gradient doesn't bleed past border-radius */
+        overflow: hidden; 
     }
 
     .login-card .card-header {
         background: linear-gradient(135deg, var(--primary-color-darker) 0%, var(--primary-color) 100%);
         color: var(--text-on-primary);
-        padding: 1.5rem 1rem; /* Increased padding */
-        border-bottom: none; /* Remove default border if gradient is used */
+        padding: 1.5rem 1rem; 
+        border-bottom: none; 
     }
     .login-card .card-header h2 {
         font-weight: 600;
@@ -76,7 +75,7 @@
     }
 
     .login-card .card-body {
-        padding: 2rem 2.5rem; /* More padding inside card body */
+        padding: 2rem 2.5rem; 
     }
 
     .form-control-label {
@@ -86,7 +85,7 @@
         margin-bottom: 0.5rem;
     }
 
-    .form-control-lg { /* Customizing Bootstrap's large form controls */
+    .form-control-lg { 
         border-radius: var(--border-radius);
         border: 1px solid var(--input-border-color);
         padding: 0.75rem 1rem;
@@ -96,13 +95,13 @@
     .form-control-lg:focus {
         border-color: var(--input-focus-border-color);
         box-shadow: var(--input-focus-box-shadow);
-        background-color: #fff; /* Ensure background stays white on focus */
+        background-color: #fff; 
     }
     .form-control-lg.is-invalid {
-        border-color: var(--danger-color, #dc3545); /* Fallback red */
+        border-color: var(--danger-color); 
     }
     .form-control-lg.is-invalid:focus {
-        box-shadow: 0 0 0 0.2rem rgba(var(--danger-color, 220, 53, 69), 0.25);
+        box-shadow: 0 0 0 0.2rem rgba(var(--danger-color, 220, 53, 69), 0.25); /* Fallback RGB for danger */
     }
 
 
@@ -121,7 +120,7 @@
         box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
     }
 
-    .btn-login { /* Custom class for login button for more specific styling */
+    .btn-login { 
         background-color: var(--primary-color);
         border-color: var(--primary-color);
         color: var(--text-on-primary);
@@ -150,7 +149,7 @@
     }
 
     .login-card .card-footer {
-        background-color: var(--page-content-bg); /* Light background for footer */
+        background-color: var(--page-content-bg); 
         border-top: 1px solid var(--card-border-color);
         padding: 1.25rem;
     }
@@ -166,14 +165,17 @@
         color: var(--primary-color-darker);
         text-decoration: underline;
     }
+    .forgot-password-link { /* Specific class for forgot password link */
+        font-size: 0.875rem; /* Match other small text if needed */
+    }
 
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center"> {# Removed mt-5, using wrapper for margin #}
-    <div class="col-md-8 col-lg-6 login-card-wrapper"> {# Adjusted col-* for better responsiveness and max-width control via wrapper #}
-        <div class="card login-card"> {# Removed shadow-sm, using custom shadow #}
+<div class="row justify-content-center">
+    <div class="col-11 col-sm-10 col-md-8 col-lg-6 login-card-wrapper"> 
+        <div class="card login-card"> 
             <div class="card-header text-center">
                 <h2 class="mb-0">{{ title }}</h2>
             </div>
@@ -181,7 +183,7 @@
                 <form method="POST" action="{{ url_for('login') }}" novalidate>
                     {{ form.hidden_tag() }}
 
-                    <div class="form-group mb-4"> {# Increased bottom margin #}
+                    <div class="form-group mb-4"> 
                         {{ form.username.label(class="form-control-label") }}
                         {% if form.username.errors %}
                             {{ form.username(class="form-control form-control-lg is-invalid", placeholder="e.g., johndoe") }}
@@ -193,7 +195,7 @@
                         {% endif %}
                     </div>
 
-                    <div class="form-group mb-4"> {# Increased bottom margin #}
+                    <div class="form-group mb-3"> {# Reduced margin a bit for forgot password link #}
                         {{ form.password.label(class="form-control-label") }}
                         {% if form.password.errors %}
                             {{ form.password(class="form-control form-control-lg is-invalid", placeholder="••••••••") }}
@@ -205,15 +207,19 @@
                         {% endif %}
                     </div>
 
-                    <div class="form-group form-check mb-4"> {# Increased bottom margin #}
-                        {{ form.remember_me(class="form-check-input") }}
-                        {{ form.remember_me.label(class="form-check-label") }}
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div class="form-group form-check mb-0"> {# Remove bottom margin from form-check #}
+                            {{ form.remember_me(class="form-check-input") }}
+                            {{ form.remember_me.label(class="form-check-label") }}
+                        </div>
+                        <div class="forgot-password-link">
+                            <small><a href="{{ url_for('reset_password_request') }}">Forgot Password?</a></small>
+                        </div>
                     </div>
 
+
                     <div class="form-group mt-4">
-                        {{ form.submit(class="btn btn-lg btn-login w-100") }} {# Added btn-login, removed btn-primary and btn-block #}
-                        {# Example with icon: #}
-                        {# <button type="submit" class="btn btn-lg btn-login w-100"><i class="fas fa-sign-in-alt"></i> Login</button> #}
+                        {{ form.submit(class="btn btn-lg btn-login w-100") }}
                     </div>
                 </form>
             </div>
