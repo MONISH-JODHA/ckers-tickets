@@ -1485,89 +1485,109 @@ def api_report_ticket_list_data():
 def create_ticket():
     form = CreateTicketForm() # Uses updated form without direct customer_name/support_modal input
 
-    # Populate static choices for dropdowns
+    # --- ALWAYS POPULATE CHOICES for fields not dependent on other form inputs directly for their *choices list* ---
     form.category.choices = get_active_category_choices()
     form.cloud_provider.choices = get_active_cloud_provider_choices()
     form.severity.choices = get_active_severity_choices()
     form.environment.choices = get_active_environment_choices()
     form.form_type_id.choices = get_active_form_type_choices()
-    # form.support_modal_id was removed from CreateTicketForm
+    # form.aws_service.choices are static in its definition.
+    # form.request_call_back.choices are static in its definition.
 
-    # User-specific context for form rendering and logic
     user_org = current_user.organization
-    user_dept = current_user.department # This is the "Company" for a 'client' role user
+    user_dept = current_user.department
 
-    # Flags for template conditional rendering (MUST be Python booleans)
+    # --- Dynamically set choices for organization_id and department_id ---
+    # This needs to happen for ALL request methods (GET/POST) before validation.
+
+    # 1. Set choices for organization_id
+    if current_user.role == 'client' and user_dept and user_org:
+        form.organization_id.choices = [(user_org.id, user_org.name)]
+    elif current_user.role == 'organization_client' and user_org:
+        form.organization_id.choices = [(user_org.id, user_org.name)]
+    else: # Admin, Agent, or client not fully associated
+        form.organization_id.choices = get_active_organization_choices()
+
+    # 2. Set choices for department_id based on the context (user role and organization selection)
+    org_id_for_department_choices = None
+    if current_user.role == 'client' and user_dept and user_org:
+        form.department_id.choices = [(user_dept.id, user_dept.name)]
+        # org_id_for_department_choices is implicitly user_org.id here
+    elif current_user.role == 'organization_client' and user_org:
+        form.department_id.choices = get_active_department_choices_for_org(user_org.id)
+        org_id_for_department_choices = user_org.id
+    else: # Admin/Agent: department choices depend on the selected organization_id
+        # For POST: use the submitted value of organization_id from request.form
+        # For GET: use form.organization_id.data if pre-filled, else None
+        if request.method == 'POST':
+            submitted_org_id_str = request.form.get(form.organization_id.name)
+            if submitted_org_id_str and submitted_org_id_str.isdigit() and int(submitted_org_id_str) != 0:
+                org_id_for_department_choices = int(submitted_org_id_str)
+        elif request.method == 'GET': # If form was pre-populated (e.g. edit, or failed POST re-render)
+            if form.organization_id.data and form.organization_id.data != 0:
+                org_id_for_department_choices = form.organization_id.data
+        
+        form.department_id.choices = get_active_department_choices_for_org(org_id_for_department_choices)
+
+    # --- User-specific context for form rendering and initial data population on GET ---
     render_org_as_readonly = False
     render_dept_as_readonly = False
-    template_org_name = None  # For displaying readonly org name
-    template_dept_name = None # For displaying readonly dept name
-    derived_customer_name_for_template = None # For display since customer_name field is removed
+    template_org_name = None
+    template_dept_name = None
+    derived_customer_name_for_template = None
 
     if request.method == 'GET':
         if current_user.role == 'client' and user_dept and user_org:
-            # Standard Client (tied to a specific Department/Company)
-            form.organization_id.choices = [(user_org.id, user_org.name)]
-            form.organization_id.data = user_org.id
-            form.department_id.choices = [(user_dept.id, user_dept.name)]
-            form.department_id.data = user_dept.id
-            
-            render_org_as_readonly = True
-            template_org_name = user_org.name
-            render_dept_as_readonly = True
-            template_dept_name = user_dept.name
+            form.organization_id.data = user_org.id # Pre-fill data
+            form.department_id.data = user_dept.id   # Pre-fill data
+            render_org_as_readonly = True; template_org_name = user_org.name
+            render_dept_as_readonly = True; template_dept_name = user_dept.name
             derived_customer_name_for_template = user_dept.name
-
         elif current_user.role == 'organization_client' and user_org:
-            # Organization Client (Organization is fixed, Department/Company is selectable within their Org)
-            form.organization_id.choices = [(user_org.id, user_org.name)]
-            form.organization_id.data = user_org.id
-            form.department_id.choices = get_active_department_choices_for_org(user_org.id)
-            # Department_id.data is not pre-set; they choose a company.
-            
-            render_org_as_readonly = True
-            template_org_name = user_org.name
-            render_dept_as_readonly = False # Department IS SELECTABLE
-            # template_dept_name is not set as it's a select field
-            derived_customer_name_for_template = user_org.name # Default to Org name initially
-
+            form.organization_id.data = user_org.id # Pre-fill data
+            # department_id.data is not pre-set; they choose.
+            render_org_as_readonly = True; template_org_name = user_org.name
+            render_dept_as_readonly = False
+            derived_customer_name_for_template = user_org.name
         else: # Admin, Agent, or a Client not yet fully associated
-            form.organization_id.choices = get_active_organization_choices()
-            # If form.organization_id.data is already set (e.g., from a previous failed POST), use it
-            selected_org_for_dept_choices = form.organization_id.data if form.organization_id.data and form.organization_id.data != 0 else None
-            form.department_id.choices = get_active_department_choices_for_org(selected_org_for_dept_choices)
             render_org_as_readonly = False 
-            render_dept_as_readonly = False 
-            # derived_customer_name will be based on selection if any, or a general prompt
+            render_dept_as_readonly = False
+            # `derived_customer_name_for_template` will be based on selection or prompt in template.
+            # No .data pre-fill for org/dept for Admin/Agent on new GET
 
     if form.validate_on_submit():
         ticket_org_id = None
         ticket_dept_id = None
         final_customer_name_for_ticket = None
 
-        # 1. Determine Organization ID for the ticket
-        if current_user.role == 'client' and user_org: # Client's org is fixed by their dept's org
+        # 1. Determine Organization ID for the ticket (using form.organization_id.data after validation)
+        if current_user.role == 'client' and user_org:
             ticket_org_id = user_org.id
-        elif current_user.role == 'organization_client' and user_org: # Org Client's org is fixed
+        elif current_user.role == 'organization_client' and user_org:
             ticket_org_id = user_org.id
-        elif form.organization_id.data and form.organization_id.data != 0: # Agent/Admin selected an org
+        elif form.organization_id.data and form.organization_id.data != 0:
             ticket_org_id = form.organization_id.data
         
-        # 2. Determine Department ID for the ticket
-        if current_user.role == 'client' and user_dept: # Client's dept is fixed
+        # 2. Determine Department ID for the ticket (using form.department_id.data after validation)
+        if current_user.role == 'client' and user_dept:
             ticket_dept_id = user_dept.id
-        elif form.department_id.data and form.department_id.data != 0: # OrgClient or Agent/Admin selected a dept
-            if ticket_org_id: # A department must belong to an organization
-                dept_check = db.session.get(Department, form.department_id.data) # More direct way to get by ID
+        elif form.department_id.data and form.department_id.data != 0:
+            # Validation that dept belongs to org (if org is also set)
+            if ticket_org_id:
+                dept_check = db.session.get(Department, form.department_id.data)
                 if dept_check and dept_check.organization_id == ticket_org_id:
                     ticket_dept_id = dept_check.id
                 else:
                     form.department_id.errors.append("Selected Company/Department does not belong to the ticket's Organization.")
-            else: # Department selected but no Organization determined for the ticket
-                form.department_id.errors.append("Cannot assign Company/Department without an Organization for the ticket.")
+            # else: # Department selected without organization (should be caught by form logic for dependent fields)
+                 # If ticket_org_id is None but form.department_id.data is present, it's an issue.
+                 # This case is tricky because a department *must* have an org.
+                 # If form.organization_id.data was '0' or None, then ticket_org_id would be None.
+                 # If department was still selected, this implies an issue in form state or choices.
+                 # The choices for department should have been empty if no org was selected.
+                 # So if form.department_id.data has a value here, org must have been selected.
         
         # 3. Derive final_customer_name_for_ticket
-        # This name is stored on the Ticket model and is NOT NULL
         if ticket_dept_id:
             dept_obj_for_name = db.session.get(Department, ticket_dept_id)
             if dept_obj_for_name: final_customer_name_for_ticket = dept_obj_for_name.name
@@ -1576,25 +1596,22 @@ def create_ticket():
             if org_obj_for_name: final_customer_name_for_ticket = org_obj_for_name.name
         
         if not final_customer_name_for_ticket:
-            # This should ideally not be reached if org/dept logic is sound for all roles.
-            # For example, a client always has a dept which has an org.
-            # An org_client always has an org.
-            # An agent/admin creating a ticket SHOULD select an org or dept.
-            # Add a form-level error or error to a relevant field if this occurs.
             err_msg = "Customer association unclear. Please select an Organization or Company/Department."
-            if not (render_org_as_readonly or render_dept_as_readonly): # If fields were selectable
-                 form.organization_id.errors.append(err_msg)
-            else: # Should not happen if user is pre-associated
+            can_select_org_or_dept = not ((current_user.role == 'client' and user_dept and user_org) or \
+                                        (current_user.role == 'organization_client' and user_org and not form.department_id.choices)) # Check if fields were actually selectable
+            if can_select_org_or_dept:
+                 form.organization_id.errors.append(err_msg) # Add to a visible field if selectable
+            else:
                 app.logger.error(f"Could not derive customer_name for user {current_user.id} creating ticket. This is unexpected.")
                 flash("Error: Could not determine customer association for this ticket.", "danger")
 
-
-        # Attachment handling logic (should be before re-rendering on error)
+        # Attachment handling logic
         uploaded_files_info = []
-        if not form.errors: # Only process attachments if other validations passed so far
+        if not form.errors: 
             if form.attachments.data:
                 for file_storage in form.attachments.data:
                     if file_storage and file_storage.filename:
+                        # ... (rest of attachment saving logic - unchanged) ...
                         filename = secure_filename(file_storage.filename)
                         if allowed_file(filename):
                             unique_suffix = uuid.uuid4().hex[:8]
@@ -1613,40 +1630,44 @@ def create_ticket():
                         else: 
                             form.attachments.errors.append(f"File type not allowed: {filename}")
 
-        if form.errors: # This check includes any errors from above and attachment processing
+        if form.errors: 
             flash('Please correct the errors in the form.', 'danger')
-            # Re-populate dynamic choices for re-render (crucial)
-            # This section MUST correctly reflect the GET request logic for setting choices and readonly flags
-            # based on current_user.role for the current request context.
-
-            # Re-determine readonly flags based on current_user for the re-render
+            # Re-populate dynamic choices and template vars for re-render
+            # The choices for category, cloud_provider, etc., are already set at the top.
+            # Org/Dept choices were also set at the top. What needs re-evaluation here are the
+            # readonly flags and template names for display based on the *current* user state.
+            # The `form.field.data` values will be the submitted (invalid) ones.
+            
+            # Re-evaluate render flags and template names for re-displaying the form
             if current_user.role == 'client' and user_dept and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
                 render_dept_as_readonly = True; template_dept_name = user_dept.name
                 derived_customer_name_for_template = user_dept.name
-                form.organization_id.choices = [(user_org.id, user_org.name)]
-                form.department_id.choices = [(user_dept.id, user_dept.name)]
             elif current_user.role == 'organization_client' and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
                 render_dept_as_readonly = False 
-                derived_customer_name_for_template = user_org.name # Or re-derive based on submitted form.department_id.data
-                form.organization_id.choices = [(user_org.id, user_org.name)]
-                form.department_id.choices = get_active_department_choices_for_org(user_org.id)
+                # Derive customer name based on submitted (but potentially invalid) dept or org
+                submitted_dept_id = form.department_id.data if form.department_id.data and form.department_id.data != 0 else None
+                if submitted_dept_id:
+                    dept_obj_on_err = db.session.get(Department, submitted_dept_id)
+                    if dept_obj_on_err and dept_obj_on_err.organization_id == user_org.id: # Check if submitted dept is valid for this org client
+                         derived_customer_name_for_template = dept_obj_on_err.name
+                    else: # Submitted dept was invalid or not for their org
+                         derived_customer_name_for_template = user_org.name # Fallback to org name
+                else: # No department was selected by org client
+                    derived_customer_name_for_template = user_org.name
             else: # Admin/Agent
                 render_org_as_readonly = False
                 render_dept_as_readonly = False
-                form.organization_id.choices = get_active_organization_choices()
-                form.department_id.choices = get_active_department_choices_for_org(form.organization_id.data if form.organization_id.data !=0 else None)
-                # Re-derive customer name for template based on potentially submitted org/dept data
-                temp_dept_id_on_err = form.department_id.data if form.department_id.data and form.department_id.data !=0 else None
-                temp_org_id_on_err = form.organization_id.data if form.organization_id.data and form.organization_id.data !=0 else None
-                if temp_dept_id_on_err:
-                    dept_obj_err = db.session.get(Department, temp_dept_id_on_err)
+                # Re-derive customer name for template based on submitted org/dept data
+                submitted_dept_id_on_err = form.department_id.data if form.department_id.data and form.department_id.data !=0 else None
+                submitted_org_id_on_err = form.organization_id.data if form.organization_id.data and form.organization_id.data !=0 else None
+                if submitted_dept_id_on_err:
+                    dept_obj_err = db.session.get(Department, submitted_dept_id_on_err)
                     if dept_obj_err : derived_customer_name_for_template = dept_obj_err.name
-                elif temp_org_id_on_err:
-                    org_obj_err = db.session.get(OrganizationOption, temp_org_id_on_err)
+                elif submitted_org_id_on_err:
+                    org_obj_err = db.session.get(OrganizationOption, submitted_org_id_on_err)
                     if org_obj_err: derived_customer_name_for_template = org_obj_err.name
-
 
             return render_template('client/create_ticket.html', title='Submit New Support Request', form=form,
                                    render_org_as_readonly=render_org_as_readonly,
@@ -1655,14 +1676,15 @@ def create_ticket():
                                    template_dept_name=template_dept_name,
                                    derived_customer_name_for_template=derived_customer_name_for_template)
 
-        # If all validations passed (including attachment processing if any)
+        # If all validations passed
         new_ticket = Ticket(
+            # ... (ticket creation logic as before - unchanged) ...
             title=form.title.data,
             description=form.description.data,
             created_by_id=current_user.id,
             organization_id=ticket_org_id,
             department_id=ticket_dept_id,
-            customer_name=final_customer_name_for_ticket, # Crucial: programmatically set
+            customer_name=final_customer_name_for_ticket,
             category_id=form.category.data,
             severity=form.severity.data,
             cloud_provider=form.cloud_provider.data or None,
@@ -1674,11 +1696,11 @@ def create_ticket():
             additional_email_recipients=form.additional_recipients.data.strip() if form.additional_recipients.data else None,
             request_call_back=form.request_call_back.data or None,
             contact_details=form.contact_details.data.strip() if form.contact_details.data else None,
-            # support_modal_id is NOT set here
         )
         db.session.add(new_ticket)
         try:
-            db.session.flush() # Get ticket ID for attachments
+            # ... (commit logic, flash, redirect - unchanged) ...
+            db.session.flush() 
             for file_info in uploaded_files_info: 
                 attachment = Attachment(filename=file_info['original_filename'], 
                                         stored_filename=file_info['stored_filename'], 
@@ -1689,32 +1711,30 @@ def create_ticket():
             log_interaction(new_ticket.id, 'TICKET_CREATED', user_id=current_user.id, details={'title': new_ticket.title}, timestamp_override=new_ticket.created_at)
             db.session.commit()
             flash('Ticket created successfully!', 'success')
-            # Email and Twilio logic (assumed to be correct and separate)
-            # ...
             return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
         except Exception as e:
             db.session.rollback()
             flash(f'Database error during ticket creation: {str(e)[:150]}', 'danger')
             current_app.logger.error(f"Ticket creation error (commit stage): {e}", exc_info=True)
-            # Re-render form, re-populating choices
-            if current_user.role == 'client' and user_dept and user_org: # This re-sets readonly flags too
+            # Re-render form, re-populating choices & template vars (similar to form.errors block)
+            if current_user.role == 'client' and user_dept and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
                 render_dept_as_readonly = True; template_dept_name = user_dept.name
                 derived_customer_name_for_template = user_dept.name
-                form.organization_id.choices = [(user_org.id, user_org.name)]
-                form.department_id.choices = [(user_dept.id, user_dept.name)]
             elif current_user.role == 'organization_client' and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
                 render_dept_as_readonly = False 
-                derived_customer_name_for_template = user_org.name 
-                form.organization_id.choices = [(user_org.id, user_org.name)]
-                form.department_id.choices = get_active_department_choices_for_org(user_org.id)
+                # Similar logic for derived_customer_name_for_template as in form.errors block
+                submitted_dept_id_commit_err = form.department_id.data if form.department_id.data and form.department_id.data != 0 else None
+                if submitted_dept_id_commit_err:
+                    dept_obj_on_commit_err = db.session.get(Department, submitted_dept_id_commit_err)
+                    if dept_obj_on_commit_err and dept_obj_on_commit_err.organization_id == user_org.id:
+                         derived_customer_name_for_template = dept_obj_on_commit_err.name
+                    else: derived_customer_name_for_template = user_org.name
+                else: derived_customer_name_for_template = user_org.name
             else: # Admin/Agent
                 render_org_as_readonly = False
                 render_dept_as_readonly = False
-                form.organization_id.choices = get_active_organization_choices()
-                form.department_id.choices = get_active_department_choices_for_org(form.organization_id.data if form.organization_id.data !=0 else None)
-                # Re-derive customer name for template based on potentially submitted org/dept data
                 temp_dept_id_on_err_commit = form.department_id.data if form.department_id.data and form.department_id.data !=0 else None
                 temp_org_id_on_err_commit = form.organization_id.data if form.organization_id.data and form.organization_id.data !=0 else None
                 if temp_dept_id_on_err_commit:
@@ -1731,20 +1751,12 @@ def create_ticket():
                                    template_dept_name=template_dept_name,
                                    derived_customer_name_for_template=derived_customer_name_for_template)
 
-    # This is for the initial GET request or if POST failed before form.validate_on_submit()
-    # The GET logic above already handles this. If POST failed very early, flags might not be set.
-    # So, re-ensure flags and derived_customer_name for the final render_template call.
-    if not template_org_name and render_org_as_readonly and current_user.organization:
-        template_org_name = current_user.organization.name
-    if not template_dept_name and render_dept_as_readonly and current_user.department:
-        template_dept_name = current_user.department.name
-    if not derived_customer_name_for_template:
-        if template_dept_name: derived_customer_name_for_template = template_dept_name
-        elif template_org_name: derived_customer_name_for_template = template_org_name
-        # If agent/admin and nothing selected yet on GET
-        elif not render_org_as_readonly and form.organization_id.data and form.organization_id.data == 0:
+    # Final render for GET request or if POST failed very early (before form.validate_on_submit())
+    # Ensure render flags and derived_customer_name are set for the template.
+    # The GET logic above should have already set these.
+    if request.method == 'GET' and not derived_customer_name_for_template: # Fallback for admin/agent GET
+        if not (render_org_as_readonly or render_dept_as_readonly): # Admin/Agent view
              derived_customer_name_for_template = "Select Org/Company to associate ticket"
-
 
     return render_template('client/create_ticket.html', title='Submit New Support Request', form=form,
                            render_org_as_readonly=render_org_as_readonly,
