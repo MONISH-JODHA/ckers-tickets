@@ -1,51 +1,89 @@
 {% extends "base.html" %}
 
+{% block title_tag %}{{ title }} - Ticket CMS{% endblock %}
+
 {% block head_extra %}
 {{ super() }}
-{# We will add SortableJS later for drag and drop #}
-{# <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script> #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 <style>
     :root {
-        --kanban-bg: #f4f7f9; /* Light grey background for the board area */
-        --column-bg: #ebf0f3; /* Lighter grey for columns */
+        --kanban-bg: #f4f7f9;
+        --column-bg: #ebf0f3;
         --column-header-bg: #dfe7ed;
         --card-bg: #ffffff;
         --card-border: #d1d9e0;
         --card-shadow: 0 2px 4px rgba(0,0,0,0.08);
         --card-hover-shadow: 0 4px 10px rgba(0,0,0,0.12);
-
-        /* Status specific colors - using CSS variables for easier theming */
         --status-open-bg: #e6fffa; --status-open-text: #00796b; --status-open-border: #00bfa5;
         --status-inprogress-bg: #e3f2fd; --status-inprogress-text: #1565c0; --status-inprogress-border: #1e88e5;
         --status-onhold-bg: #fff8e1; --status-onhold-text: #f57f17; --status-onhold-border: #ffab00;
         --status-resolved-bg: #e8f5e9; --status-resolved-text: #2e7d32; --status-resolved-border: #4caf50;
         --status-closed-bg: #f5f5f5; --status-closed-text: #616161; --status-closed-border: #bdbdbd;
-        
         --priority-urgent-text: #d32f2f;
         --priority-high-text: #f57c00;
         --priority-medium-text: #1976d2;
         --priority-low-text: #388e3c;
     }
 
+    /* --- Filter Panel Styles --- */
+    .filter-panel {
+        background-color: #fff;
+        padding: 1.25rem;
+        border-radius: 8px;
+        margin: 0 10px 20px 10px;
+        box-shadow: var(--card-shadow);
+        border: 1px solid var(--card-border);
+    }
+    .filter-panel summary {
+        font-weight: 600;
+        font-size: 1.1rem;
+        cursor: pointer;
+        list-style: none; /* Hide default arrow */
+    }
+    .filter-panel summary::-webkit-details-marker { display: none; }
+    .filter-panel summary::before {
+        content: '\f078'; /* Font Awesome down arrow */
+        font-family: 'Font Awesome 5 Free';
+        font-weight: 900;
+        margin-right: 0.75rem;
+        transition: transform 0.2s ease-in-out;
+    }
+    .filter-panel[open] > summary::before {
+        transform: rotate(-180deg);
+    }
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    .filter-actions {
+        grid-column: 1 / -1; /* Span full width */
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+
     .kanban-board-container {
         display: flex;
-        overflow-x: auto; /* Allows horizontal scrolling for many columns */
-        padding: 20px 10px;
+        overflow-x: auto;
+        padding: 0 10px 20px 10px;
         background-color: var(--kanban-bg);
-        min-height: calc(100vh - 120px); /* Adjust based on your header/footer */
-        gap: 15px; /* Space between columns */
+        min-height: calc(100vh - 250px); /* Adjust based on new filter panel */
+        gap: 15px;
     }
 
     .kanban-column {
-        flex: 0 0 300px; /* Fixed width for columns, change as needed */
+        flex: 0 0 300px;
         max-width: 300px;
         background-color: var(--column-bg);
         border-radius: 8px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         display: flex;
         flex-direction: column;
-        height: fit-content; /* Column height based on content initially */
-        max-height: calc(100vh - 160px); /* Max column height */
+        height: fit-content;
+        max-height: calc(100vh - 290px);
     }
 
     .kanban-column-header {
@@ -60,45 +98,36 @@
         justify-content: space-between;
         align-items: center;
     }
-    .kanban-column-header .badge {
-        font-size: 0.8em;
-    }
-    /* Column header colors based on status */
+    .kanban-column-header .badge { font-size: 0.8em; }
     .kanban-column[data-status="Open"] .kanban-column-header { background-color: var(--status-open-bg); color: var(--status-open-text); border-bottom-color: var(--status-open-border);}
     .kanban-column[data-status="In Progress"] .kanban-column-header { background-color: var(--status-inprogress-bg); color: var(--status-inprogress-text); border-bottom-color: var(--status-inprogress-border);}
     .kanban-column[data-status="On Hold"] .kanban-column-header { background-color: var(--status-onhold-bg); color: var(--status-onhold-text); border-bottom-color: var(--status-onhold-border);}
     .kanban-column[data-status="Resolved"] .kanban-column-header { background-color: var(--status-resolved-bg); color: var(--status-resolved-text); border-bottom-color: var(--status-resolved-border);}
     .kanban-column[data-status="Closed"] .kanban-column-header { background-color: var(--status-closed-bg); color: var(--status-closed-text); border-bottom-color: var(--status-closed-border);}
 
-
     .kanban-cards-list {
         padding: 10px;
-        overflow-y: auto; /* Scroll within column if too many cards */
+        overflow-y: auto;
         flex-grow: 1;
-        min-height: 100px; /* Minimum height for drop zone */
+        min-height: 100px;
     }
-    /* Hide scrollbar for a cleaner look, but still scrollable */
     .kanban-cards-list::-webkit-scrollbar { width: 6px; }
     .kanban-cards-list::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
     .kanban-cards-list::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
 
-
     .kanban-card {
         background-color: var(--card-bg);
         border: 1px solid var(--card-border);
-        border-left-width: 4px; /* For priority indicator */
+        border-left-width: 4px;
         border-radius: 6px;
         padding: 12px;
         margin-bottom: 10px;
         box-shadow: var(--card-shadow);
-        cursor: grab; /* Indicates draggable */
+        cursor: grab;
         transition: box-shadow 0.2s ease, transform 0.2s ease;
     }
-    .kanban-card:hover {
-        box-shadow: var(--card-hover-shadow);
-        /* transform: translateY(-2px); */
-    }
-    .kanban-card.sortable-ghost { /* Style for the placeholder when dragging */
+    .kanban-card:hover { box-shadow: var(--card-hover-shadow); }
+    .kanban-card.sortable-ghost {
         background-color: #e0e8f0;
         opacity: 0.7;
         border: 1px dashed #a0b0c0;
@@ -107,59 +136,38 @@
         box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         transform: scale(1.02);
     }
-
-
     .card-ticket-id {
-        font-size: 0.75rem;
-        color: #777;
-        margin-bottom: 4px;
-        display: block;
+        font-size: 0.75rem; color: #777;
+        margin-bottom: 4px; display: block;
     }
     .card-ticket-title {
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 8px;
-        /* Ellipsis for long titles */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: 0.95rem; font-weight: 600; color: #333;
+        margin-bottom: 8px; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis;
     }
     .card-ticket-title a { color: inherit; text-decoration: none; }
     .card-ticket-title a:hover { text-decoration: underline; }
 
     .card-meta {
-        font-size: 0.8rem;
-        color: #555;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 8px;
+        font-size: 0.8rem; color: #555;
+        display: flex; justify-content: space-between;
+        align-items: center; margin-top: 8px;
     }
     .card-meta .priority-tag {
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-weight: 500;
-        font-size: 0.7rem;
+        padding: 2px 6px; border-radius: 4px;
+        font-weight: 500; font-size: 0.7rem;
     }
-    
     .card-meta .assignee-avatar {
         width: 20px; height: 20px; border-radius: 50%;
-        margin-left: 5px;
-        font-size: 0.6rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        background-color: #aaa; /* Default */
+        margin-left: 5px; font-size: 0.6rem;
+        display: inline-flex; align-items: center;
+        justify-content: center; color: white;
+        background-color: #aaa;
     }
-     /* Priority card border colors */
     .kanban-card.priority-Urgent { border-left-color: var(--priority-urgent-text); }
     .kanban-card.priority-High { border-left-color: var(--priority-high-text); }
     .kanban-card.priority-Medium { border-left-color: var(--priority-medium-text); }
     .kanban-card.priority-Low { border-left-color: var(--priority-low-text); }
-
-    /* Priority tag specific styling */
     .priority-tag.priority-Urgent { background-color: var(--priority-urgent-text); color: white; }
     .priority-tag.priority-High { background-color: var(--priority-high-text); color: white; }
     .priority-tag.priority-Medium { background-color: var(--priority-medium-text); color: white; }
@@ -172,10 +180,112 @@
         font-style: italic;
     }
 
+      /* --- Advanced Filter Panel --- */
+    .kanban-filter-panel {
+        background-color: var(--color-bg-container);
+        border: 1px solid var(--color-border);
+        border-radius: var(--border-radius-lg);
+        margin: 0 2.5rem 1.5rem 2.5rem;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition-all);
+    }
+    .kanban-filter-panel summary {
+        font-weight: 600; font-size: 1.1rem; color: var(--color-text-primary);
+        padding: 1rem 1.5rem; cursor: pointer; list-style: none;
+        display: flex; align-items: center; transition: var(--transition-all);
+    }
+    .kanban-filter-panel summary::-webkit-details-marker { display: none; }
+    .kanban-filter-panel summary:hover { background-color: #f9fafb; }
+    .kanban-filter-panel[open] summary { border-bottom: 1px solid var(--color-border); }
+    .kanban-filter-panel summary::before {
+        content: '\f0b0'; font-family: 'Font Awesome 5 Free'; font-weight: 900;
+        margin-right: 0.75rem; color: var(--color-text-secondary);
+    }
+    .kanban-filter-panel summary .summary-chevron {
+        margin-left: auto; transition: transform 0.2s ease-in-out; font-size: 0.8em;
+        color: var(--color-text-secondary);
+    }
+    .kanban-filter-panel[open] .summary-chevron { transform: rotate(-180deg); }
+    
+    .filter-grid {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem;
+        padding: 1.5rem;
+    }
+    .filter-item { display: flex; align-items: center; gap: 0.5rem; }
+    .filter-item .form-label { margin-bottom: 0; font-size: 0.875rem; color: var(--color-text-secondary); font-weight: 500; }
+    .filter-item .form-select {
+        min-width: 200px;
+        border: 1px solid var(--color-border); box-shadow: var(--shadow-xs);
+        font-size: 0.875rem; transition: var(--transition-all);
+    }
+    .filter-item .form-select:focus { border-color: var(--color-border-focus); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25); }
+    .filter-actions { margin-left: auto; display: flex; gap: 0.75rem; }
+    .filter-actions .btn { font-weight: 500; }
 </style>
 {% endblock %}
 
 {% block content %}
+
+<!-- Modernized Filter Panel -->
+<details class="kanban-filter-panel" open>
+    <summary>
+        Filter Kanban Board
+        <i class="fas fa-chevron-down summary-chevron"></i>
+    </summary>
+    <form method="GET" action="{{ url_for('agent_kanban_board') }}" id="filterForm">
+        <div class="filter-grid">
+            <div class="filter-item">
+                <label for="priority" class="form-label">Priority</label>
+                <select name="priority" id="priority" class="form-select">
+                    <option value="all" {% if not current_filters.get('priority') %}selected{% endif %}>All Priorities</option>
+                    {% for p_val, p_disp in priorities %}
+                    <option value="{{ p_val }}" {% if current_filters.get('priority') == p_val %}selected{% endif %}>{{ p_disp }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="category_id" class="form-label">Category</label>
+                <select name="category_id" id="category_id" class="form-select">
+                    <option value="all" {% if not current_filters.get('category_id') %}selected{% endif %}>All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if current_filters.get('category_id') == category.id|string %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="assigned_to_id" class="form-label">Agent</label>
+                <select name="assigned_to_id" id="assigned_to_id" class="form-select">
+                    <option value="all" {% if not current_filters.get('assigned_to_id') %}selected{% endif %}>Any Agent</option>
+                    <option value="unassigned" {% if current_filters.get('assigned_to_id') == 'unassigned' %}selected{% endif %}>Unassigned</option>
+                    {% for agent in agents %}
+                    <option value="{{ agent.id }}" {% if current_filters.get('assigned_to_id') == agent.id|string %}selected{% endif %}>{{ agent.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="organization_id" class="form-label">Organization</label>
+                <select name="organization_id" id="organization_id" class="form-select">
+                    <option value="all" {% if not current_filters.get('organization_id') %}selected{% endif %}>All Organizations</option>
+                    {% for org in organizations_for_filter %}
+                    <option value="{{ org.id }}" {% if current_filters.get('organization_id') == org.id|string %}selected{% endif %}>{{ org.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="department_id" class="form-label">Department</label>
+                <select name="department_id" id="department_id" class="form-select" disabled>
+                    <option value="all">Select an organization...</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <a href="{{ url_for('agent_kanban_board') }}" class="btn btn-secondary"><i class="fas fa-times me-1"></i> Clear</a>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Apply</button>
+            </div>
+        </div>
+    </form>
+</details>
+
+
 <div class="kanban-board-container" id="kanbanBoard">
     {% for status_name in kanban_statuses %}
         <div class="kanban-column" data-status="{{ status_name }}">
@@ -215,62 +325,42 @@
 
 {% block scripts %}
 {{ super() }}
-{# Remove comments to enable SortableJS once you're ready for drag-and-drop #}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const columns = document.querySelectorAll('.kanban-cards-list');
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
+    // Drag-and-drop logic
     columns.forEach(column => {
         new Sortable(column, {
-            group: 'shared-kanban', // Group name for items to be dragged between lists
+            group: 'shared-kanban',
             animation: 150,
-            ghostClass: 'sortable-ghost', // Class name for the drop placeholder
-            chosenClass: 'sortable-chosen', // Class name for the chosen item
-            dragClass: 'sortable-drag', // Class name for the dragging item
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
             filter: 'a, button', 
             onEnd: function (evt) {
-                const itemEl = evt.item;  // Dragged HTMLElement
+                const itemEl = evt.item;
                 const ticketId = itemEl.dataset.ticketId;
-                const toColumnEl = evt.to;    // Target list
+                const toColumnEl = evt.to;
                 const newStatus = toColumnEl.closest('.kanban-column').dataset.status;
-                // const newIndex = evt.newDraggableIndex; // For ordering within column
 
-                // console.log(`Ticket ${ticketId} moved to ${newStatus} at index ${newIndex}`);
-
-                // API call to update the ticket status
                 fetch(`/api/ticket/${ticketId}/update_status_kanban`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken 
-                    },
-                    body: JSON.stringify({ 
-                        new_status: newStatus,
-                        // new_order: newIndex // Send new_order if you implement ordering
-                    })
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ new_status: newStatus })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // console.log('Ticket status updated successfully:', data.message);
-                        // Optionally, update the card or column header (e.g., ticket count)
-                        // For now, a page reload or dynamic update of counts would be good
-                        updateColumnHeaders(); // Function to update counts
+                        updateColumnHeaders();
                     } else {
-                        // console.error('Failed to update ticket status:', data.message);
-                        // Revert the drag operation visually if the backend update fails
-                        // This can be complex; SortableJS might offer ways or you manually move it back
-                        // For simplicity now, we'll flash a message or log.
                         alert('Error updating ticket: ' + data.message);
-                        // Simple revert (might not be perfect if original list was also reordered)
-                        // evt.from.insertBefore(itemEl, evt.from.children[evt.oldDraggableIndex]);
-                         if (evt.from && evt.from.children[evt.oldDraggableIndex]) {
+                        if (evt.from && evt.from.children[evt.oldDraggableIndex]) {
                              evt.from.insertBefore(itemEl, evt.from.children[evt.oldDraggableIndex]);
-                         } else if (evt.from) { // if it was the last item
+                        } else if (evt.from) {
                              evt.from.appendChild(itemEl);
-                         }
+                        }
                     }
                 })
                 .catch(error => {
@@ -286,32 +376,102 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // Function to update column ticket counts
     function updateColumnHeaders() {
         document.querySelectorAll('.kanban-column').forEach(columnDiv => {
             const cardList = columnDiv.querySelector('.kanban-cards-list');
             const countBadge = columnDiv.querySelector('.kanban-column-header .badge');
-            if (cardList && countBadge) {
-                countBadge.textContent = cardList.children.length - (cardList.querySelector('.no-tickets-placeholder') ? 1 : 0) ;
-
-                // Handle "No tickets" placeholder
-                const placeholder = cardList.querySelector('.no-tickets-placeholder');
-                if (cardList.children.length === 0 || (cardList.children.length === 1 && placeholder)) {
-                    if (!placeholder) {
-                        const newPlaceholder = document.createElement('div');
-                        newPlaceholder.className = 'no-tickets-placeholder';
-                        newPlaceholder.textContent = 'No tickets';
-                        cardList.appendChild(newPlaceholder);
-                    }
-                } else {
-                    if (placeholder) {
-                        placeholder.remove();
-                    }
+            let cardCount = 0;
+            // Correctly count only kanban-card elements, not the placeholder
+            for (let i = 0; i < cardList.children.length; i++) {
+                if (cardList.children[i].classList.contains('kanban-card')) {
+                    cardCount++;
+                }
+            }
+            countBadge.textContent = cardCount;
+            
+            const placeholder = cardList.querySelector('.no-tickets-placeholder');
+            if (cardCount === 0) {
+                if (!placeholder) {
+                    const newPlaceholder = document.createElement('div');
+                    newPlaceholder.className = 'no-tickets-placeholder';
+                    newPlaceholder.textContent = 'No tickets';
+                    cardList.appendChild(newPlaceholder);
+                }
+            } else {
+                if (placeholder) {
+                    placeholder.remove();
                 }
             }
         });
     }
-    // Initial call to set counts and placeholders correctly
     updateColumnHeaders();
+
+
+    // --- Dynamic Department Filter Logic ---
+    const orgSelect = document.getElementById('organization_id');
+    const deptSelect = document.getElementById('department_id');
+    const currentDeptId = "{{ current_filters.get('department_id', '') }}";
+    
+    // Function to populate departments via API
+    function populateDepartmentsAPI(orgId) {
+        if (!orgId || orgId === 'all' || orgId === '0') {
+            deptSelect.innerHTML = '<option value="all">Select an organization first...</option>';
+            deptSelect.disabled = true;
+            return;
+        }
+        
+        deptSelect.disabled = true;
+        deptSelect.innerHTML = '<option value="all">Loading...</option>';
+
+        fetch(`/api/departments_for_organization/${orgId}`)
+            .then(response => response.json())
+            .then(data => {
+                deptSelect.innerHTML = ''; // Clear previous options
+                data.forEach(dept => {
+                    const option = document.createElement('option');
+                    // API returns '0' for the 'all' option, so we map it correctly
+                    option.value = (dept.id === 0) ? 'all' : dept.id;
+                    option.textContent = dept.name;
+                    deptSelect.appendChild(option);
+                });
+                deptSelect.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error fetching departments:', error);
+                deptSelect.innerHTML = '<option value="all">Error loading departments</option>';
+            });
+    }
+
+    // Event listener for organization change
+    orgSelect.addEventListener('change', function() {
+        populateDepartmentsAPI(this.value);
+    });
+
+    // Initial population on page load
+    const initialOrgId = orgSelect.value;
+    if (initialOrgId && initialOrgId !== 'all' && initialOrgId !== '0') {
+        deptSelect.disabled = false;
+        // The list of departments is passed from the server for the initial load
+        let passedInDepts = {{ departments_for_filter|tojson }};
+        
+        // Start with the "All Departments" option
+        deptSelect.innerHTML = '<option value="all">All Departments in Org</option>';
+
+        if (passedInDepts.length > 0) {
+            passedInDepts.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.id;
+                option.textContent = dept.name;
+                if (String(dept.id) === currentDeptId) {
+                    option.selected = true;
+                }
+                deptSelect.appendChild(option);
+            });
+        }
+    } else {
+        deptSelect.disabled = true;
+    }
 });
 </script>
 {% endblock %}

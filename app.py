@@ -2253,36 +2253,40 @@ def view_ticket(ticket_id):
 
 # ... (other imports and code) ...
 
+# In app.py, find and REPLACE the entire agent_kanban_board function with this new version.
+
 @app.route('/agent/kanban_board')
-@agent_required # This decorator ensures only users with 'agent' or 'admin' role can access
+@agent_required
 def agent_kanban_board():
-    kanban_statuses_ordered = [s[0] for s in TICKET_STATUS_CHOICES]
+
+    filters = {k: v for k, v in request.args.items() if v and v.lower() != 'all'}
     
+    # Fetch data for filter dropdowns
+    categories_for_filter = Category.query.order_by('name').all()
+    agents_for_filter = User.query.filter(User.role.in_(['agent', 'admin'])).order_by('username').all()
+    organizations_for_filter = OrganizationOption.query.filter_by(is_active=True).order_by('name').all()
+    
+    # For pre-populating department filter if an org is already selected on page load
+    departments_for_filter = []
+    organization_id_filter = filters.get('organization_id')
+    if organization_id_filter and organization_id_filter.isdigit() and organization_id_filter != '0':
+        depts_query = Department.query.filter_by(
+            organization_id=int(organization_id_filter), 
+            is_active=True
+        ).order_by(Department.name).all()
+        departments_for_filter = [{'id': dept.id, 'name': dept.name} for dept in depts_query]
+
+    # --- Ticket Query and Filtering ---
     tickets_query = Ticket.query
-    is_admin_only_view = False # Flag to determine if this is an admin seeing all tickets
 
-    # If the user is an admin AND NOT also an agent, they see all.
-    # OR if they are an admin and specifically want an "all tickets" view (future enhancement).
-    # For now, if they are an admin, they see all. If they are *only* an agent, they see their own.
-    # If they are both admin AND agent, the current logic implies they might want to see their own
-    # when accessing this specific "agent" kanban. This can be made configurable later.
+    # Apply common filters from the form using the 'filters' dictionary
+    tickets_query = _apply_common_filters(tickets_query, filters)
 
-    if current_user.is_admin:
-        # Admins see all tickets by default on this board
-        # No additional filtering needed here for assigned_to_id
-        is_admin_only_view = True 
-        # If an admin *also* wants to see *only their own* tickets on this board,
-        # you'd need another parameter or a separate route, e.g., /my_kanban_board
-    elif current_user.is_agent: # This will catch users who are agents but not admins
-        tickets_query = tickets_query.filter(Ticket.assigned_to_id == current_user.id)
-        # Optionally, filter out closed tickets for agents:
-        # tickets_query = tickets_query.filter(Ticket.status != 'Closed')
-    # else:
-        # This case should not be reached due to @agent_required, 
-        # but good for robustness if decorator changes.
-        # return redirect(url_for('dashboard')) 
-
-
+    if 'assigned_to_id' not in filters:
+        if current_user.is_agent and not current_user.is_admin:
+            tickets_query = tickets_query.filter(Ticket.assigned_to_id == current_user.id)
+    
+    # Sort tickets for display within columns
     tickets_query = tickets_query.order_by(
         db.case(
             PRIORITY_ORDER_MAP, 
@@ -2294,21 +2298,30 @@ def agent_kanban_board():
     
     all_tickets_for_board = tickets_query.all()
 
+    # --- Data Structuring for Kanban ---
+    kanban_statuses_ordered = [s[0] for s in TICKET_STATUS_CHOICES]
     tickets_by_status = {status: [] for status in kanban_statuses_ordered}
     for ticket in all_tickets_for_board:
         if ticket.status in tickets_by_status:
             tickets_by_status[ticket.status].append(ticket)
 
     page_title = "Kanban Board"
-    if not is_admin_only_view and current_user.is_agent: # If it's an agent's filtered view
-        page_title += " (My Tickets)"
 
-    return render_template('agent/kanban_board.html', 
-                           title=page_title,
-                           tickets_by_status=tickets_by_status,
-                           kanban_statuses=kanban_statuses_ordered,
-                           TICKET_PRIORITY_CHOICES_DICT=dict(TICKET_PRIORITY_CHOICES) 
-                          )
+    return render_template(
+        'agent/kanban_board.html', 
+        title=page_title,
+        tickets_by_status=tickets_by_status,
+        kanban_statuses=kanban_statuses_ordered,
+        TICKET_PRIORITY_CHOICES_DICT=dict(TICKET_PRIORITY_CHOICES),
+        # Pass all filter-related data to the template
+        priorities=TICKET_PRIORITY_CHOICES,
+        categories=categories_for_filter,
+        agents=agents_for_filter,
+        organizations_for_filter=organizations_for_filter,
+        departments_for_filter=departments_for_filter,
+        # FIX: Ensure the 'filters' dictionary is always passed to the template.
+        current_filters=filters
+    )
 
 # ... (rest of your app.py) ...
 
