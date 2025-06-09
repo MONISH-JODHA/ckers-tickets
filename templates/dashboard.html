@@ -156,6 +156,7 @@
         padding: 1.5rem;
         margin-bottom: 1.5rem;
         box-shadow: var(--card-shadow);
+        height: 100%;
     }
     .dashboard-section-title {
         font-size: 1.25rem;
@@ -167,6 +168,76 @@
     }
     .dashboard-section-title i { opacity: 0.7; margin-right: 0.5em; }
     
+    /* --- Admin Quick Access Cards --- */
+    .quick-access-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+    }
+    .quick-access-card {
+        background-color: var(--card-bg);
+        border-radius: var(--radius-lg);
+        padding: 1.25rem;
+        text-align: center;
+        text-decoration: none;
+        color: var(--text-medium);
+        border: 1px solid var(--card-border);
+        box-shadow: var(--card-shadow);
+        transition: var(--transition-main);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .quick-access-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.1);
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    .quick-access-card .icon-wrapper {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        background-color: #e9ecef;
+        color: var(--text-dark);
+        transition: all 0.2s ease;
+    }
+    .quick-access-card:hover .icon-wrapper {
+        background-color: var(--primary-color);
+        color: #fff;
+        transform: scale(1.1);
+    }
+    .quick-access-card .card-title {
+        font-weight: 600;
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+        color: var(--text-dark);
+    }
+    .quick-access-card .card-description {
+        font-size: 0.8rem;
+        line-height: 1.4;
+    }
+
+    /* Admin: System Stats List */
+    .quick-stats-list .list-group-item {
+        font-size: 0.9rem;
+        border-left: none; border-right: none;
+        padding: 1rem 0;
+        background-color: transparent; 
+    }
+    .quick-stats-list .list-group-item:not(:last-child) {
+        border-bottom: 1px solid var(--card-border);
+    }
+    .quick-stats-list .list-group-item:first-child { border-top: none; }
+    .quick-stats-list .badge { font-size: 0.85em; font-weight: 600; padding: .5em .8em;}
+
+
     /* Admin: Recent Interactions */
     .recent-interactions-list .list-group-item {
         padding: 0.85rem 0; 
@@ -182,152 +253,57 @@
     .interaction-details strong { color: var(--text-dark); }
     .interaction-details em { font-style: normal; color: var(--text-medium); } 
     .interaction-details a { font-weight: 500; }
+    
 
-    /* Admin & Agent: Quick Stats/Actions Lists */
-    .quick-stats-list .list-group-item,
+    /* --- Agent Dashboard --- */
     .agent-dashboard-list .list-group-item {
-        font-size: 0.9rem;
-        border-left: none; border-right: none;
-        padding: 0.75rem 0;
-        background-color: transparent; 
+        font-size: 0.9rem; border-left: none; border-right: none;
+        padding: 0.75rem 0; background-color: transparent; 
         transition: background-color 0.15s ease;
     }
-    .quick-stats-list .list-group-item:not(:last-child),
-    .agent-dashboard-list .list-group-item:not(:last-child) {
-        border-bottom: 1px solid var(--card-border);
-    }
-
-    .quick-stats-list .list-group-item:hover,
-    .agent-dashboard-list .list-group-item:hover {
-        background-color: #f8f9fa; 
-    }
-    .quick-stats-list .list-group-item:first-child,
+    .agent-dashboard-list .list-group-item:not(:last-child) { border-bottom: 1px solid var(--card-border); }
+    .agent-dashboard-list .list-group-item:hover { background-color: #f8f9fa; }
     .agent-dashboard-list .list-group-item:first-child { border-top: none; }
-    .quick-stats-list .badge { font-size: 0.85em; font-weight: 600;}
-
-    .quick-actions-grid .list-group-item-action { 
-        border: 1px solid var(--card-border) !important;
-        border-radius: var(--radius-md) !important;
-        margin-bottom: 0.75rem !important;
-        transition: var(--transition-main);
-        text-align: left;
-        font-size: 0.9rem;
-        padding: 0.75rem 1.25rem !important;
-        font-weight: 500;
-        color: var(--text-medium);
-    }
-    .quick-actions-grid .list-group-item-action:hover {
-        background-color: var(--primary-color) !important;
-        color: white !important;
-        border-color: var(--primary-color) !important;
-        box-shadow: 0 2px 5px rgba(var(--primary-rgb), 0.2);
-        transform: translateY(-2px);
-    }
-    .quick-actions-grid .list-group-item-action i { 
-        margin-right: 0.8em; 
-        width: 1.3em; 
-        opacity: 0.8;
-    }
-    .quick-actions-grid .list-group-item-action:hover i {
-        opacity: 1;
-    }
-
-    /* --- Agent Dashboard: Personal Stats & Client Replies --- */
     .agent-stats-panel {
-        display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
-        gap: 1rem;
-        margin-bottom: 1.5rem;
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+        gap: 1rem; margin-bottom: 1.5rem;
     }
     .agent-stat-item {
-        background-color: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-left: 4px solid var(--primary-color); 
-        border-radius: var(--radius-lg);
-        padding: 1rem 1.25rem;
-        box-shadow: var(--card-shadow);
-        text-align: center; 
+        background-color: var(--card-bg); border: 1px solid var(--card-border);
+        border-left: 4px solid var(--primary-color); border-radius: var(--radius-lg);
+        padding: 1rem 1.25rem; box-shadow: var(--card-shadow); text-align: center; 
     }
-    .agent-stat-item .stat-value {
-        font-size: 1.85rem; 
-        font-weight: 700;
-        color: var(--text-dark); 
-        display: block;
-        line-height: 1.2;
-    }
+    .agent-stat-item .stat-value { font-size: 1.85rem; font-weight: 700; color: var(--text-dark); display: block; line-height: 1.2; }
     .agent-stat-item .stat-value.resolved { color: var(--primary-color); } 
     .agent-stat-item .stat-value.responded { color: var(--success-color); } 
-
-    .agent-stat-item .stat-label {
-        font-size: 0.8rem;
-        color: var(--text-medium);
-        margin-top: 0.25rem;
-        display: block;
-    }
-    .agent-stat-item .stat-period {
-        font-size: 0.7rem;
-        color: var(--text-light);
-    }
-
+    .agent-stat-item .stat-label { font-size: 0.8rem; color: var(--text-medium); margin-top: 0.25rem; display: block; }
+    .agent-stat-item .stat-period { font-size: 0.7rem; color: var(--text-light); }
     .client-reply-list .list-group-item {
-        border-left: 3px solid var(--warning-color) !important; 
-        padding-top: 0.75rem;
-        padding-bottom: 0.75rem;
-        background-color: #fffaf0; 
+        border-left: 3px solid var(--warning-color) !important; padding-top: 0.75rem;
+        padding-bottom: 0.75rem; background-color: #fffaf0; 
     }
-    .client-reply-list .ticket-title-link {
-        font-weight: 500;
-        color: var(--primary-color);
-    }
-    .client-reply-list .reply-meta {
-        font-size: 0.8rem;
-        color: var(--text-medium);
-    }
-    .client-reply-list .reply-meta strong {
-        color: var(--text-dark);
-    }
+    .client-reply-list .ticket-title-link { font-weight: 500; color: var(--primary-color); }
+    .client-reply-list .reply-meta { font-size: 0.8rem; color: var(--text-medium); }
+    .client-reply-list .reply-meta strong { color: var(--text-dark); }
 
     /* --- Client & Org Client Dashboard Ticket Cards --- */
     .ticket-summary-card {
-        background-color: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        margin-bottom: 1rem;
-        padding: 1rem 1.25rem;
-        box-shadow: var(--card-shadow);
-        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-        position: relative; 
-        overflow: hidden; 
+        background-color: var(--card-bg); border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg); margin-bottom: 1rem; padding: 1rem 1.25rem;
+        box-shadow: var(--card-shadow); transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        position: relative; overflow: hidden; 
     }
-    .ticket-summary-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.08);
-    }
-    .ticket-summary-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start; 
-        margin-bottom: 0.5rem;
-    }
-    .ticket-summary-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--primary-color);
-        margin-bottom: 0.15rem;
-        line-height: 1.3;
-    }
+    .ticket-summary-card:hover { transform: translateY(-3px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.08); }
+    .ticket-summary-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+    .ticket-summary-title { font-size: 1.1rem; font-weight: 600; color: var(--primary-color); margin-bottom: 0.15rem; line-height: 1.3; }
     .ticket-summary-title a { color: inherit; text-decoration: none; }
     .ticket-summary-title a:hover { text-decoration: underline; }
-    
     .ticket-summary-status {
         font-size: 0.75rem; font-weight: 600; padding: 0.3em 0.8em;
         border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;
-        display: inline-flex; align-items: center;
-        white-space: nowrap;
+        display: inline-flex; align-items: center; white-space: nowrap;
     }
     .ticket-summary-status .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-    
-    /* Re-using status-CLASS .status-dot from client/create_ticket.html for consistency */
     .status-open { background-color: var(--status-open-bg); color: var(--status-open-text); }
     .status-open .status-dot { background-color: var(--status-open-dot); }
     .status-in-progress, .status-inprogress { background-color: var(--status-inprogress-bg); color: var(--status-inprogress-text); }
@@ -338,36 +314,28 @@
     .status-resolved .status-dot { background-color: var(--status-resolved-dot); }
     .status-closed { background-color: var(--status-closed-bg); color: var(--status-closed-text); }
     .status-closed .status-dot { background-color: var(--status-closed-dot); }
-
     .ticket-summary-priority-indicator { position: absolute; top: 0; left: 0; width: 5px; height: 100%; }
     .priority-urgent { background-color: var(--priority-urgent-border); }
     .priority-high { background-color: var(--priority-high-border); }
     .priority-medium { background-color: var(--priority-medium-border); }
     .priority-low { background-color: var(--priority-low-border); }
-
     .ticket-summary-meta { font-size: 0.8rem; color: var(--text-medium); margin-bottom: 0.2rem; }
     .ticket-summary-meta .fas, .ticket-summary-meta .fab { margin-right: 0.3em; width: 1em; text-align: center; opacity:0.6; }
     .ticket-summary-meta strong { color: var(--text-dark); font-weight: 500; }
-    
     .view-all-btn-container { text-align: center; margin-top: 1.5rem; margin-bottom: 1rem; }
-    .btn-view-all-tickets {
-        font-size: 0.9rem;
-        padding: 0.5rem 1.25rem;
-        border-radius: var(--radius-md);
-    }
-    .no-tickets-alert { /* Shared by client and org-client dashboards */
-        background-color: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        padding: 2rem;
-        text-align: center;
-        color: var(--text-medium);
-        margin-top: 1rem;
-        box-shadow: var(--card-shadow);
+    .btn-view-all-tickets { font-size: 0.9rem; padding: 0.5rem 1.25rem; border-radius: var(--radius-md); }
+    .no-tickets-alert {
+        background-color: var(--card-bg); border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg); padding: 2rem; text-align: center;
+        color: var(--text-medium); margin-top: 1rem; box-shadow: var(--card-shadow);
     }
     .no-tickets-alert i.fas { font-size: 2rem; margin-bottom: 0.75rem; color: var(--text-light); }
     .no-tickets-alert h5 { font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem;}
-
+    
+    /* Responsive grid for quick access cards */
+    @media (max-width: 1199px) { .quick-access-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 991px) { .quick-access-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 767px) { .quick-access-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>
 {% endblock %}
 
@@ -379,6 +347,8 @@
             <h2>Admin Dashboard</h2>
             <p>Overview of the ticket system and quick actions.</p>
         </div>
+        
+        <!-- Top Statistics Row -->
         <div class="row admin-stats-grid">
             <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
                 <a href="{{ url_for('admin_all_tickets') }}" class="stat-card-link">
@@ -454,8 +424,69 @@
             </div>
         </div>
 
+        <!-- Quick Access & System Stats Row -->
         <div class="row mt-2">
-             <div class="col-lg-7 mb-4">
+            <div class="col-lg-7 mb-4">
+                <div class="dashboard-section">
+                    <h4 class="dashboard-section-title"><i class="fas fa-rocket"></i>Quick Access</h4>
+                    <div class="quick-access-grid">
+                        <a href="{{ url_for('agent_kanban_board') }}" class="quick-access-card">
+                            <div class="icon-wrapper"><i class="fas fa-th-large"></i></div>
+                            <div class="card-title">Kanban Board</div>
+                            <div class="card-description">Visual ticket workflow.</div>
+                        </a>
+                        <a href="{{ url_for('admin_user_list') }}" class="quick-access-card">
+                            <div class="icon-wrapper"><i class="fas fa-users-cog"></i></div>
+                            <div class="card-title">User Management</div>
+                            <div class="card-description">Add, edit, and manage users.</div>
+                        </a>
+                        <a href="{{ url_for('analytics_dashboard_page') }}" class="quick-access-card">
+                            <div class="icon-wrapper"><i class="fas fa-chart-bar"></i></div>
+                            <div class="card-title">Analytics</div>
+                            <div class="card-description">View reports and data insights.</div>
+                        </a>
+                        <a href="{{ url_for('admin_kb_article_list') }}" class="quick-access-card">
+                            <div class="icon-wrapper"><i class="fas fa-book-open"></i></div>
+                            <div class="card-title">Knowledge Base</div>
+                            <div class="card-description">Manage support articles.</div>
+                        </a>
+                         <a href="{{ url_for('create_ticket') }}" class="quick-access-card">
+                            <div class="icon-wrapper"><i class="fas fa-plus-circle"></i></div>
+                            <div class="card-title">Create Ticket</div>
+                            <div class="card-description">Open a new support ticket.</div>
+                        </a>
+                        <a href="{{ url_for('admin_all_tickets') }}" class="quick-access-card">
+                            <div class="icon-wrapper"><i class="fas fa-list-alt"></i></div>
+                            <div class="card-title">All Tickets</div>
+                            <div class="card-description">View a list of all tickets.</div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5 mb-4">
+                <div class="dashboard-section">
+                    <h4 class="dashboard-section-title"><i class="fas fa-chart-pie"></i>System Stats</h4>
+                     <ul class="list-group list-group-flush quick-stats-list">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total Users <span class="badge badge-primary badge-pill">{{ total_users if total_users is defined else 'N/A' }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Agents & Admins <span class="badge badge-info badge-pill">{{ total_agents if total_agents is defined else 'N/A' }}</span>
+                        </li>
+                         <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Client Users <span class="badge badge-secondary badge-pill">{{ total_clients if total_clients is defined else 'N/A' }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Ticket Categories <span class="badge badge-success badge-pill">{{ active_categories_count if active_categories_count is defined else 'N/A' }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Interactions Row -->
+        <div class="row mt-2">
+            <div class="col-lg-12 mb-4">
                 <div class="dashboard-section">
                     <h4 class="dashboard-section-title"><i class="fas fa-history"></i>Recent System Interactions</h4>
                     {% if recent_interactions %}
@@ -498,36 +529,6 @@
                     {% else %}
                     <p class="text-muted">No recent interactions recorded.</p>
                     {% endif %}
-                </div>
-            </div>
-            <div class="col-lg-5 mb-4">
-                <div class="dashboard-section">
-                    <h4 class="dashboard-section-title"><i class="fas fa-rocket"></i>Quick Actions</h4>
-                    <div class="list-group quick-actions-grid">
-                        <a href="{{ url_for('create_ticket') }}" class="list-group-item list-group-item-action"><i class="fas fa-plus-circle text-success"></i> Create New Ticket</a>
-                        <a href="{{ url_for('admin_user_list') }}" class="list-group-item list-group-item-action"><i class="fas fa-users-cog text-primary"></i> Manage Users</a>
-                        <a href="{{ url_for('register_agent') }}" class="list-group-item list-group-item-action"><i class="fas fa-user-plus text-info"></i> Add New Agent</a>
-                        <a href="{{ url_for('admin_kb_article_list') }}" class="list-group-item list-group-item-action"><i class="fas fa-book text-purple"></i> Manage KB Articles</a>
-                        <a href="{{ url_for('admin_create_edit_kb_article') }}" class="list-group-item list-group-item-action"><i class="fas fa-feather-alt text-orange"></i> Create KB Article</a>
-                         <a href="{{ url_for('analytics_dashboard_page') }}" class="list-group-item list-group-item-action"><i class="fas fa-chart-bar text-warning"></i> View Analytics</a>
-                    </div>
-                </div>
-                <div class="dashboard-section mt-4">
-                    <h4 class="dashboard-section-title"><i class="fas fa-chart-pie"></i>System Stats</h4>
-                     <ul class="list-group list-group-flush quick-stats-list">
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Total Users <span class="badge badge-primary badge-pill">{{ total_users if total_users is defined else 'N/A' }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Agents & Admins <span class="badge badge-info badge-pill">{{ total_agents if total_agents is defined else 'N/A' }}</span>
-                        </li>
-                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Client Users <span class="badge badge-secondary badge-pill">{{ total_clients if total_clients is defined else 'N/A' }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Ticket Categories <span class="badge badge-success badge-pill">{{ active_categories_count if active_categories_count is defined else 'N/A' }}</span>
-                        </li>
-                    </ul>
                 </div>
             </div>
         </div>
@@ -815,6 +816,12 @@
             card.style.opacity = '0';
             card.style.transform = 'scale(0.9)';
         });
+        
+        const quickAccessCards = document.querySelectorAll('.quick-access-card');
+        quickAccessCards.forEach((card, index) => {
+            card.style.animation = `fadeInUp 0.5s ${0.2 + index * 0.07}s ease-out forwards`;
+            card.style.opacity = '0';
+        });
 
         function hexToRgb(hex) {
             let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -835,9 +842,6 @@
         }
     });
 
-    // Keyframes moved to <style> block in <head_extra> for better practice,
-    // but if you prefer them here for some reason, ensure they are correctly defined.
-    // For example:
     if (!document.getElementById('dashboardKeyframes')) {
         const keyframesCSS = `
             @keyframes fadeInUp { 
@@ -850,7 +854,7 @@
             }
         `;
         const styleSheet = document.createElement("style");
-        styleSheet.id = "dashboardKeyframes"; // Add an ID to prevent multiple additions
+        styleSheet.id = "dashboardKeyframes";
         styleSheet.type = "text/css";
         styleSheet.innerText = keyframesCSS;
         document.head.appendChild(styleSheet);
