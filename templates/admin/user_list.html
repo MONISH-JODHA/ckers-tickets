@@ -134,28 +134,6 @@
     .modal-footer { border-top: 1px solid var(--border-color); }
     .modal-title strong { color: var(--primary-color); }
     
-    #shareCredentialsModal.modal {
-        z-index: 1050; 
-    }
-    .modal-backdrop.show {
-        z-index: 1040; 
-        opacity: 0.5 !important; 
-        pointer-events: none !important; 
-    }
-    .modal-content {
-        pointer-events: auto !important; 
-        z-index: 1051; 
-    }
-    #modal_recipient_email {
-        pointer-events: auto !important;
-        background-color: #fff !important; 
-        opacity: 1 !important; 
-        z-index: 1052; 
-    }
-    #modal_recipient_email:disabled, #modal_recipient_email[readonly] {
-        background-color: #e9ecef; 
-        opacity: 1; 
-    }
 
     @media (max-width: 992px) { /* Adjusted breakpoint for better responsiveness */
         .users-table .d-none-md { display: none !important; } /* Hide less critical columns on medium screens */
@@ -195,39 +173,41 @@
                         <th class="d-none-md">Organization</th> {# Hide Org on medium and smaller #}
                         <th class="d-none-md">Department</th>   {# Hide Dept on medium and smaller #}
                         <th class="d-none-sm">Created At</th> {# Hide Created At on small screens #}
-                        <th class="actions-cell-header" style="min-width: 180px; width: auto;">Actions</th> {# Adjusted width for actions #}
+                        <th class="text-right" style="min-width: 190px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for user_item in users %}
+                    {% for user in users %}
                     <tr>
-                        <td>{{ user_item.id }}</td>
+                        <td>{{ user.id }}</td>
                         <td>
                             <div class="user-avatar-cell">
-                                <img src="https://ui-avatars.com/api/?name={{ user_item.username[0]|upper }}&size=28&background=random&color=fff&rounded=true&font-size=0.5" class="avatar-xs mr-2" alt="{{ user_item.username[0] }}">
-                                {{ user_item.username }}
+                                <img src="https://ui-avatars.com/api/?name={{ user.username[0]|upper }}&size=28&background=random&color=fff&rounded=true&font-size=0.5" class="avatar-xs mr-2" alt="{{ user.username[0] }}">
+                                {{ user.username }}
                             </div>
                         </td>
-                        <td class="d-none-sm">{{ user_item.email }}</td>
+                        <td class="d-none-sm">{{ user.email }}</td>
                         <td>
-                            <span class="badge badge-pill badge-role {{ user_item.role|replace(' ', '_')|lower }}">{{ user_item.role|replace('_', ' ')|capitalize }}</span>
+                            <span class="badge badge-pill badge-role {{ user.role|replace(' ', '_')|lower }}">{{ user.role|replace('_', ' ')|capitalize }}</span>
                         </td>
-                        <td class="d-none-md">{{ user_item.organization.name if user_item.organization else 'N/A' }}</td>
-                        <td class="d-none-md">{{ user_item.department.name if user_item.department else 'N/A' }}</td>
-                        <td class="d-none-sm">{{ user_item.created_at.strftime('%b %d, %Y %H:%M') if user_item.created_at else 'N/A' }}</td>
-                        <td class="actions-cell">
-                            <a href="{{ url_for('admin_create_edit_user', user_id=user_item.id) }}" class="btn btn-sm btn-outline-primary" title="Edit User">
+                        <td class="d-none-md">{{ user.organization.name if user.organization else 'N/A' }}</td>
+                        <td class="d-none-md">{{ user.department.name if user.department else 'N/A' }}</td>
+                        <td class="d-none-sm">{{ user.created_at.strftime('%b %d, %Y %H:%M') if user.created_at else 'N/A' }}</td>
+                        <td class="text-right actions-cell">
+                             <a href="{{ url_for('admin_create_edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary" title="Edit User">
                                 <i class="fas fa-edit"></i> <span class="btn-text">Edit</span>
                             </a>
                             
+                            <!-- Corrected Share Button -->
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#shareCredentialsModal" 
-                                    data-userid="{{ user_item.id }}" data-username="{{ user_item.username }}" title="Share Credentials Info">
+                                    data-userid="{{ user.id }}" data-username="{{ user.username }}" title="Share Credentials Info">
                                 <i class="fas fa-share-alt"></i> <span class="btn-text">Share</span>
                             </button>
 
-                            {% if user_item.id != current_user.id and not (user_item.is_admin and users|selectattr('is_admin')|list|length <= 1) %}
-                            <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="POST" class="d-inline"
-                                  onsubmit="return confirm('Are you absolutely sure you want to delete user {{ user_item.username }}? This action cannot be undone.');">
+                            <!-- Corrected Delete Form -->
+                            {% if user.id != current_user.id and not (user.is_admin and users|selectattr('is_admin')|list|length <= 1) %}
+                            <form action="{{ url_for('admin_delete_user', user_id=user.id) }}" method="POST" class="d-inline"
+                                  onsubmit="return confirm('Are you absolutely sure you want to delete user \'{{ user.username }}\'? This action cannot be undone.');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete User">
                                     <i class="fas fa-trash-alt"></i> <span class="btn-text">Delete</span>
@@ -253,10 +233,11 @@
         </div>
     </div>
 
+    <!-- Single, Dynamic Share Credentials Modal -->
     <div class="modal fade" id="shareCredentialsModal" tabindex="-1" role="dialog" aria-labelledby="shareCredentialsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content" style="border-radius: var(--border-radius-lg, .5rem); box-shadow: var(--box-shadow-md);">
-                <form id="shareCredentialsForm" method="POST" action=""> 
+                <form id="shareCredentialsForm" method="POST" action=""> {# Action will be set by JS #}
                     {{ share_form.hidden_tag() }}
                     <div class="modal-header">
                         <h5 class="modal-title" id="shareCredentialsModalLabel">Share Credentials Info for <strong id="modalUsername"></strong></h5>
@@ -291,31 +272,34 @@
 {{ super() }}
 <script>
 $(document).ready(function() {
+    // --- Dynamic Share Modal Handler ---
     $('#shareCredentialsModal').on('show.bs.modal', function (event) {
+        // Button that triggered the modal
         var button = $(event.relatedTarget); 
+        
+        // Extract info from data-* attributes
         var userId = button.data('userid'); 
         var username = button.data('username');
         
         var modal = $(this);
+        
+        // Update the modal's content
         modal.find('.modal-title #modalUsername').text(username);
         
+        // Construct the correct form action URL
         var formAction = "{{ url_for('admin_share_credentials', user_id=0) }}".replace('0', userId);
         modal.find('#shareCredentialsForm').attr('action', formAction);
         
+        // Reset the email input field from any previous use
         var emailInput = modal.find('#modal_recipient_email');
         emailInput.val(''); 
         emailInput.removeClass('is-invalid');
-        emailInput.prop('disabled', false); 
-        emailInput.prop('readonly', false);
-        
         modal.find('.invalid-feedback').empty().removeClass('d-block');
     });
 
+    // Optional: Auto-focus the email input when the modal is fully shown
     $('#shareCredentialsModal').on('shown.bs.modal', function () {
-        var emailInput = $(this).find('#modal_recipient_email');
-        if (emailInput.length > 0) {
-            emailInput.focus(); 
-        }
+        $(this).find('#modal_recipient_email').focus();
     });
 });
 </script>

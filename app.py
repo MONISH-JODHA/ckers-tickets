@@ -2643,15 +2643,48 @@ def admin_delete_user(user_id):
     if not user_to_delete:
         flash('User not found.', 'danger')
         return redirect(url_for('admin_user_list'))
-    if user_to_delete.id == current_user.id: flash('You cannot delete your own account.', 'danger')
-    elif user_to_delete.is_admin and User.query.filter_by(role='admin').count() <= 1: flash('Cannot delete the only remaining administrator account.', 'danger')
-    else:
-        deleted_username = user_to_delete.username
-        try:
-            Ticket.query.filter_by(assigned_to_id=user_id).update({'assigned_to_id': None}); Attachment.query.filter_by(uploaded_by_id=user_id).delete(synchronize_session='fetch')
-            Comment.query.filter_by(user_id=user_id).delete(synchronize_session='fetch'); Interaction.query.filter_by(user_id=user_id).update({'user_id': None}, synchronize_session='fetch')
-            db.session.delete(user_to_delete); db.session.commit(); flash(f'User "{deleted_username}" and their associated comments/attachments deleted. Interactions anonymized.', 'success'); app.logger.info(f"Admin '{current_user.username}' deleted user '{deleted_username}'.")
-        except Exception as e: db.session.rollback(); flash(f'Error deleting user "{deleted_username}": {e}', 'danger'); app.logger.error(f"Error deleting user {user_id}: {e}", exc_info=True)
+
+    if user_to_delete.id == current_user.id:
+        flash('You cannot delete your own account.', 'danger')
+        return redirect(url_for('admin_user_list'))
+
+    if user_to_delete.is_admin and User.query.filter_by(role='admin').count() <= 1:
+        flash('Cannot delete the only remaining administrator account.', 'danger')
+        return redirect(url_for('admin_user_list'))
+
+    # --- ENHANCED DEPENDENCY CHECKS ---
+    if user_to_delete.tickets_created.first():
+        flash(f'Cannot delete user "{user_to_delete.username}" because they have created one or more tickets. Please reassign their tickets first or archive the user.', 'danger')
+        return redirect(url_for('admin_user_list'))
+        
+    if user_to_delete.tickets_assigned.first():
+        flash(f'Cannot delete user "{user_to_delete.username}" because they have tickets assigned to them. Please reassign their tickets first.', 'danger')
+        return redirect(url_for('admin_user_list'))
+        
+    # If a user can be deleted, their comments and attachments should also be deleted.
+    # The relationships should be configured with cascade options for this, but manual deletion is safer here.
+
+    deleted_username = user_to_delete.username
+    try:
+        # Manually delete dependent objects first
+        Comment.query.filter_by(user_id=user_id).delete(synchronize_session='fetch')
+        Attachment.query.filter_by(uploaded_by_id=user_id).delete(synchronize_session='fetch')
+        
+        # Anonymize interactions (as this is less critical to data integrity than creator)
+        Interaction.query.filter_by(user_id=user_id).update({'user_id': None}, synchronize_session='fetch')
+        
+        # Now delete the user
+        db.session.delete(user_to_delete)
+        db.session.commit()
+        
+        flash(f'User "{deleted_username}" and their associated comments/attachments have been deleted. Interactions were anonymized.', 'success')
+        app.logger.info(f"Admin '{current_user.username}' deleted user '{deleted_username}'.")
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'An error occurred while deleting user "{deleted_username}": {e}', 'danger')
+        app.logger.error(f"Error deleting user {user_id}: {e}", exc_info=True)
+        
     return redirect(url_for('admin_user_list'))
 
 @app.route('/admin/user/<int:user_id>/share_credentials', methods=['POST'])
