@@ -73,6 +73,22 @@
         padding: 2rem 1.5rem; /* More vertical padding */
     }
 
+    /* --- Independent Scrolling Column --- */
+    .sticky-column {
+        position: -webkit-sticky;
+        position: sticky;
+        top: 2rem; /* Adjust based on your header/navbar height */
+        height: calc(100vh - 4rem); /* Full height minus top/bottom padding */
+        overflow-y: auto;
+    }
+
+     /* Custom Scrollbar for Sticky Column */
+    .sticky-column::-webkit-scrollbar { width: 8px; }
+    .sticky-column::-webkit-scrollbar-track { background: rgba(0,0,0,0.02); }
+    .sticky-column::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+    .sticky-column::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
+
+
     /* --- Enhanced Card Base --- */
     .card {
         background-color: var(--card-bg);
@@ -89,8 +105,8 @@
     .col-lg-8 > .card:nth-child(1) { animation-delay: 0.1s; }
     .col-lg-8 > .card:nth-child(2) { animation-delay: 0.2s; }
     .col-lg-8 > .card:nth-child(3) { animation-delay: 0.3s; }
-    .col-lg-4 > .card:nth-child(1) { animation-delay: 0.15s; }
-    .col-lg-4 > .card:nth-child(2) { animation-delay: 0.25s; }
+    .col-lg-4 .sticky-content > .card:nth-child(1) { animation-delay: 0.15s; }
+    .col-lg-4 .sticky-content > .card:nth-child(2) { animation-delay: 0.25s; }
 
     @keyframes cardEntry {
         to { opacity: 1; transform: translateY(0); }
@@ -137,6 +153,15 @@
     .ticket-main-header h4, .ticket-main-header .badge {
         color: var(--text-on-primary) !important;
     }
+    .ticket-main-header .btn-outline-light {
+        color: #fff;
+        border-color: rgba(255,255,255,0.5);
+    }
+    .ticket-main-header .btn-outline-light:hover {
+        color: var(--primary-color-dark);
+        background-color: #fff;
+    }
+
     .ticket-main-header h4 { font-size: 1.6rem; letter-spacing: -0.02em; }
     .ticket-main-header .badge {
         background-color: rgba(255,255,255,0.15) !important;
@@ -200,7 +225,7 @@
         font-weight: 500; margin-right: 0.4em;
     }
 
-    .first-response-banner {
+    .first-response-banner, .total-time-banner {
         padding: 1rem 1.25rem;
         border-radius: var(--radius-md);
         font-size: 0.9rem;
@@ -208,11 +233,16 @@
         display: flex;
         align-items: center;
     }
-    .first-response-banner .fas { font-size: 1.2em; margin-right: 0.75em; }
-    .first-response-banner.success {
+    .first-response-banner .fas, .total-time-banner .fas { font-size: 1.2em; margin-right: 0.75em; }
+    .first-response-banner.success, .total-time-banner.info {
         background-color: rgba(var(--success-rgb), 0.08); /* Use success-rgb */
         border: 1px solid rgba(var(--success-rgb), 0.2);
         color: var(--success-color-dark);
+    }
+    .total-time-banner.info {
+        background-color: rgba(var(--info-rgb), 0.08);
+        border: 1px solid rgba(var(--info-rgb), 0.2);
+        color: var(--primary-color-dark);
     }
     .first-response-banner.muted {
         background-color: #f0f2f5;
@@ -276,16 +306,6 @@
         padding: 0.3rem 0.6rem; font-size: 0.8rem;
     }
     .timeline-header-controls .btn:hover { background-color: #e9ecef; }
-
-    #interactionHistoryBody {
-        max-height: 70vh; 
-        overflow-y: auto;
-        padding: 1.5rem 0.75rem 1.5rem 1.75rem; 
-    }
-    #interactionHistoryBody::-webkit-scrollbar { width: 8px; }
-    #interactionHistoryBody::-webkit-scrollbar-track { background: rgba(0,0,0,0.02); }
-    #interactionHistoryBody::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
-    #interactionHistoryBody::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
 
     .timeline { list-style: none; padding: 0; position: relative; }
     .timeline::before { 
@@ -394,7 +414,14 @@
         <div class="card ticket-main-details">
             <div class="card-header ticket-main-header d-flex justify-content-between align-items-center">
                 <h4 class="mb-0"><i class="fas fa-receipt"></i> Ticket #{{ ticket.id }}: {{ ticket.title }}</h4>
-                <div><span class="badge">{{ ticket.status }}</span></div>
+                <div>
+                    {% if is_privileged_user %}
+                    <button id="btn-ai-summarize" class="btn btn-sm btn-outline-light mr-2" data-toggle="modal" data-target="#summaryModal" title="Use AI to summarize this ticket">
+                        <i class="fas fa-magic mr-1"></i> Summarize
+                    </button>
+                    {% endif %}
+                    <span class="badge">{{ ticket.status }}</span>
+                </div>
             </div>
             <div class="card-body">
                 <h6 class="ticket-section-title"><i class="fas fa-align-left"></i>Description</h6>
@@ -501,7 +528,48 @@
                         <em>First agent response not yet recorded.</em>
                     </div>
                 {% endif %}
+
+                {% if ticket.total_resolution_duration_minutes is not none %}
+                    {% set total_minutes = ticket.total_resolution_duration_minutes %}
+                    {% set days = (total_minutes // 1440) | int %}
+                    {% set hours = ((total_minutes % 1440) // 60) | int %}
+                    {% set minutes = (total_minutes % 60) | int %}
+                    <div class="total-time-banner info">
+                        <i class="fas fa-flag-checkered"></i>
+                        <div><strong>Total Time to Close:</strong> 
+                        {% if days > 0 %}{{ days }}d {% endif %}
+                        {% if hours > 0 %}{{ hours }}h {% endif %}
+                        {% if minutes > 0 or (days == 0 and hours == 0) %}{{ minutes }}m{% endif %}
+                        </div>
+                    </div>
+                {% endif %}
             </div>
+            
+            {# NEW Client Action Footer #}
+            {% if not is_privileged_user %}
+            <div class="card-footer text-right">
+                {# Show "Close" button if ticket is Open or In Progress #}
+                {% if ticket.status in ['Open', 'In Progress', 'On Hold'] %}
+                <form action="{{ url_for('client_close_ticket', ticket_id=ticket.id) }}" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to close this ticket? This indicates your issue is resolved.');">
+                        <i class="fas fa-check-circle mr-1"></i> Close My Ticket
+                    </button>
+                </form>
+                {% endif %}
+
+                {# Show "Reopen" button if ticket is Resolved or Closed #}
+                {% if ticket.status in ['Resolved', 'Closed'] %}
+                <form action="{{ url_for('client_reopen_ticket', ticket_id=ticket.id) }}" method="POST" style="display: inline;">
+                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-success" onclick="return confirm('Are you sure you want to reopen this ticket?');">
+                        <i class="fas fa-undo mr-1"></i> Reopen Ticket
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+            {# END Client Action Footer #}
         </div>
 
         {% if attachments %}
@@ -536,7 +604,14 @@
 
         {% if current_user.is_authenticated %}
         <div class="card add-comment-card" id="add-comment-form">
-            <div class="card-header"><h5 class="mb-0"><i class="fas fa-reply"></i>Add Your Comment</h5></div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-reply"></i>Add Your Comment</h5>
+                {% if is_privileged_user %}
+                <button type="button" id="btn-ai-suggest" class="btn btn-sm btn-outline-primary" title="Use AI to draft a reply based on the conversation history">
+                    ✨ Suggest Reply
+                </button>
+                {% endif %}
+            </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}">
                     {{ comment_form.hidden_tag() }}
@@ -563,219 +638,241 @@
     </div>
 
     <div class="col-lg-4">
-        {% if is_privileged_user %}
-            <div class="card interaction-history-card">
-                <div class="card-header d-flex justify-content-between align-items-center timeline-header-controls">
-                    <h5 class="mb-0"><small><i class="fas fa-stream mr-1"></i>Interaction History</small></h5>
-                    <div>
-                        <button class="btn btn-sm" title="Refresh" onclick="window.location.reload();"><i class="fas fa-redo-alt"></i></button>
-                        <button class="btn btn-sm" data-toggle="collapse" href="#interactionHistoryBody" role="button" aria-expanded="true" aria-controls="interactionHistoryBody" title="Toggle visibility">
-                            <i class="fas fa-chevron-up"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="collapse show" id="interactionHistoryBody">
-                    {% if sorted_interaction_dates %}
-                        <ul class="timeline">
-                            {% for display_date_obj in sorted_interaction_dates %}
-                                <li class="timeline-date-group">
-                                    <span class="timeline-date-chip {% if display_date_obj == today_date %}today{% endif %}">
-                                        {% if display_date_obj == today_date %}Today
-                                        {% elif display_date_obj == yesterday_date %}Yesterday
-                                        {% else %}{{ display_date_obj.strftime('%A, %b %d') }}{% endif %}
-                                    </span>
-                                </li>
-                                {% for p_interaction in interactions_by_date[display_date_obj] %}
-                                    <li class="timeline-event">
-                                        <div class="timeline-event-icon
-                                            {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}bg-primary
-                                            {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}bg-success
-                                            {% elif 'STATUS_CHANGE' in p_interaction.obj.interaction_type %}
-                                                {% set new_status_val = p_interaction.obj.details.get('new_value', p_interaction.obj.details.get('new_status', '')) %}
-                                                {% if new_status_val in ['New', 'Open'] %}bg-warning
-                                                {% elif new_status_val == 'In Progress' %}bg-info
-                                                {% elif new_status_val in ['Resolved', 'Closed'] %}bg-secondary
-                                                {% else %}bg-light{% endif %}
-                                            {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}bg-purple
-                                            {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}bg-teal
-                                            {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}bg-dark
-                                            {% else %}bg-dark{% endif %}">
-                                            {# Icons based on type #}
-                                            {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}<i class="fas fa-ticket-alt"></i>
-                                            {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}<i class="fas fa-comment-alt"></i>
-                                            {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}<i class="fas fa-user-tag"></i>
-                                            {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}<i class="fas fa-stopwatch-20"></i>
-                                            {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}<i class="fas fa-pencil-alt"></i>
-                                            {% else %}<i class="fas fa-info"></i>{% endif %}
-                                        </div>
-                                        <div class="timeline-event-content">
-                                            <div class="timeline-event-time">{{ p_interaction.time_str }}</div>
-                                            <div class="timeline-event-title">{{ p_interaction.actor_name | truncate(30, True) }}</div>
-                                            <div class="timeline-event-description">
-                                                {{ p_interaction.message | safe }}
-                                            </div>
-                                            {% if p_interaction.obj.interaction_type == 'COMMENT_ADDED' and p_interaction.comment_preview %}
-                                                <div class="timeline-comment-preview">
-                                                    <em>{{ p_interaction.comment_preview | truncate(70, True) }}</em>
+        <div class="sticky-column">
+            <div class="sticky-content">
+                {% if is_privileged_user %}
+                    <div class="card interaction-history-card">
+                        <div class="card-header d-flex justify-content-between align-items-center timeline-header-controls">
+                            <h5 class="mb-0"><small><i class="fas fa-stream mr-1"></i>Interaction History</small></h5>
+                            <div>
+                                <button class="btn btn-sm" title="Refresh" onclick="window.location.reload();"><i class="fas fa-redo-alt"></i></button>
+                                <button class="btn btn-sm" data-toggle="collapse" href="#interactionHistoryBody" role="button" aria-expanded="true" aria-controls="interactionHistoryBody" title="Toggle visibility">
+                                    <i class="fas fa-chevron-up"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="collapse show" id="interactionHistoryBody">
+                            {% if sorted_interaction_dates %}
+                                <ul class="timeline">
+                                    {% for display_date_obj in sorted_interaction_dates %}
+                                        <li class="timeline-date-group">
+                                            <span class="timeline-date-chip {% if display_date_obj == today_date %}today{% endif %}">
+                                                {% if display_date_obj == today_date %}Today
+                                                {% elif display_date_obj == yesterday_date %}Yesterday
+                                                {% else %}{{ display_date_obj.strftime('%A, %b %d') }}{% endif %}
+                                            </span>
+                                        </li>
+                                        {% for p_interaction in interactions_by_date[display_date_obj] %}
+                                            <li class="timeline-event">
+                                                <div class="timeline-event-icon
+                                                    {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}bg-primary
+                                                    {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}bg-success
+                                                    {% elif 'STATUS_CHANGE' in p_interaction.obj.interaction_type %}
+                                                        {% set new_status_val = p_interaction.obj.details.get('new_value', p_interaction.obj.details.get('new_status', '')) %}
+                                                        {% if new_status_val in ['New', 'Open'] %}bg-warning
+                                                        {% elif new_status_val == 'In Progress' %}bg-info
+                                                        {% elif new_status_val in ['Resolved', 'Closed'] %}bg-secondary
+                                                        {% else %}bg-light{% endif %}
+                                                    {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}bg-purple
+                                                    {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}bg-teal
+                                                    {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}bg-dark
+                                                    {% else %}bg-dark{% endif %}">
+                                                    {# Icons based on type #}
+                                                    {% if p_interaction.obj.interaction_type.startswith('TICKET_CREATED') %}<i class="fas fa-ticket-alt"></i>
+                                                    {% elif p_interaction.obj.interaction_type == 'COMMENT_ADDED' %}<i class="fas fa-comment-alt"></i>
+                                                    {% elif 'ASSIGNMENT_CHANGE' in p_interaction.obj.interaction_type %}<i class="fas fa-user-tag"></i>
+                                                    {% elif p_interaction.obj.interaction_type == 'FIRST_RESPONSE_RECORDED' %}<i class="fas fa-stopwatch-20"></i>
+                                                    {% elif p_interaction.obj.interaction_type.endswith('_CHANGE') %}<i class="fas fa-pencil-alt"></i>
+                                                    {% else %}<i class="fas fa-info"></i>{% endif %}
                                                 </div>
-                                            {% endif %}
-                                        </div>
-                                    </li>
-                                {% endfor %}
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-light text-center my-4 p-3">No interactions recorded yet.</p>
-                    {% endif %}
+                                                <div class="timeline-event-content">
+                                                    <div class="timeline-event-time">{{ p_interaction.time_str }}</div>
+                                                    <div class="timeline-event-title">{{ p_interaction.actor_name | truncate(30, True) }}</div>
+                                                    <div class="timeline-event-description">
+                                                        {{ p_interaction.message | safe }}
+                                                    </div>
+                                                    {% if p_interaction.obj.interaction_type == 'COMMENT_ADDED' and p_interaction.comment_preview %}
+                                                        <div class="timeline-comment-preview">
+                                                            <em>{{ p_interaction.comment_preview | truncate(70, True) }}</em>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </li>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-light text-center my-4 p-3">No interactions recorded yet.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if is_privileged_user and agent_update_form %}
+                <div class="card agent-actions-form">
+                    <div class="card-header"><h5 class="mb-0"><i class="fas fa-edit"></i>Ticket Properties & Actions</h5></div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}" id="agentUpdateForm">
+                            {{ agent_update_form.hidden_tag() }}
+                            
+                             <div class="form-group">
+                                {{ agent_update_form.status.label() }}
+                                {{ agent_update_form.status(class="form-control custom-select " + ("is-invalid" if agent_update_form.status.errors else "")) }}
+                                {% for error in agent_update_form.status.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.priority.label() }}
+                                {{ agent_update_form.priority(class="form-control custom-select " + ("is-invalid" if agent_update_form.priority.errors else "")) }}
+                                {% for error in agent_update_form.priority.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.assigned_to_id.label() }}
+                                {{ agent_update_form.assigned_to_id(class="form-control custom-select " + ("is-invalid" if agent_update_form.assigned_to_id.errors else "")) }}
+                                {% for error in agent_update_form.assigned_to_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <hr class="my-3">
+                            <h6 class="mb-3 font-weight-semibold">Extended Details:</h6>
+                             <div class="form-group">
+                                {{ agent_update_form.organization_id.label() }}
+                                {{ agent_update_form.organization_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.organization_id.errors else ""), id="agentUpdateOrganizationId") }}
+                                 {% for error in agent_update_form.organization_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.form_type_id.label() }}
+                                {{ agent_update_form.form_type_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.form_type_id.errors else "")) }}
+                                {% for error in agent_update_form.form_type_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                             <div class="form-group">
+                                {{ agent_update_form.tags.label() }}
+                                {{ agent_update_form.tags(class="form-control" + ("is-invalid" if agent_update_form.tags.errors else ""), placeholder="e.g., aws, ec2, urgent") }}
+                                {% for error in agent_update_form.tags.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.category_id.label() }}
+                                {{ agent_update_form.category_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.category_id.errors else "")) }}
+                                {% for error in agent_update_form.category_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.severity.label() }}
+                                {{ agent_update_form.severity(class="form-control custom-select" + ("is-invalid" if agent_update_form.severity.errors else "")) }}
+                                {% for error in agent_update_form.severity.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.cloud_provider.label() }}
+                                {{ agent_update_form.cloud_provider(class="form-control custom-select" + ("is-invalid" if agent_update_form.cloud_provider.errors else ""), id="cloudProviderSelectAgent") }}
+                                {% for error in agent_update_form.cloud_provider.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group" id="awsServiceGroupAgent" {% if not ticket.cloud_provider or ticket.cloud_provider != 'AWS' %}style="display:none;"{% endif %}>
+                                {{ agent_update_form.aws_service.label() }}
+                                {{ agent_update_form.aws_service(class="form-control custom-select" + ("is-invalid" if agent_update_form.aws_service.errors else "")) }}
+                                {% for error in agent_update_form.aws_service.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                             <div class="form-group">
+                                {{ agent_update_form.aws_account_id.label() }}
+                                {{ agent_update_form.aws_account_id(class="form-control" + ("is-invalid" if agent_update_form.aws_account_id.errors else ""), placeholder="12-digit AWS Account ID") }}
+                                {% for error in agent_update_form.aws_account_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.environment.label() }}
+                                {{ agent_update_form.environment(class="form-control custom-select" + ("is-invalid" if agent_update_form.environment.errors else "")) }}
+                                {% for error in agent_update_form.environment.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.request_call_back.label() }}
+                                {{ agent_update_form.request_call_back(class="form-control custom-select" + ("is-invalid" if agent_update_form.request_call_back.errors else "")) }}
+                                {% for error in agent_update_form.request_call_back.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.contact_details.label() }}
+                                {{ agent_update_form.contact_details(class="form-control" + ("is-invalid" if agent_update_form.contact_details.errors else ""), placeholder="Phone or Email for callback") }}
+                                {% for error in agent_update_form.contact_details.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.aws_support_case_id.label() }}
+                                {{ agent_update_form.aws_support_case_id(class="form-control" + ("is-invalid" if agent_update_form.aws_support_case_id.errors else ""), placeholder="AWS Case ID if applicable") }}
+                                {% for error in agent_update_form.aws_support_case_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.effort_required_to_resolve_min.label() }}
+                                {{ agent_update_form.effort_required_to_resolve_min(class="form-control custom-select" + ("is-invalid" if agent_update_form.effort_required_to_resolve_min.errors else "")) }}
+                                {% for error in agent_update_form.effort_required_to_resolve_min.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-control-label">Derived Customer Name</label>
+                                <div class="form-control readonly-display" title="Derived from Organization/Company">{{ ticket.customer_name or 'N/A' }}</div>
+                            </div>
+                             <div class="form-group">
+                                {{ agent_update_form.apn_opportunity_id.label() }}
+                                {{ agent_update_form.apn_opportunity_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.apn_opportunity_id.errors else "")) }}
+                                {% for error in agent_update_form.apn_opportunity_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.apn_opportunity_description.label() }}
+                                {{ agent_update_form.apn_opportunity_description(class="form-control" + ("is-invalid" if agent_update_form.apn_opportunity_description.errors else ""), rows="3", placeholder="Description of APN Opportunity") }}
+                                {% for error in agent_update_form.apn_opportunity_description.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                {{ agent_update_form.support_modal_id.label() }}
+                                {{ agent_update_form.support_modal_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.support_modal_id.errors else "")) }}
+                                {% for error in agent_update_form.support_modal_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                             <div class="form-group">
+                                {{ agent_update_form.additional_email_recipients.label() }}
+                                {{ agent_update_form.additional_email_recipients(class="form-control" + ("is-invalid" if agent_update_form.additional_email_recipients.errors else ""), placeholder="comma,separated,emails") }}
+                                {% for error in agent_update_form.additional_email_recipients.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <button type="submit" name="submit_update" class="btn btn-primary btn-block mt-3"><i class="fas fa-save mr-1"></i> Update Ticket</button>
+                        </form>
+                        {% if not ticket.assignee and ticket.status == 'Open' and current_user.is_agent %}
+                            <hr>
+                            <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-success btn-block"><i class="fas fa-user-plus mr-1"></i> Assign to Me</a>
+                        {% endif %}
+                    </div>
                 </div>
-            </div>
-        {% endif %}
+                {% endif %}
 
-        {% if is_privileged_user and agent_update_form %}
-        <div class="card agent-actions-form">
-            <div class="card-header"><h5 class="mb-0"><i class="fas fa-edit"></i>Ticket Properties & Actions</h5></div>
-            <div class="card-body">
-                <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}" id="agentUpdateForm">
-                    {{ agent_update_form.hidden_tag() }}
-                    
-                     <div class="form-group">
-                        {{ agent_update_form.status.label() }}
-                        {{ agent_update_form.status(class="form-control custom-select " + ("is-invalid" if agent_update_form.status.errors else "")) }}
-                        {% for error in agent_update_form.status.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                <div class="card requester-info">
+                    <div class="card-header"><h5 class="mb-0"><i class="fas fa-user-circle"></i>Requester</h5></div>
+                    <div class="card-body">
+                        <p><strong>User:</strong> {{ ticket.creator.username }}</p>
+                        <p><strong>Email:</strong> {{ ticket.creator.email }}</p>
+                        <p><strong>Role:</strong> {{ ticket.creator.role|replace('_', ' ')|capitalize }}</p>
+                        {% if ticket.creator.organization %}
+                            <p><strong>Organization:</strong> {{ ticket.creator.organization.name }}</p>
+                        {% endif %}
+                        {% if ticket.creator.department %}
+                            <p><strong>Company/Dept:</strong> {{ ticket.creator.department.name }}</p>
+                        {% endif %}
                     </div>
-                    <div class="form-group">
-                        {{ agent_update_form.priority.label() }}
-                        {{ agent_update_form.priority(class="form-control custom-select " + ("is-invalid" if agent_update_form.priority.errors else "")) }}
-                        {% for error in agent_update_form.priority.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.assigned_to_id.label() }}
-                        {{ agent_update_form.assigned_to_id(class="form-control custom-select " + ("is-invalid" if agent_update_form.assigned_to_id.errors else "")) }}
-                        {% for error in agent_update_form.assigned_to_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <hr class="my-3">
-                    <h6 class="mb-3 font-weight-semibold">Extended Details:</h6>
-                     <div class="form-group">
-                        {{ agent_update_form.organization_id.label() }}
-                        {{ agent_update_form.organization_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.organization_id.errors else ""), id="agentUpdateOrganizationId") }}
-                         {% for error in agent_update_form.organization_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    {# If agents can change department for a ticket, it would go here, with JS similar to user edit #}
-                    {# <div class="form-group">
-                        {{ agent_update_form.department_id.label() }}
-                        {{ agent_update_form.department_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.department_id.errors else ""), id="agentUpdateDepartmentId") }}
-                        {% for error in agent_update_form.department_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div> #}
-                    <div class="form-group">
-                        {{ agent_update_form.form_type_id.label() }}
-                        {{ agent_update_form.form_type_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.form_type_id.errors else "")) }}
-                        {% for error in agent_update_form.form_type_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                     <div class="form-group">
-                        {{ agent_update_form.tags.label() }}
-                        {{ agent_update_form.tags(class="form-control" + ("is-invalid" if agent_update_form.tags.errors else ""), placeholder="e.g., aws, ec2, urgent") }}
-                        {% for error in agent_update_form.tags.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.category_id.label() }}
-                        {{ agent_update_form.category_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.category_id.errors else "")) }}
-                        {% for error in agent_update_form.category_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.severity.label() }}
-                        {{ agent_update_form.severity(class="form-control custom-select" + ("is-invalid" if agent_update_form.severity.errors else "")) }}
-                        {% for error in agent_update_form.severity.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.cloud_provider.label() }}
-                        {{ agent_update_form.cloud_provider(class="form-control custom-select" + ("is-invalid" if agent_update_form.cloud_provider.errors else ""), id="cloudProviderSelectAgent") }}
-                        {% for error in agent_update_form.cloud_provider.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group" id="awsServiceGroupAgent" {% if not ticket.cloud_provider or ticket.cloud_provider != 'AWS' %}style="display:none;"{% endif %}>
-                        {{ agent_update_form.aws_service.label() }}
-                        {{ agent_update_form.aws_service(class="form-control custom-select" + ("is-invalid" if agent_update_form.aws_service.errors else "")) }}
-                        {% for error in agent_update_form.aws_service.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                     <div class="form-group">
-                        {{ agent_update_form.aws_account_id.label() }}
-                        {{ agent_update_form.aws_account_id(class="form-control" + ("is-invalid" if agent_update_form.aws_account_id.errors else ""), placeholder="12-digit AWS Account ID") }}
-                        {% for error in agent_update_form.aws_account_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.environment.label() }}
-                        {{ agent_update_form.environment(class="form-control custom-select" + ("is-invalid" if agent_update_form.environment.errors else "")) }}
-                        {% for error in agent_update_form.environment.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.request_call_back.label() }}
-                        {{ agent_update_form.request_call_back(class="form-control custom-select" + ("is-invalid" if agent_update_form.request_call_back.errors else "")) }}
-                        {% for error in agent_update_form.request_call_back.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.contact_details.label() }}
-                        {{ agent_update_form.contact_details(class="form-control" + ("is-invalid" if agent_update_form.contact_details.errors else ""), placeholder="Phone or Email for callback") }}
-                        {% for error in agent_update_form.contact_details.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.aws_support_case_id.label() }}
-                        {{ agent_update_form.aws_support_case_id(class="form-control" + ("is-invalid" if agent_update_form.aws_support_case_id.errors else ""), placeholder="AWS Case ID if applicable") }}
-                        {% for error in agent_update_form.aws_support_case_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.effort_required_to_resolve_min.label() }}
-                        {{ agent_update_form.effort_required_to_resolve_min(class="form-control custom-select" + ("is-invalid" if agent_update_form.effort_required_to_resolve_min.errors else "")) }}
-                        {% for error in agent_update_form.effort_required_to_resolve_min.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    {# Customer Name is no longer directly editable here via a text field #}
-                    <div class="form-group">
-                        <label class="form-control-label">Derived Customer Name</label>
-                        <div class="form-control readonly-display" title="Derived from Organization/Company">{{ ticket.customer_name or 'N/A' }}</div>
-                    </div>
-                     <div class="form-group">
-                        {{ agent_update_form.apn_opportunity_id.label() }}
-                        {{ agent_update_form.apn_opportunity_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.apn_opportunity_id.errors else "")) }}
-                        {% for error in agent_update_form.apn_opportunity_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.apn_opportunity_description.label() }}
-                        {{ agent_update_form.apn_opportunity_description(class="form-control" + ("is-invalid" if agent_update_form.apn_opportunity_description.errors else ""), rows="3", placeholder="Description of APN Opportunity") }}
-                        {% for error in agent_update_form.apn_opportunity_description.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="form-group">
-                        {{ agent_update_form.support_modal_id.label() }}
-                        {{ agent_update_form.support_modal_id(class="form-control custom-select" + ("is-invalid" if agent_update_form.support_modal_id.errors else "")) }}
-                        {% for error in agent_update_form.support_modal_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                     <div class="form-group">
-                        {{ agent_update_form.additional_email_recipients.label() }}
-                        {{ agent_update_form.additional_email_recipients(class="form-control" + ("is-invalid" if agent_update_form.additional_email_recipients.errors else ""), placeholder="comma,separated,emails") }}
-                        {% for error in agent_update_form.additional_email_recipients.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <button type="submit" name="submit_update" class="btn btn-primary btn-block mt-3"><i class="fas fa-save mr-1"></i> Update Ticket</button>
-                </form>
-                {% if not ticket.assignee and ticket.status == 'Open' and current_user.is_agent %}
-                    <hr>
-                    <a href="{{ url_for('assign_ticket_to_me', ticket_id=ticket.id) }}" class="btn btn-success btn-block"><i class="fas fa-user-plus mr-1"></i> Assign to Me</a>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
-
-        <div class="card requester-info">
-            <div class="card-header"><h5 class="mb-0"><i class="fas fa-user-circle"></i>Requester</h5></div>
-            <div class="card-body">
-                <p><strong>User:</strong> {{ ticket.creator.username }}</p>
-                <p><strong>Email:</strong> {{ ticket.creator.email }}</p>
-                <p><strong>Role:</strong> {{ ticket.creator.role|replace('_', ' ')|capitalize }}</p>
-                {% if ticket.creator.organization %}
-                    <p><strong>Organization:</strong> {{ ticket.creator.organization.name }}</p>
-                {% endif %}
-                {% if ticket.creator.department %}
-                    <p><strong>Company/Dept:</strong> {{ ticket.creator.department.name }}</p>
-                {% endif %}
+                </div>
             </div>
         </div>
     </div>
+</div>
+
+<!-- AI Summary Modal -->
+<div class="modal fade" id="summaryModal" tabindex="-1" role="dialog" aria-labelledby="summaryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="summaryModalLabel"><i class="fas fa-magic text-primary mr-2"></i>AI Ticket Summary</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <div class="modal-body" id="summaryModalBody">
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+              <span class="sr-only">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Generating summary, please wait...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -825,15 +922,112 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // If Agent is updating ticket organization, potentially clear/update department if that field were added to agent form
-    // var agentOrgSelect = document.getElementById('agentUpdateOrganizationId');
-    // var agentDeptSelect = document.getElementById('agentUpdateDepartmentId'); // Assuming this ID if field is added
-    // if(agentOrgSelect && agentDeptSelect) {
-    //     agentOrgSelect.addEventListener('change', function() {
-    //         // Similar logic to fetch departments for this new org_id for the agentDeptSelect
-    //         // updateDepartmentOptions(this.value, null, agentDeptSelect); // Pass the target select
-    //     });
-    // }
+    // --- AI Comment Suggester ---
+    const suggestButton = document.getElementById('btn-ai-suggest');
+    if (suggestButton) {
+        const commentTextarea = document.getElementById('{{ comment_form.content.id }}');
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+        suggestButton.addEventListener('click', function() {
+            const originalButtonText = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Thinking...';
+
+            fetch("{{ url_for('ai_suggest_comment', ticket_id=ticket.id) }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({}) // No body needed for this request
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || 'Network response was not ok.') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.suggested_comment) {
+                    commentTextarea.value = data.suggested_comment;
+                    // Optional: animate the textarea
+                    commentTextarea.style.transition = 'background-color 0.5s ease';
+                    commentTextarea.style.backgroundColor = 'var(--primary-pale)';
+                    setTimeout(() => {
+                         commentTextarea.style.backgroundColor = '';
+                    }, 1000);
+                } else if (data.error) {
+                    alert('AI Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching AI suggestion:', error);
+                alert('Failed to get AI suggestion: ' + error.message);
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = originalButtonText;
+            });
+        });
+    }
+
+    // --- AI Ticket Summarizer ---
+    const summarizeButton = document.getElementById('btn-ai-summarize');
+    if (summarizeButton) {
+        const summaryModalBody = document.getElementById('summaryModalBody');
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+        $('#summaryModal').on('show.bs.modal', function (event) {
+            // Set initial loading state
+            summaryModalBody.innerHTML = `
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Generating summary, please wait...</p>
+                </div>`;
+
+            // Fetch the summary
+            fetch("{{ url_for('ai_summarize_ticket', ticket_id=ticket.id) }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || 'Network error fetching summary.') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.summary) {
+                    // Basic Markdown to HTML conversion
+                    let htmlSummary = data.summary
+                        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                        .replace(/^\* (.*$)/gim, '<li>$1</li>')
+                        .replace(/<\/li>\s?<li>/g, '</li><li>') // clean up spacing
+                        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br>');
+                    
+                    // Cleanup any multiple <br> tags from the regex process
+                    htmlSummary = htmlSummary.replace(/<br>\s*<ul>/g, '<ul>').replace(/<\/ul>\s*<br>/g, '</ul>');
+                    
+                    summaryModalBody.innerHTML = htmlSummary;
+                } else {
+                    summaryModalBody.innerHTML = `<div class="alert alert-danger">${data.error || 'An unknown error occurred.'}</div>`;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching AI summary:', error);
+                summaryModalBody.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}</div>`;
+            });
+        });
+    }
+
 
     // Dynamic primary-rgb for CSS (if not already handled globally)
     const rootStyles = getComputedStyle(document.documentElement);

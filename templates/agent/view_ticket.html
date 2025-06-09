@@ -200,7 +200,7 @@
         font-weight: 500; margin-right: 0.4em;
     }
 
-    .first-response-banner {
+    .first-response-banner, .total-time-banner {
         padding: 1rem 1.25rem;
         border-radius: var(--radius-md);
         font-size: 0.9rem;
@@ -208,11 +208,16 @@
         display: flex;
         align-items: center;
     }
-    .first-response-banner .fas { font-size: 1.2em; margin-right: 0.75em; }
-    .first-response-banner.success {
+    .first-response-banner .fas, .total-time-banner .fas { font-size: 1.2em; margin-right: 0.75em; }
+    .first-response-banner.success, .total-time-banner.info {
         background-color: rgba(var(--success-rgb), 0.08); /* Use success-rgb */
         border: 1px solid rgba(var(--success-rgb), 0.2);
         color: var(--success-color-dark);
+    }
+    .total-time-banner.info {
+        background-color: rgba(var(--info-rgb), 0.08);
+        border: 1px solid rgba(var(--info-rgb), 0.2);
+        color: var(--primary-color-dark);
     }
     .first-response-banner.muted {
         background-color: #f0f2f5;
@@ -501,6 +506,21 @@
                         <em>First agent response not yet recorded.</em>
                     </div>
                 {% endif %}
+
+                {% if ticket.total_resolution_duration_minutes is not none %}
+                    {% set total_minutes = ticket.total_resolution_duration_minutes %}
+                    {% set days = (total_minutes // 1440) | int %}
+                    {% set hours = ((total_minutes % 1440) // 60) | int %}
+                    {% set minutes = (total_minutes % 60) | int %}
+                    <div class="total-time-banner info">
+                        <i class="fas fa-flag-checkered"></i>
+                        <div><strong>Total Time to Close:</strong> 
+                        {% if days > 0 %}{{ days }}d {% endif %}
+                        {% if hours > 0 %}{{ hours }}h {% endif %}
+                        {% if minutes > 0 or (days == 0 and hours == 0) %}{{ minutes }}m{% endif %}
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
 
@@ -536,7 +556,14 @@
 
         {% if current_user.is_authenticated %}
         <div class="card add-comment-card" id="add-comment-form">
-            <div class="card-header"><h5 class="mb-0"><i class="fas fa-reply"></i>Add Your Comment</h5></div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-reply"></i>Add Your Comment</h5>
+            {% if is_privileged_user %}
+            <button type="button" id="btn-ai-suggest" class="btn btn-sm btn-outline-primary" title="Use AI to draft a reply based on the conversation history">
+                ✨ Suggest Reply
+            </button>
+            {% endif %}
+            </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('view_ticket', ticket_id=ticket.id) }}">
                     {{ comment_form.hidden_tag() }}
@@ -825,15 +852,55 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // If Agent is updating ticket organization, potentially clear/update department if that field were added to agent form
-    // var agentOrgSelect = document.getElementById('agentUpdateOrganizationId');
-    // var agentDeptSelect = document.getElementById('agentUpdateDepartmentId'); // Assuming this ID if field is added
-    // if(agentOrgSelect && agentDeptSelect) {
-    //     agentOrgSelect.addEventListener('change', function() {
-    //         // Similar logic to fetch departments for this new org_id for the agentDeptSelect
-    //         // updateDepartmentOptions(this.value, null, agentDeptSelect); // Pass the target select
-    //     });
-    // }
+    // --- AI Comment Suggester ---
+    const suggestButton = document.getElementById('btn-ai-suggest');
+    if (suggestButton) {
+        const commentTextarea = document.getElementById('{{ comment_form.content.id }}');
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+        suggestButton.addEventListener('click', function() {
+            const originalButtonText = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Thinking...';
+
+            fetch("{{ url_for('ai_suggest_comment', ticket_id=ticket.id) }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({}) // No body needed for this request
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || 'Network response was not ok.') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.suggested_comment) {
+                    commentTextarea.value = data.suggested_comment;
+                    // Optional: animate the textarea
+                    commentTextarea.style.transition = 'background-color 0.5s ease';
+                    commentTextarea.style.backgroundColor = 'var(--primary-pale)';
+                    setTimeout(() => {
+                         commentTextarea.style.backgroundColor = '';
+                    }, 1000);
+                } else if (data.error) {
+                    alert('AI Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching AI suggestion:', error);
+                alert('Failed to get AI suggestion: ' + error.message);
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = originalButtonText;
+            });
+        });
+    }
+
 
     // Dynamic primary-rgb for CSS (if not already handled globally)
     const rootStyles = getComputedStyle(document.documentElement);

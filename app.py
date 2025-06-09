@@ -390,6 +390,7 @@ class Ticket(db.Model):
     support_modal_id = db.Column(db.Integer, db.ForeignKey('support_modal_options.id'), nullable=True)
     first_response_at = db.Column(db.DateTime, nullable=True)
     first_response_duration_minutes = db.Column(db.Integer, nullable=True)
+    total_resolution_duration_minutes = db.Column(db.Integer, nullable=True)
 
     comments = db.relationship('Comment', backref='ticket_ref', lazy='dynamic', cascade="all, delete-orphan")
 
@@ -2052,6 +2053,7 @@ def view_ticket(ticket_id):
                     'apn_opportunity_name': ticket.apn_opportunity_option_ref.name if ticket.apn_opportunity_option_ref else "None",
                     'apn_opportunity_description': ticket.apn_opportunity_description or "None",
                     'support_modal_name': ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else "None",
+                    'total_resolution_duration_minutes': ticket.total_resolution_duration_minutes,
                 }
                 old_severity_for_alert_trigger = ticket.severity
                 old_ticket_org_id = ticket.organization_id # For checking if org changed
@@ -2107,11 +2109,19 @@ def view_ticket(ticket_id):
                     ticket.customer_name = ticket.creator.username if ticket.creator else "Undefined Customer"
 
 
-                # Resolved_at logic
+                # Resolved_at and Total Duration logic
                 if ticket.status in ['Resolved', 'Closed'] and old_values['status'] not in ['Resolved', 'Closed']:
-                    if not ticket.resolved_at: ticket.resolved_at = datetime.utcnow()
+                    if not ticket.resolved_at:
+                        ticket.resolved_at = datetime.utcnow()
+                    # Calculate total resolution time when first moving to a resolved/closed state
+                    if ticket.created_at and ticket.resolved_at:
+                        delta = ticket.resolved_at - ticket.created_at
+                        ticket.total_resolution_duration_minutes = int(delta.total_seconds() / 60)
                 elif ticket.status not in ['Resolved', 'Closed'] and old_values['status'] in ['Resolved', 'Closed']:
-                    if ticket.resolved_at: ticket.resolved_at = None
+                    if ticket.resolved_at:
+                        ticket.resolved_at = None
+                    # Clear total resolution time when reopening
+                    ticket.total_resolution_duration_minutes = None
                 
                 # Interaction Logging
                 changed_fields_map = {
@@ -2137,6 +2147,7 @@ def view_ticket(ticket_id):
                     'APN Opportunity': (old_values['apn_opportunity_name'], ticket.apn_opportunity_option_ref.name if ticket.apn_opportunity_option_ref else "None"),
                     'APN Opportunity Description': (old_values['apn_opportunity_description'], ticket.apn_opportunity_description or "None"),
                     'Support Modal': (old_values['support_modal_name'], ticket.support_modal_option_ref.name if ticket.support_modal_option_ref else "None"),
+                    'Total Resolution (min)': (old_values['total_resolution_duration_minutes'], ticket.total_resolution_duration_minutes)
                 }
                 for field_name, (old_val, new_val) in changed_fields_map.items():
                     if str(old_val) != str(new_val): 
@@ -2244,8 +2255,7 @@ def view_ticket(ticket_id):
                            interactions_by_date=interactions_by_date,     
                            today_date=today_date_obj,                   
                            yesterday_date=yesterday_date_obj,
-                           EFFORT_CHOICES=EFFORT_CHOICES) # Pass EFFORT_CHOICES to template if needed for display
-
+                           EFFORT_CHOICES=EFFORT_CHOICES)
 #kanban
 # ... (near other agent_required routes) ...
 
@@ -2324,6 +2334,87 @@ def agent_kanban_board():
     )
 
 # ... (rest of your app.py) ...
+
+
+
+@app.route('/api/ai/suggest_comment/<int:ticket_id>', methods=['POST'])
+@agent_required
+def ai_suggest_comment(ticket_id):
+    if not app.config['GEMINI_API_KEY']:
+        return jsonify({"error": "AI service unavailable. Key not configured."}), 503
+
+    ticket = db.session.get(Ticket, ticket_id)
+    if not ticket:
+        return jsonify({"error": "Ticket not found."}), 404
+
+    # Assemble the prompt context
+    comments_query = ticket.comments.filter_by(is_internal=False).order_by(Comment.created_at.asc())
+    comments = comments_query.all()
+
+    conversation_history = []
+    for comment in comments:
+        author_name = comment.author.username if comment.author else "Unknown"
+        conversation_history.append(f"{author_name}: {comment.content}")
+
+    formatted_history = "\n\n".join(conversation_history)
+
+    prompt = f"""
+You are a highly-skilled and empathetic customer support agent AI. Your task is to draft a reply for a support agent to send to a customer.
+
+Analyze the entire ticket history provided below to understand the context. The history includes the original ticket description and the conversation so far. The last comment is often from the customer, so pay close attention to it.
+
+Your generated response should be:
+- Professional and courteous.
+- Empathetic to the user's issue.
+- Directly addressing the last question or comment from the customer, if applicable.
+- Clear and concise.
+- Proposing a next step, asking for clarifying information, or providing a solution if evident from the context.
+
+Do NOT add a generic greeting if a conversation is already underway. Do NOT sign off with a name. Output only the body of the reply.
+
+--- TICKET HISTORY ---
+
+Ticket Title: {ticket.title}
+
+Original Description by {ticket.creator.username if ticket.creator else 'User'}:
+{ticket.description}
+
+--- CONVERSATION ---
+{formatted_history if formatted_history else "No comments have been made yet."}
+
+--- DRAFT YOUR REPLY BELOW ---
+"""
+
+    app.logger.info(f"AI Comment Suggestion Prompt for ticket {ticket_id} (first 150 chars): {prompt[:150]}...")
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=800,
+                temperature=0.6 # Slightly more creative for drafting replies
+            )
+        )
+        generated_text = "".join(part.text for part in response.candidates[0].content.parts).strip() if response.candidates and response.candidates[0].content.parts else ""
+        
+        if not generated_text:
+            if response.prompt_feedback and response.prompt_feedback.block_reason:
+                block_msg = response.prompt_feedback.block_reason_message or "Content generation was limited."
+                app.logger.warning(f"Gemini blocked AI comment suggestion for ticket {ticket_id}: {block_msg}")
+                return jsonify({"error": f"AI content generation was blocked: {block_msg}. Please rephrase or try again."}), 400
+            app.logger.warning(f"Gemini returned empty content for AI comment suggestion on ticket {ticket_id}.")
+            return jsonify({"error": "AI could not generate a suggestion for this ticket."})
+            
+        return jsonify({"suggested_comment": generated_text})
+
+    except Exception as e:
+        app.logger.error(f"Gemini API error during AI comment suggestion for ticket {ticket_id}: {str(e)}", exc_info=True)
+        return jsonify({"error": "An error occurred while communicating with the AI service."}), 500
+
+
+
+
 
 # API Endpoint for status updates (Phase 2 will use this)
 @app.route('/api/ticket/<int:ticket_id>/update_status_kanban', methods=['POST'])
@@ -2580,6 +2671,157 @@ def admin_share_credentials(user_id):
         for field_name, errors in form.errors.items():
             label = getattr(getattr(form, field_name), 'label', None); label_text = label.text if label else field_name.replace("_", " ").title(); flash(f"Error in sharing form ({label_text}): {', '.join(errors)}", 'danger')
     return redirect(url_for('admin_user_list'))
+
+
+
+
+
+@app.route('/api/ai/summarize_ticket/<int:ticket_id>', methods=['POST'])
+@agent_required
+def ai_summarize_ticket(ticket_id):
+    if not app.config['GEMINI_API_KEY']:
+        return jsonify({"error": "AI service unavailable. Key not configured."}), 503
+
+    ticket = db.session.get(Ticket, ticket_id)
+    if not ticket:
+        return jsonify({"error": "Ticket not found."}), 404
+
+    # Assemble the prompt context from the ticket and public comments
+    comments = ticket.comments.filter_by(is_internal=False).order_by(Comment.created_at.asc()).all()
+    conversation_history = [f"{c.author.username}: {c.content}" for c in comments if c.author]
+    formatted_history = "\n".join(conversation_history)
+
+    prompt = f"""
+You are an expert AI assistant for a technical support team. Your task is to summarize a support ticket to help an agent quickly understand the situation.
+
+Analyze the entire ticket history provided below, including the original description and the conversation.
+
+Create a concise summary that includes:
+1.  **The Core Problem:** What is the main issue the user is facing?
+2.  **Key Information Provided:** Mention any critical details, error messages, or specific configurations the user has shared.
+3.  **Current Status/Last Action:** What was the last thing that happened? Is the agent waiting for the customer, or vice-versa?
+
+Format the output clearly using Markdown for headings and bullet points.
+
+--- TICKET DETAILS ---
+
+**Ticket Title:** {ticket.title}
+
+**Original Description by {ticket.creator.username if ticket.creator else 'User'}:**
+{ticket.description}
+
+--- CONVERSATION HISTORY ---
+{formatted_history if formatted_history else "No public comments have been made."}
+
+--- SUMMARY ---
+"""
+
+    app.logger.info(f"AI Summary Prompt for ticket {ticket_id} (first 150 chars): {prompt[:150]}...")
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=800,
+                temperature=0.3 # Lower temperature for factual summarization
+            )
+        )
+        generated_text = "".join(part.text for part in response.candidates[0].content.parts).strip() if response.candidates and response.candidates[0].content.parts else ""
+        
+        if not generated_text:
+            # Handle cases where the AI returns no content
+            return jsonify({"error": "AI could not generate a summary for this ticket."})
+            
+        return jsonify({"summary": generated_text})
+
+    except Exception as e:
+        app.logger.error(f"Gemini API error during AI summary for ticket {ticket_id}: {str(e)}", exc_info=True)
+        return jsonify({"error": "An error occurred while communicating with the AI service."}), 500
+
+
+
+
+
+@app.route('/ticket/<int:ticket_id>/client_close', methods=['POST'])
+@login_required
+def client_close_ticket(ticket_id):
+    ticket = db.session.get(Ticket, ticket_id)
+    if not ticket:
+        flash('Ticket not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # --- Permission Check ---
+    can_modify = False
+    if ticket.created_by_id == current_user.id:
+        can_modify = True
+    elif current_user.role == 'client' and ticket.department_id and ticket.department_id == current_user.department_id:
+        can_modify = True
+    elif current_user.role == 'organization_client' and ticket.organization_id and ticket.organization_id == current_user.organization_id:
+        can_modify = True
+    
+    if not can_modify:
+        flash('You do not have permission to modify this ticket.', 'danger')
+        return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+    if ticket.status in ['Resolved', 'Closed']:
+        flash('This ticket is already resolved or closed.', 'info')
+        return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+    old_status = ticket.status
+    ticket.status = 'Closed'
+    if not ticket.resolved_at:
+        ticket.resolved_at = datetime.utcnow()
+    if ticket.created_at and ticket.resolved_at:
+        delta = ticket.resolved_at - ticket.created_at
+        ticket.total_resolution_duration_minutes = int(delta.total_seconds() / 60)
+    
+    log_interaction(ticket.id, 'STATUS_CHANGE_BY_CLIENT', user_id=current_user.id,
+                    details={'old_value': old_status, 'new_value': 'Closed', 'field_display_name': 'Status'})
+    
+    db.session.commit()
+    flash(f'Ticket #{ticket.id} has been closed.', 'success')
+    return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+
+@app.route('/ticket/<int:ticket_id>/client_reopen', methods=['POST'])
+@login_required
+def client_reopen_ticket(ticket_id):
+    ticket = db.session.get(Ticket, ticket_id)
+    if not ticket:
+        flash('Ticket not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # --- Permission Check (same as close) ---
+    can_modify = False
+    if ticket.created_by_id == current_user.id:
+        can_modify = True
+    elif current_user.role == 'client' and ticket.department_id and ticket.department_id == current_user.department_id:
+        can_modify = True
+    elif current_user.role == 'organization_client' and ticket.organization_id and ticket.organization_id == current_user.organization_id:
+        can_modify = True
+
+    if not can_modify:
+        flash('You do not have permission to modify this ticket.', 'danger')
+        return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+    if ticket.status not in ['Resolved', 'Closed']:
+        flash('This ticket is not resolved or closed.', 'info')
+        return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+    old_status = ticket.status
+    ticket.status = 'Open' # Reopen to 'Open' status
+    ticket.resolved_at = None
+    ticket.total_resolution_duration_minutes = None
+
+    log_interaction(ticket.id, 'STATUS_CHANGE_BY_CLIENT', user_id=current_user.id,
+                    details={'old_value': old_status, 'new_value': 'Open', 'field_display_name': 'Status'})
+    
+    db.session.commit()
+    flash(f'Ticket #{ticket.id} has been reopened.', 'success')
+    return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+
 
 @app.route('/admin/categories')
 @admin_required
