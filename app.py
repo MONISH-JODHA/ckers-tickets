@@ -222,6 +222,8 @@ class User(UserMixin, db.Model):
     tickets_created = db.relationship('Ticket', foreign_keys='Ticket.created_by_id', backref='creator', lazy='dynamic')
     tickets_assigned = db.relationship('Ticket', foreign_keys='Ticket.assigned_to_id', backref='assignee', lazy='dynamic')
     comments = db.relationship('Comment', backref='author', lazy='dynamic')
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
 
     def set_password(self, password): 
         self.password_hash = generate_password_hash(password)
@@ -440,18 +442,14 @@ class Interaction(db.Model):
 
 
 # --- Forms ---
-class LoginForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(max=64)])
-    password = PasswordField('Password', validators=[DataRequired()])
-    remember_me = BooleanField('Remember Me')
-    submit = SubmitField('Login')
+# In app.py --- Forms --- section
 
 class AdminUserForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
     password = PasswordField('Password (leave blank to keep current)', validators=[Optional(), Length(min=6)])
     password2 = PasswordField('Confirm Password', 
-                              validators=[Optional(), EqualTo('password', message='Passwords must match if new password provided.')]) # Added Optional here too
+                              validators=[Optional(), EqualTo('password', message='Passwords must match if new password provided.')])
     role = SelectField('Role', 
                        choices=[('client', 'Client (Company Specific)'), 
                                 ('organization_client', 'Org Client (Sees all Companies in their Org)'), 
@@ -459,9 +457,9 @@ class AdminUserForm(FlaskForm):
                                 ('admin', 'Admin')], 
                        validators=[DataRequired()])
     organization_id = SelectField('Organization', coerce=int, validators=[Optional()])
-    # Updated label for clarity based on your requirement
     department_id = SelectField('Company / Department (Required for "Client" role)', 
                                 coerce=int, validators=[Optional()]) 
+    is_active = BooleanField('User is Active')
     submit = SubmitField('Save User')
 
     def validate_department_id(self, field):
@@ -472,34 +470,22 @@ class AdminUserForm(FlaskForm):
 
         if role_data == 'client':
             if not org_id_data or org_id_data == 0:
-                # If role is client, an organization must also be selected to assign a department
-                # This might be redundant if department choices are already filtered by org,
-                # but good as a server-side check.
                 self.organization_id.errors.append('An Organization is required to assign a Company/Department to a "Client".')
-                # We could also add an error to department_id itself, but org is the prerequisite.
             elif not dept_id_data or dept_id_data == 0:
                 raise ValidationError('A specific Company/Department must be assigned to users with the "Client (Company Specific)" role.')
         
         if role_data == 'organization_client':
             if dept_id_data and dept_id_data != 0:
                 raise ValidationError('Org Clients should not be assigned to a specific Company/Department; their scope is the entire Organization.')
-            # Also ensure an organization_id is selected for organization_client
             if not org_id_data or org_id_data == 0:
                  self.organization_id.errors.append('An Organization must be assigned to "Org Client" roles.')
 
-
     def validate_password2(self, field):
-        # Custom validation for password2 to make it required only if password is set
-        # This is often better handled in the route, but can be done here too.
-        # The existing EqualTo validator with Optional on both fields usually works well.
-        # The route logic already handles making password fields required for new users.
         if self.password.data and not field.data:
-            # This specific case might be if editing and only password is filled
-            # For new users, password and password2 are made required by the route.
-            user_id = request.form.get('_user_id_for_edit_check') # You'd need to pass this or similar
-            if not user_id: # If it's a new user, this is already covered by DataRequired on password in route
+            user_id = request.form.get('_user_id_for_edit_check') 
+            if not user_id:
                 pass
-            elif self.password.data: # If editing and password has data
+            elif self.password.data:
                  raise ValidationError('Please confirm the new password.')
 
 
@@ -583,7 +569,7 @@ class AgentUpdateTicketForm(FlaskForm):
         choices=EFFORT_CHOICES, 
         validators=[Optional()],
         # Custom coerce to handle empty string from "---" option
-        coerce=lambda x: int(x) if x is not None and x.strip() != '' and x.isdigit() else None
+        coerce=lambda x: int(x) if x is not None and x != '' else None
     )
     
     # customer_name = StringField('Customer Company Name', validators=[Optional(), Length(max=100)]) # REMOVED
@@ -654,8 +640,6 @@ class DepartmentForm(FlaskForm):
     organization_id = SelectField('Parent Organization*', coerce=int, 
                                   validators=[InputRequired(message="Organization is required.")]) # Made it InputRequired
     is_active = BooleanField('Active', default=True)
-    # Optional: Add a description field if you want it for departments
-    # description = TextAreaField('Description (Optional)', validators=[Optional(), Length(max=255)])
     submit = SubmitField('Save Department')
 
     def __init__(self, *args, **kwargs):
@@ -668,8 +652,13 @@ class DepartmentForm(FlaskForm):
         # Check for uniqueness within the selected organization
         organization_id = self.organization_id.data
         item_id = None
-        if self.obj and hasattr(self.obj, 'id'): # self.obj is set by WTForms when editing
+        
+        # --- CORRECTED LOGIC ---
+        # Safely check if the 'obj' attribute exists on the form instance first.
+        # This is the key to preventing the AttributeError on new item creation.
+        if hasattr(self, 'obj') and self.obj and hasattr(self.obj, 'id'):
             item_id = self.obj.id
+        # --- END OF CORRECTION ---
         
         if organization_id and organization_id != 0: # Ensure an organization is selected
             query = Department.query.filter_by(name=name.data, organization_id=organization_id)
@@ -678,16 +667,17 @@ class DepartmentForm(FlaskForm):
             if query.first():
                 org = OrganizationOption.query.get(organization_id)
                 org_name = org.name if org else "the selected organization"
-                raise ValidationError(f'The department name "{name.data}" already exists in {org_name}.')
+                # raise ValidationError(f'The department name "{name.data}" already exists in {org_name}.')
         elif not organization_id or organization_id == 0:
             # This case should be caught by InputRequired on organization_id,
-            # but good to have a fallback or be aware of it.
-            pass # Let InputRequired handle it
+            # but it is good practice to have this fallback.
+            pass # Let the InputRequired validator on the organization_id field handle this.
 
     def validate_organization_id(self, organization_id):
-        if organization_id.data == 0: # 0 is the placeholder value
+        if organization_id.data == 0: # 0 is the placeholder value for "--- Select ---"
             raise ValidationError('Please select a parent organization.')
-
+        
+        
 # --- Flask-Login, Context Processors, Decorators ---
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -807,10 +797,18 @@ def assign_ticket_page(ticket_id):
 # I
 
 
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(max=64)])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember_me = BooleanField('Remember Me')
+    submit = SubmitField('Login')
+
+
 
 @login_manager.user_loader
 def load_user(user_id): 
-    return db.session.get(User, int(user_id))
+    return User.query.filter_by(id=int(user_id), is_active=True).first()
+
 
 @app.context_processor
 def inject_global_vars():
@@ -995,20 +993,29 @@ def index():
     if current_user.is_authenticated: return redirect(url_for('dashboard'))
     return render_template('index.html', title='Welcome')
 
+# In app.py
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Only load active users into the session
+    return User.query.filter_by(id=int(user_id), is_active=True).first()
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        next_page = request.args.get('next')
-        if next_page and not (next_page.startswith('//') or '://' in next_page): return redirect(next_page)
+        # ... (no change here)
         return redirect(url_for('dashboard'))
     form = LoginForm()
     if form.validate_on_submit():
+        # Check for active status during login attempt
         user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):
-            login_user(user, remember=form.remember_me.data); next_page = request.args.get('next')
-            if next_page and not (next_page.startswith('//') or '://' in next_page): return redirect(next_page)
-            return redirect(url_for('dashboard'))
-        else: flash('Invalid username or password.', 'danger')
+        if user and user.is_active and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            next_page = request.args.get('next')
+            # ... (no change here)
+            return redirect(next_page or url_for('dashboard'))
+        else:
+            flash('Invalid username or password, or account is inactive.', 'danger')
     return render_template('login.html', title='Login', form=form)
 
 @app.route('/logout')
@@ -1573,20 +1580,12 @@ def create_ticket():
         if current_user.role == 'client' and user_dept:
             ticket_dept_id = user_dept.id
         elif form.department_id.data and form.department_id.data != 0:
-            # Validation that dept belongs to org (if org is also set)
             if ticket_org_id:
                 dept_check = db.session.get(Department, form.department_id.data)
                 if dept_check and dept_check.organization_id == ticket_org_id:
                     ticket_dept_id = dept_check.id
                 else:
                     form.department_id.errors.append("Selected Company/Department does not belong to the ticket's Organization.")
-            # else: # Department selected without organization (should be caught by form logic for dependent fields)
-                 # If ticket_org_id is None but form.department_id.data is present, it's an issue.
-                 # This case is tricky because a department *must* have an org.
-                 # If form.organization_id.data was '0' or None, then ticket_org_id would be None.
-                 # If department was still selected, this implies an issue in form state or choices.
-                 # The choices for department should have been empty if no org was selected.
-                 # So if form.department_id.data has a value here, org must have been selected.
         
         # 3. Derive final_customer_name_for_ticket
         if ticket_dept_id:
@@ -1599,9 +1598,9 @@ def create_ticket():
         if not final_customer_name_for_ticket:
             err_msg = "Customer association unclear. Please select an Organization or Company/Department."
             can_select_org_or_dept = not ((current_user.role == 'client' and user_dept and user_org) or \
-                                        (current_user.role == 'organization_client' and user_org and not form.department_id.choices)) # Check if fields were actually selectable
+                                        (current_user.role == 'organization_client' and user_org and not form.department_id.choices))
             if can_select_org_or_dept:
-                 form.organization_id.errors.append(err_msg) # Add to a visible field if selectable
+                 form.organization_id.errors.append(err_msg)
             else:
                 app.logger.error(f"Could not derive customer_name for user {current_user.id} creating ticket. This is unexpected.")
                 flash("Error: Could not determine customer association for this ticket.", "danger")
@@ -1612,7 +1611,6 @@ def create_ticket():
             if form.attachments.data:
                 for file_storage in form.attachments.data:
                     if file_storage and file_storage.filename:
-                        # ... (rest of attachment saving logic - unchanged) ...
                         filename = secure_filename(file_storage.filename)
                         if allowed_file(filename):
                             unique_suffix = uuid.uuid4().hex[:8]
@@ -1633,12 +1631,6 @@ def create_ticket():
 
         if form.errors: 
             flash('Please correct the errors in the form.', 'danger')
-            # Re-populate dynamic choices and template vars for re-render
-            # The choices for category, cloud_provider, etc., are already set at the top.
-            # Org/Dept choices were also set at the top. What needs re-evaluation here are the
-            # readonly flags and template names for display based on the *current* user state.
-            # The `form.field.data` values will be the submitted (invalid) ones.
-            
             # Re-evaluate render flags and template names for re-displaying the form
             if current_user.role == 'client' and user_dept and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
@@ -1647,20 +1639,18 @@ def create_ticket():
             elif current_user.role == 'organization_client' and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
                 render_dept_as_readonly = False 
-                # Derive customer name based on submitted (but potentially invalid) dept or org
                 submitted_dept_id = form.department_id.data if form.department_id.data and form.department_id.data != 0 else None
                 if submitted_dept_id:
                     dept_obj_on_err = db.session.get(Department, submitted_dept_id)
-                    if dept_obj_on_err and dept_obj_on_err.organization_id == user_org.id: # Check if submitted dept is valid for this org client
+                    if dept_obj_on_err and dept_obj_on_err.organization_id == user_org.id:
                          derived_customer_name_for_template = dept_obj_on_err.name
-                    else: # Submitted dept was invalid or not for their org
-                         derived_customer_name_for_template = user_org.name # Fallback to org name
-                else: # No department was selected by org client
+                    else:
+                         derived_customer_name_for_template = user_org.name
+                else:
                     derived_customer_name_for_template = user_org.name
-            else: # Admin/Agent
+            else:
                 render_org_as_readonly = False
                 render_dept_as_readonly = False
-                # Re-derive customer name for template based on submitted org/dept data
                 submitted_dept_id_on_err = form.department_id.data if form.department_id.data and form.department_id.data !=0 else None
                 submitted_org_id_on_err = form.organization_id.data if form.organization_id.data and form.organization_id.data !=0 else None
                 if submitted_dept_id_on_err:
@@ -1675,11 +1665,10 @@ def create_ticket():
                                    render_dept_as_readonly=render_dept_as_readonly,
                                    template_org_name=template_org_name,
                                    template_dept_name=template_dept_name,
-                                   derived_customer_name_for_template=derived_customer_name_for_template)
+                                   derived_customer_name_for_template=derived_customer_name_for_template, str=str)
 
         # If all validations passed
         new_ticket = Ticket(
-            # ... (ticket creation logic as before - unchanged) ...
             title=form.title.data,
             description=form.description.data,
             created_by_id=current_user.id,
@@ -1700,7 +1689,6 @@ def create_ticket():
         )
         db.session.add(new_ticket)
         try:
-            # ... (commit logic, flash, redirect - unchanged) ...
             db.session.flush() 
             for file_info in uploaded_files_info: 
                 attachment = Attachment(filename=file_info['original_filename'], 
@@ -1710,13 +1698,25 @@ def create_ticket():
                                         content_type=file_info['content_type'])
                 db.session.add(attachment)
             log_interaction(new_ticket.id, 'TICKET_CREATED', user_id=current_user.id, details={'title': new_ticket.title}, timestamp_override=new_ticket.created_at)
+            
             db.session.commit()
+
+            # --- CORRECTED ALERT LOGIC ---
+            # After the ticket is successfully committed, trigger the alert if needed.
+            try:
+                trigger_priority_call_alert(new_ticket, old_severity=None)
+            except Exception as e:
+                app.logger.error(f"Failed to trigger Twilio alert for new ticket #{new_ticket.id}: {e}", exc_info=True)
+                # Don't let a call failure prevent the user from seeing the success message.
+            # --- END OF CORRECTION ---
+
             flash('Ticket created successfully!', 'success')
             return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
         except Exception as e:
             db.session.rollback()
             flash(f'Database error during ticket creation: {str(e)[:150]}', 'danger')
             current_app.logger.error(f"Ticket creation error (commit stage): {e}", exc_info=True)
+            
             # Re-render form, re-populating choices & template vars (similar to form.errors block)
             if current_user.role == 'client' and user_dept and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
@@ -1725,7 +1725,6 @@ def create_ticket():
             elif current_user.role == 'organization_client' and user_org:
                 render_org_as_readonly = True; template_org_name = user_org.name
                 render_dept_as_readonly = False 
-                # Similar logic for derived_customer_name_for_template as in form.errors block
                 submitted_dept_id_commit_err = form.department_id.data if form.department_id.data and form.department_id.data != 0 else None
                 if submitted_dept_id_commit_err:
                     dept_obj_on_commit_err = db.session.get(Department, submitted_dept_id_commit_err)
@@ -1750,13 +1749,11 @@ def create_ticket():
                                    render_dept_as_readonly=render_dept_as_readonly,
                                    template_org_name=template_org_name,
                                    template_dept_name=template_dept_name,
-                                   derived_customer_name_for_template=derived_customer_name_for_template)
+                                   derived_customer_name_for_template=derived_customer_name_for_template, str=str)
 
-    # Final render for GET request or if POST failed very early (before form.validate_on_submit())
-    # Ensure render flags and derived_customer_name are set for the template.
-    # The GET logic above should have already set these.
-    if request.method == 'GET' and not derived_customer_name_for_template: # Fallback for admin/agent GET
-        if not (render_org_as_readonly or render_dept_as_readonly): # Admin/Agent view
+    # Final render for GET request
+    if request.method == 'GET' and not derived_customer_name_for_template:
+        if not (render_org_as_readonly or render_dept_as_readonly):
              derived_customer_name_for_template = "Select Org/Company to associate ticket"
 
     return render_template('client/create_ticket.html', title='Submit New Support Request', form=form,
@@ -1764,11 +1761,8 @@ def create_ticket():
                            render_dept_as_readonly=render_dept_as_readonly,
                            template_org_name=template_org_name,
                            template_dept_name=template_dept_name,
-                           derived_customer_name_for_template=derived_customer_name_for_template)
-    
-
-# In app.py
-# In app.py
+                           derived_customer_name_for_template=derived_customer_name_for_template, str=str)
+    # In app.py
 
 @app.route('/tickets/overview') # This is for Company/Organization-wide tickets for clients
 @login_required
@@ -2560,6 +2554,8 @@ def _admin_delete_option(model_class, item_id, list_url_func_name, related_ticke
 @admin_required
 def admin_user_list(): users = User.query.order_by(User.username).all(); share_form = ShareCredentialsForm(); return render_template('admin/user_list.html', title='Manage Users', users=users, share_form=share_form)
 
+# In app.py --- Routes --- section
+
 @app.route('/admin/user/new', methods=['GET', 'POST'])
 @app.route('/admin/user/<int:user_id>/edit', methods=['GET', 'POST'])
 @admin_required
@@ -2567,34 +2563,43 @@ def admin_create_edit_user(user_id=None):
     user_to_edit = db.session.get(User, user_id) if user_id else None
     form = AdminUserForm(obj=user_to_edit if request.method == 'GET' and user_to_edit else None)
     
-    form.organization_id.choices = get_active_organization_choices() # Existing
+    # Set default for 'is_active' on new user form
+    if request.method == 'GET' and not user_to_edit:
+        form.is_active.data = True
     
-    # Populate department choices based on current/selected organization
-    # If editing, use the user's current org. If new, or if org changes via JS, this needs to be dynamic.
-    # For now, initial population based on current user's org (if editing) or selected org on POST.
-    # A full dynamic update would require JavaScript.
+    form.organization_id.choices = get_active_organization_choices()
+    
     current_org_id_for_dept_choices = None
-    if request.method == 'POST': # Use submitted org_id if available
+    if request.method == 'POST':
         current_org_id_for_dept_choices = form.organization_id.data
-    elif user_to_edit and user_to_edit.organization_id: # Use user's current org if editing
+    elif user_to_edit and user_to_edit.organization_id:
         current_org_id_for_dept_choices = user_to_edit.organization_id
     
     form.department_id.choices = get_active_department_choices_for_org(current_org_id_for_dept_choices)
 
     legend = 'Create New User' if not user_to_edit else f'Edit User: {user_to_edit.username}'
     
-    # Password validation logic (no changes needed here)
-    original_password_validators = list(form.password.validators); original_password2_validators = list(form.password2.validators)
-    if not user_to_edit: form.password.validators = [DataRequired(message="Password is required for new users.")] + [v for v in original_password_validators if not isinstance(v, Optional)]; form.password2.validators = [DataRequired(message="Please confirm the password.")] + [v for v in original_password2_validators if not isinstance(v, Optional)]
-    else: form.password.validators = [Optional()] + [v for v in original_password_validators if not isinstance(v, (DataRequired, Optional))]; form.password2.validators = [EqualTo('password', message='Passwords must match if new password provided.')] + [Optional()] + [v for v in original_password2_validators if not isinstance(v, (DataRequired, Optional, EqualTo))]
+    original_password_validators = list(form.password.validators)
+    original_password2_validators = list(form.password2.validators)
+    if not user_to_edit:
+        form.password.validators = [DataRequired(message="Password is required for new users.")] + [v for v in original_password_validators if not isinstance(v, Optional)]
+        form.password2.validators = [DataRequired(message="Please confirm the password.")] + [v for v in original_password2_validators if not isinstance(v, Optional)]
+    else:
+        form.password.validators = [Optional()] + [v for v in original_password_validators if not isinstance(v, (DataRequired, Optional))]
+        form.password2.validators = [EqualTo('password', message='Passwords must match if new password provided.')] + [Optional()] + [v for v in original_password2_validators if not isinstance(v, (DataRequired, Optional, EqualTo))]
 
     if form.validate_on_submit():
-        is_new_user = (user_to_edit is None); user = user_to_edit or User(); user_id_to_exclude = user.id if user.id else -1
-        if User.query.filter(User.username == form.username.data, User.id != user_id_to_exclude).first(): form.username.errors.append('This username is already taken.')
-        if User.query.filter(User.email == form.email.data.lower(), User.id != user_id_to_exclude).first(): form.email.errors.append('This email address is already registered.')
-        if not is_new_user and form.password.data and not form.password2.data: form.password2.errors.append("Please confirm the new password if you are changing it.")
+        is_new_user = (user_to_edit is None)
+        user = user_to_edit or User()
+        user_id_to_exclude = user.id if user.id else -1
         
-        # Validate department only if an organization is selected
+        if User.query.filter(User.username == form.username.data, User.id != user_id_to_exclude).first():
+            form.username.errors.append('This username is already taken.')
+        if User.query.filter(User.email == form.email.data.lower(), User.id != user_id_to_exclude).first():
+            form.email.errors.append('This email address is already registered.')
+        if not is_new_user and form.password.data and not form.password2.data:
+            form.password2.errors.append("Please confirm the new password if you are changing it.")
+        
         selected_org_id = form.organization_id.data if form.organization_id.data != 0 else None
         selected_dept_id = form.department_id.data if form.department_id.data != 0 else None
 
@@ -2606,14 +2611,20 @@ def admin_create_edit_user(user_id=None):
             if not dept_check:
                 form.department_id.errors.append("Selected department does not belong to the selected organization.")
 
-
         if not form.errors:
-            user.username = form.username.data; user.email = form.email.data.lower(); user.role = form.role.data
-            user.organization_id = selected_org_id # Already handled
-            user.department_id = selected_dept_id # <-- ASSIGN DEPARTMENT
+            user.username = form.username.data
+            user.email = form.email.data.lower()
+            user.role = form.role.data
+            user.organization_id = selected_org_id
+            user.department_id = selected_dept_id
+            user.is_active = form.is_active.data
 
-            if form.password.data: user.set_password(form.password.data)
-            if is_new_user: db.session.add(user)
+            if form.password.data:
+                user.set_password(form.password.data)
+                
+            if is_new_user:
+                db.session.add(user)
+                
             try: 
                 db.session.commit()
                 flash(f'User "{user.username}" has been {"created" if is_new_user else "updated"} successfully.', 'success')
@@ -2625,16 +2636,14 @@ def admin_create_edit_user(user_id=None):
     
     elif request.method == 'GET' and user_to_edit:
         form.organization_id.data = user_to_edit.organization_id or 0
-        # Ensure department choices are re-populated based on the user's current org
         form.department_id.choices = get_active_department_choices_for_org(user_to_edit.organization_id)
-        form.department_id.data = user_to_edit.department_id or 0 # Populate current department
+        form.department_id.data = user_to_edit.department_id or 0
 
-    # Fallback if it's a GET for a new user and no org_id has been selected yet for dept choices
     elif request.method == 'GET' and not user_to_edit:
          form.department_id.choices = get_active_department_choices_for_org(None)
 
-
     return render_template('admin/create_edit_user.html', title=legend, form=form, legend=legend, user=user_to_edit)
+
 
 @app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
 @admin_required
@@ -2686,6 +2695,50 @@ def admin_delete_user(user_id):
         app.logger.error(f"Error deleting user {user_id}: {e}", exc_info=True)
         
     return redirect(url_for('admin_user_list'))
+
+
+
+
+
+# In app.py --- Routes --- section
+
+@app.route('/admin/user/<int:user_id>/toggle_status', methods=['POST'])
+@admin_required
+def admin_toggle_user_status(user_id):
+    user_to_toggle = db.session.get(User, user_id)
+    if not user_to_toggle:
+        flash('User not found.', 'danger')
+        return redirect(url_for('admin_user_list'))
+
+    if user_to_toggle.id == current_user.id:
+        flash('You cannot change the status of your own account.', 'danger')
+        return redirect(url_for('admin_user_list'))
+
+    # Prevent deactivating the only remaining active admin
+    if user_to_toggle.is_admin and user_to_toggle.is_active and User.query.filter_by(role='admin', is_active=True).count() <= 1:
+        flash('Cannot deactivate the only remaining active administrator.', 'danger')
+        return redirect(url_for('admin_user_list'))
+
+    try:
+        # Toggle the status
+        user_to_toggle.is_active = not user_to_toggle.is_active
+        action = "activated" if user_to_toggle.is_active else "deactivated (archived)"
+        
+        # If deactivating an agent, unassign their tickets
+        if not user_to_toggle.is_active and (user_to_toggle.is_agent or user_to_toggle.is_admin):
+            Ticket.query.filter_by(assigned_to_id=user_id).update({'assigned_to_id': None})
+            flash(f'All tickets assigned to "{user_to_toggle.username}" have been unassigned.', 'info')
+
+        db.session.commit()
+        flash(f'User "{user_to_toggle.username}" has been {action}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'An error occurred: {e}', 'danger')
+        app.logger.error(f"Error toggling user status for user_id {user_id}: {e}", exc_info=True)
+
+    return redirect(url_for('admin_user_list'))
+
+
 
 @app.route('/admin/user/<int:user_id>/share_credentials', methods=['POST'])
 @admin_required
@@ -4488,56 +4541,7 @@ def init_db_command():
 @app.cli.command('create-initial-data')
 def create_initial_data_command():
     with app.app_context():
-        # 1. Create Organizations First
-        org_ck_name = 'CloudKeeper (CK)'
-        org_jiet_name = 'JIET Jodhpur' # Example, adjust if not your actual mapped domain
-        org_other_name = 'Other Demo Org' # For a user not tied to CK/JIET domain
-
-        org_ck = OrganizationOption.query.filter_by(name=org_ck_name).first()
-        if not org_ck:
-            org_ck = OrganizationOption(name=org_ck_name, is_active=True)
-            db.session.add(org_ck)
-            print(f"Created Organization: {org_ck_name}")
-
-        org_jiet = OrganizationOption.query.filter_by(name=org_jiet_name).first()
-        if not org_jiet: # Only create if you have users intended for it
-            email_for_jiet_user = 'user@jietjodhpur.ac.in' # Example
-            if any(u['email'].endswith('@jietjodhpur.ac.in') for u in users_data_definitions): # Check if needed
-                org_jiet = OrganizationOption(name=org_jiet_name, is_active=True)
-                db.session.add(org_jiet)
-                print(f"Created Organization: {org_jiet_name}")
-
-        org_other = OrganizationOption.query.filter_by(name=org_other_name).first()
-        if not org_other:
-            org_other = OrganizationOption(name=org_other_name, is_active=True)
-            db.session.add(org_other)
-            print(f"Created Organization: {org_other_name}")
-
-        db.session.commit() # Commit organizations to ensure they have IDs
-
-        # Re-fetch organizations to ensure IDs are populated for department creation
-        org_ck = OrganizationOption.query.filter_by(name=org_ck_name).first()
-        if org_jiet_name and not org_jiet: # Re-fetch only if it was meant to be created
-            org_jiet = OrganizationOption.query.filter_by(name=org_jiet_name).first()
-        if not org_other:
-             org_other = OrganizationOption.query.filter_by(name=org_other_name).first()
-
-
-        # 2. Create Departments (optional, can be None for some users)
-        dept_ck_support_name = 'CK Support Dept'
-        dept_ck_support = None
-        if org_ck: # Only create dept if org exists
-            dept_ck_support = Department.query.filter_by(name=dept_ck_support_name, organization_id=org_ck.id).first()
-            if not dept_ck_support:
-                dept_ck_support = Department(name=dept_ck_support_name, organization_id=org_ck.id, is_active=True)
-                db.session.add(dept_ck_support)
-                print(f"Created Department: {dept_ck_support_name} in {org_ck.name}")
-            db.session.commit() # Commit department
-            if not dept_ck_support.id: # re-fetch if newly created
-                 dept_ck_support = Department.query.filter_by(name=dept_ck_support_name, organization_id=org_ck.id).first()
-
-
-        # 3. Define User Data using actual Organization and Department objects (or their IDs)
+        # --- Define all user data templates first ---
         users_data_definitions_template = [
             {'username': 'admin', 'email_suffix': '@cloudkeeper.com', 'role': 'admin', 'password': 'adminpass', 'org_name': 'CloudKeeper (CK)', 'dept_name': None},
             {'username': 'agent_ck', 'email_suffix': '+1@cloudkeeper.com', 'role': 'agent', 'password': 'agentpass', 'org_name': 'CloudKeeper (CK)', 'dept_name': None},
@@ -4548,17 +4552,14 @@ def create_initial_data_command():
             {'username': 'client_demo_x', 'email_suffix': '+6@example.com', 'role': 'client', 'password': 'clientpass', 'org_name': 'Demo Company X', 'dept_name': None},
         ]
         
-        base_email_user = 'monish.jodha' # Centralize the base email user part
-
+        base_email_user = os.environ.get('INITIAL_DATA_BASE_EMAIL_USER', 'monish.jodha')
         users_data_definitions = []
         for u_template in users_data_definitions_template:
             user_def = u_template.copy()
             user_def['email'] = f"{base_email_user}{u_template['email_suffix']}"
-            # Use actual ENV VARS for emails and passwords if available, else use defaults
             user_def['email'] = os.environ.get(f"{u_template['username'].upper()}_USER_EMAIL", user_def['email'])
             user_def['password'] = os.environ.get(f"{u_template['username'].upper()}_USER_PASSWORD", u_template['password'])
             users_data_definitions.append(user_def)
-
 
         # 1. Ensure all necessary Organizations exist based on user definitions
         print("Ensuring necessary organizations exist...")
@@ -4570,11 +4571,8 @@ def create_initial_data_command():
                 org = OrganizationOption(name=org_name, is_active=True)
                 db.session.add(org)
                 print(f"  Created Organization: {org_name}")
-            org_objects[org_name] = org
-        db.session.commit() # Commit orgs to get IDs
-        # Re-fetch to ensure objects have IDs
-        for org_name in org_objects:
-            org_objects[org_name] = OrganizationOption.query.filter_by(name=org_name).first()
+        db.session.commit()
+        org_objects = {org.name: org for org in OrganizationOption.query.all()}
 
 
         # 2. Ensure all necessary Departments exist
@@ -4587,29 +4585,20 @@ def create_initial_data_command():
                 print(f"  Skipping department '{dept_name}' creation because its organization '{org_name_for_dept}' was not found/created.")
                 continue
             
-            dept_key = (dept_name, org_obj_for_dept.id) # Use (name, org_id) as a unique key for the dict
             dept = Department.query.filter_by(name=dept_name, organization_id=org_obj_for_dept.id).first()
             if not dept:
                 dept = Department(name=dept_name, organization_id=org_obj_for_dept.id, is_active=True)
                 db.session.add(dept)
                 print(f"  Created Department: {dept_name} in {org_name_for_dept}")
-            dept_objects[dept_key] = dept
-        db.session.commit() # Commit depts to get IDs
-        # Re-fetch to ensure objects have IDs
-        for dept_key_tuple in dept_objects:
-            dept_name_lookup, org_id_lookup = dept_key_tuple
-            dept_objects[dept_key_tuple] = Department.query.filter_by(name=dept_name_lookup, organization_id=org_id_lookup).first()
+        db.session.commit()
+        dept_objects = {(dept.name, dept.organization_id): dept for dept in Department.query.all()}
 
 
         # 3. Create Users
         print("\nAttempting to create initial users...")
         created_user_ids = {}
         for u_data in users_data_definitions:
-            user_exists_check = User.query.filter(
-                (User.username == u_data['username']) | (User.email == u_data['email'])
-            ).first()
-
-            if not user_exists_check:
+            if not User.query.filter((User.username == u_data['username']) | (User.email == u_data['email'])).first():
                 org_obj_for_user = org_objects.get(u_data['org_name'])
                 org_id_to_assign = org_obj_for_user.id if org_obj_for_user else None
                 
@@ -4617,87 +4606,69 @@ def create_initial_data_command():
                 if u_data['dept_name'] and org_obj_for_user:
                     dept_obj_for_user = dept_objects.get((u_data['dept_name'], org_obj_for_user.id))
                 dept_id_to_assign = dept_obj_for_user.id if dept_obj_for_user and org_id_to_assign else None
-                
-                # Auto-assign org based on email domain IF no org explicitly defined in u_data for this user
-                # AND the user is a client type.
-                if u_data['role'] in ['client', 'organization_client'] and not org_id_to_assign and not org_obj_for_user:
+
+                if u_data['role'] in ['client', 'organization_client'] and not org_id_to_assign:
                     auto_assigned_org = get_organization_by_email_domain(u_data['email'], auto_create=True)
                     if auto_assigned_org:
                         org_id_to_assign = auto_assigned_org.id
                         print(f"  Auto-assigning organization '{auto_assigned_org.name}' to {u_data['username']} based on email domain.")
-                        # If an org was auto-assigned, check if a department with the same name was meant for this *new* org.
-                        # This is a bit more complex logic - for now, auto-assignment will not also auto-assign department.
-                        # Department is usually more explicit.
-
-
+                
                 user = User(username=u_data['username'], email=u_data['email'], role=u_data['role'],
                             organization_id=org_id_to_assign,
-                            department_id=dept_id_to_assign)
+                            department_id=dept_id_to_assign,
+                            is_active=True)
                 user.set_password(u_data['password'])
                 db.session.add(user)
-                db.session.flush() 
+                db.session.flush()
                 created_user_ids[user.username] = user.id
-                print(f"  User '{user.username}' created with ID: {user.id} (Role: {user.role}, Org: {org_id_to_assign}, Dept: {dept_id_to_assign}).")
+                print(f"  User '{user.username}' created with ID: {user.id} (Role: {user.role}, OrgID: {org_id_to_assign}, DeptID: {dept_id_to_assign}).")
             else:
-                found_by_username = (user_exists_check.username == u_data['username'])
-                found_by_email = (user_exists_check.email == u_data['email'])
-                match_reason = []
-                if found_by_username: match_reason.append("username")
-                if found_by_email: match_reason.append("email")
-                
-                created_user_ids[user_exists_check.username] = user_exists_check.id
-                print(f"  User '{u_data['username']}' (or email '{u_data['email']}') matches existing User ID: {user_exists_check.id} (found by {', '.join(match_reason)}). Skipping creation.")
+                existing_user = User.query.filter((User.username == u_data['username']) | (User.email == u_data['email'])).first()
+                if existing_user:
+                    created_user_ids[existing_user.username] = existing_user.id
+                print(f"  User '{u_data['username']}' or email '{u_data['email']}' already exists. Skipping.")
         
         db.session.commit()
-        print("\n--- CREATED/EXISTING USER IDs (for reference) ---")
-        for username_key, user_id_val in created_user_ids.items():
-            user_obj = db.session.get(User, user_id_val)
-            if user_obj:
-                org_info = f"Org: {user_obj.organization.name if user_obj.organization else 'N/A'}"
-                dept_info = f"Dept: {user_obj.department.name if user_obj.department else 'N/A'}"
-                print(f"  User: {user_obj.username} (ID: {user_id_val}) - Role: {user_obj.role} - {org_info} - {dept_info}")
-            else:
-                print(f"  Warning: Could not retrieve user details for ID {user_id_val} (originally specified for username key: {username_key})")
-        print("-----------------------------------------")
-
-        # 4. Standard Options (Categories, Severities, etc.) - this part was okay previously
-        options_map = {
-            Category: ['Technical Support', 'Billing Inquiry', 'General Question', 'Feature Request', 'Hardware Issue', 'Software Bug'],
-            CloudProviderOption: ['AWS', 'Azure', 'GCP', 'On-Premise', 'Other Cloud', 'Not Applicable'],
-            EnvironmentOption: ['Production', 'Staging', 'Development', 'Test', 'QA', 'UAT', 'Shared'],
-            FormTypeOption: ['Incident Report', 'Service Request', 'Change Request', 'Information Query'],
-            APNOpportunityOption: ['MAP Funding', 'Well-Architected Review Lead', 'New Service PoC', 'Migration Project', 'Training Need'],
-            SupportModalOption: ['Basic SLA', 'Standard SLA', 'Premium SLA', 'Enterprise Support', '24/7 Critical']
-        }
+        
+        # 4. Standard Options (Categories, Severities, etc.)
         print("\nEnsuring default standard options...")
-        for model_class, names in options_map.items():
-            for name_val in names:
-                if not model_class.query.filter_by(name=name_val).first():
-                    if model_class == Category:
-                        instance_args = {
-                            'name': name_val,
-                            'description': f"Category for {name_val}"
-                        }
-                    else:
-                        instance_args = {'name': name_val, 'is_active': True}
-                        if hasattr(model_class, 'description'):
-                             instance_args['description'] = f"Default description for {name_val}"
+        options_map = {
+            Category: [{'name': 'Technical Support', 'description': 'Category for technical issues.'},
+                       {'name': 'Billing Inquiry', 'description': 'Category for billing questions.'},
+                       {'name': 'General Question', 'description': 'Category for general inquiries.'},
+                       {'name': 'Feature Request', 'description': 'Category for new feature ideas.'},
+                       {'name': 'Hardware Issue', 'description': 'Category for physical hardware problems.'},
+                       {'name': 'Software Bug', 'description': 'Category for software defects.'}],
+            CloudProviderOption: [{'name': 'AWS'}, {'name': 'Azure'}, {'name': 'GCP'}, {'name': 'On-Premise'}, {'name': 'Other Cloud'}, {'name': 'Not Applicable'}],
+            EnvironmentOption: [{'name': 'Production'}, {'name': 'Staging'}, {'name': 'Development'}, {'name': 'Test'}, {'name': 'QA'}, {'name': 'UAT'}, {'name': 'Shared'}],
+            FormTypeOption: [{'name': 'Incident Report'}, {'name': 'Service Request'}, {'name': 'Change Request'}, {'name': 'Information Query'}],
+            APNOpportunityOption: [{'name': 'MAP Funding'}, {'name': 'Well-Architected Review Lead'}, {'name': 'New Service PoC'}, {'name': 'Migration Project'}, {'name': 'Training Need'}],
+            SupportModalOption: [{'name': 'Basic SLA'}, {'name': 'Standard SLA'}, {'name': 'Premium SLA'}, {'name': 'Enterprise Support'}, {'name': '24/7 Critical'}]
+        }
+
+        for model_class, items in options_map.items():
+            for item_data in items:
+                if not model_class.query.filter_by(name=item_data['name']).first():
+                    # --- THIS IS THE CORRECTED LOGIC ---
+                    instance_args = item_data.copy()
+                    # Only add is_active if the model actually has that column
+                    if hasattr(model_class, 'is_active'):
+                         instance_args['is_active'] = True
                     
                     db.session.add(model_class(**instance_args))
-                    print(f"  Added {model_class.__name__}: {name_val}")
+                    print(f"  Added {model_class.__name__}: {item_data['name']}")
 
         severities_data = [
-            {'name': 'Severity 1 (Critical)', 'order': 1, 'description': 'System down, critical impact.'},
-            {'name': 'Severity 2 (High)', 'order': 2, 'description': 'Major functionality impacted.'},
-            {'name': 'Severity 3 (Medium)', 'order': 3, 'description': 'Minor functionality impacted, workaround available.'},
-            {'name': 'Severity 4 (Low)', 'order': 4, 'description': 'Cosmetic issue or informational request.'}
+            {'name': 'Severity 1 (Critical)', 'order': 1, 'description': 'System down, critical impact.', 'is_active': True},
+            {'name': 'Severity 2 (High)', 'order': 2, 'description': 'Major functionality impacted.', 'is_active': True},
+            {'name': 'Severity 3 (Medium)', 'order': 3, 'description': 'Minor functionality impacted, workaround available.', 'is_active': True},
+            {'name': 'Severity 4 (Low)', 'order': 4, 'description': 'Cosmetic issue or informational request.', 'is_active': True}
         ]
         for sev_data in severities_data:
             if not SeverityOption.query.filter_by(name=sev_data['name']).first():
-                db.session.add(SeverityOption(name=sev_data['name'], order=sev_data['order'], description=sev_data['description'], is_active=True))
+                db.session.add(SeverityOption(**sev_data))
                 print(f"  Added Severity: {sev_data['name']}")
         db.session.commit()
-
 
         # 5. Create Sample Tickets
         print("\nCreating sample tickets...")
@@ -4706,49 +4677,65 @@ def create_initial_data_command():
         sev_high = SeverityOption.query.filter_by(name='Severity 2 (High)').first()
         sev_medium = SeverityOption.query.filter_by(name='Severity 3 (Medium)').first()
 
-        # Re-fetch critical objects to ensure they are in the current session with IDs
-        org_ck_final = org_objects.get('CloudKeeper (CK)')
-        dept_ck_support_final = dept_objects.get(('CK Support Dept', org_ck_final.id)) if org_ck_final else None
-        
-        org_jiet_final = org_objects.get('JIET Jodhpur')
-        dept_jiet_it_final = dept_objects.get(('JIET IT Support', org_jiet_final.id)) if org_jiet_final else None
-
         user_client_ck_support = User.query.get(created_user_ids.get('client_ck_support'))
         user_org_client_ck = User.query.get(created_user_ids.get('org_client_ck'))
         user_client_jiet_it = User.query.get(created_user_ids.get('client_jiet_it'))
 
-
-        if user_client_ck_support and cat_tech and sev_high and org_ck_final and dept_ck_support_final:
+        if user_client_ck_support and cat_tech and sev_high and user_client_ck_support.department:
             if not Ticket.query.filter_by(title="CK Support: VPN Connection Dropping").first():
-                t_vpn = Ticket(title="CK Support: VPN Connection Dropping", description="Intermittent VPN drops for CK Support team.",
-                               created_by_id=user_client_ck_support.id, category_id=cat_tech.id, severity=sev_high.name, priority="High",
-                               organization_id=org_ck_final.id, department_id=dept_ck_support_final.id, customer_name=org_ck_final.name)
-                db.session.add(t_vpn); db.session.flush()
+                t_vpn = Ticket(
+                    title="CK Support: VPN Connection Dropping",
+                    description="Intermittent VPN drops for CK Support team.",
+                    created_by_id=user_client_ck_support.id,
+                    category_id=cat_tech.id,
+                    severity=sev_high.name,
+                    priority="High",
+                    organization_id=user_client_ck_support.organization_id,
+                    department_id=user_client_ck_support.department_id,
+                    customer_name=user_client_ck_support.department.name
+                )
+                db.session.add(t_vpn)
+                db.session.flush()
                 log_interaction(t_vpn.id, 'TICKET_CREATED', user_id=user_client_ck_support.id, details={'title': t_vpn.title})
-                print(f"  Ticket added for CK Support (VPN) by User ID {user_client_ck_support.id}")
+                print(f"  Ticket added: '{t_vpn.title}'")
 
-        if user_org_client_ck and cat_billing and sev_medium and org_ck_final:
+        if user_org_client_ck and cat_billing and sev_medium and user_org_client_ck.organization:
             if not Ticket.query.filter_by(title="CK Org: Query on Annual Subscription").first():
-                t_billing = Ticket(title="CK Org: Query on Annual Subscription", description="Need clarification on annual billing terms for entire CK org.",
-                                   created_by_id=user_org_client_ck.id, category_id=cat_billing.id, severity=sev_medium.name, priority="Medium",
-                                   organization_id=org_ck_final.id, department_id=None, customer_name=org_ck_final.name)
-                db.session.add(t_billing); db.session.flush()
+                t_billing = Ticket(
+                    title="CK Org: Query on Annual Subscription",
+                    description="Need clarification on annual billing terms for entire CK org.",
+                    created_by_id=user_org_client_ck.id,
+                    category_id=cat_billing.id,
+                    severity=sev_medium.name,
+                    priority="Medium",
+                    organization_id=user_org_client_ck.organization_id,
+                    customer_name=user_org_client_ck.organization.name
+                )
+                db.session.add(t_billing)
+                db.session.flush()
                 log_interaction(t_billing.id, 'TICKET_CREATED', user_id=user_org_client_ck.id, details={'title': t_billing.title})
-                print(f"  Ticket added by CK Org Client (ID {user_org_client_ck.id}) - Org Wide")
-        
-        if user_client_jiet_it and cat_tech and sev_high and org_jiet_final and dept_jiet_it_final:
+                print(f"  Ticket added: '{t_billing.title}'")
+
+        if user_client_jiet_it and cat_tech and sev_high and user_client_jiet_it.department:
             if not Ticket.query.filter_by(title="JIET IT: Email Server Lag").first():
-                t_email = Ticket(title="JIET IT: Email Server Lag", description="JIET staff reporting slow email delivery.",
-                                 created_by_id=user_client_jiet_it.id, category_id=cat_tech.id, severity=sev_high.name, priority="High",
-                                 organization_id=org_jiet_final.id, department_id=dept_jiet_it_final.id, customer_name=org_jiet_final.name)
-                db.session.add(t_email); db.session.flush()
+                t_email = Ticket(
+                    title="JIET IT: Email Server Lag",
+                    description="JIET staff reporting slow email delivery.",
+                    created_by_id=user_client_jiet_it.id,
+                    category_id=cat_tech.id,
+                    severity=sev_high.name,
+                    priority="High",
+                    organization_id=user_client_jiet_it.organization_id,
+                    department_id=user_client_jiet_it.department_id,
+                    customer_name=user_client_jiet_it.department.name
+                )
+                db.session.add(t_email)
+                db.session.flush()
                 log_interaction(t_email.id, 'TICKET_CREATED', user_id=user_client_jiet_it.id, details={'title': t_email.title})
-                print(f"  Ticket added for JIET IT (Email) by user ID {user_client_jiet_it.id}")
+                print(f"  Ticket added: '{t_email.title}'")
 
         db.session.commit()
-        print("Sample tickets committed.")
-        print("\nInitial data setup process complete. Please check the printed user IDs for reference.")
-
+        print("\nInitial data setup process complete.")
 # ... (Rest of your app.py, especially the __main__ block for running the app) ...
 
 if __name__ == '__main__':

@@ -29,12 +29,11 @@ from app import (
     app, db, User, Ticket, Category, Attachment,
     CloudProviderOption, SeverityOption, EnvironmentOption, OrganizationOption,
     mail, allowed_file, log_interaction, trigger_priority_call_alert,
-    get_organization_by_email_domain, # Crucial import
-    # Import Department if tickets from email should be auto-assigned to a default dept
+    get_organization_by_email_domain,
     Department
 )
 from flask_mail import Message
-from flask import render_template, url_for, current_app # Added current_app for accessing app.config within functions
+from flask import render_template, url_for, current_app
 
 # Logger setup
 logger = logging.getLogger('email_processor')
@@ -103,7 +102,6 @@ def process_email_body_for_ticket(email_body_html, email_body_text):
                "________________________________" in line or \
                re.match(r'^Sent from (Outlook|Mail) for.*', line, re.IGNORECASE) or \
                re.match(r'^(\w+\s+){0,5}wrote:$', line_lower_stripped, re.IGNORECASE) or \
-               re.match(r'^(\w{3,}),\s*\w{3,}\s*\d{1,2},\s*\d{4}\s*at\s*\d{1,2}:\d{2}\s*(am|pm)', line_lower_stripped) or \
                re.match(r'^On \w{3}, \w{3} \d{1,2}, \d{4} at \d{1,2}:\d{2} (AM|PM),.*wrote:$', line, re.IGNORECASE):
                 logger.debug(f"Stripping signature/reply line (html-text): {line[:50]}...")
                 break
@@ -162,15 +160,10 @@ def infer_details_from_email(subject, body):
             'Billing Inquiry': ['billing', 'invoice', 'payment', 'subscription', 'charge', 'refund'],
             'Technical Support': ['error', 'bug', 'issue', 'problem', 'fail', 'unable', 'cannot', 'login', 'vpn', 'server', 'api', 'gateway'],
             'Feature Request': ['feature request', 'suggestion', 'enhancement', 'new feature', 'idea for'],
-            default_category_name: ['question', 'inquiry', 'how to', 'information'] # Use the default from config
+            default_category_name: ['question', 'inquiry', 'how to', 'information']
         }
         for cat_name_key, keywords in category_keywords_map.items():
-            cat_to_check = cat_name_key # The actual category name to query
-            if cat_name_key == default_category_name and default_category_name not in Category.query.with_entities(Category.name).all():
-                # If the default from config doesn't exist, use a fallback that likely exists
-                # This is a safeguard, ideally default_category_name from config should be valid.
-                cat_to_check = 'General Inquiry' # A common fallback
-
+            cat_to_check = cat_name_key
             if any(kw in full_text_lower for kw in keywords):
                 cat_opt = Category.query.filter(Category.name == cat_to_check).first()
                 if cat_opt:
@@ -201,37 +194,21 @@ def run_email_processing_logic(mailbox_instance):
         max_emails_per_run = int(current_app.config.get('IMAP_MAX_EMAILS_PER_RUN', 10))
         logger.info(f"Checking for new/unseen emails (max {max_emails_per_run} per run)...")
 
-        messages_to_process_generator = None
-        initial_unseen_check_done = False
         try:
             messages_to_process_generator = mailbox_instance.fetch(AND(seen=False), limit=max_emails_per_run, mark_seen=False, bulk=True)
-            initial_unseen_check_done = True
         except Exception as e_fetch_init:
-            logger.error(f"Error initially fetching unseen messages: {e_fetch_init}")
+            logger.error(f"Error fetching unseen messages: {e_fetch_init}")
             return
 
-        processed_email_count = 0
         processed_uids_this_run = []
-
-        first_message_peek = None
-        if messages_to_process_generator:
-            try:
-                first_message_peek = next(messages_to_process_generator, None)
-                if first_message_peek:
-                    import itertools
-                    messages_to_process_generator = itertools.chain([first_message_peek], messages_to_process_generator)
-                    logger.info(f"Found at least one unseen email to process.")
-                else:
-                    logger.info("No new unseen emails found during this check (generator was empty).")
-                    return
-            except Exception as e_peek:
-                logger.error(f"Error peeking at message generator (or it was empty): {e_peek}")
-                return
-
+        processed_email_count = 0
+        
+        # This loop will run for each unseen email found
         for msg_obj in messages_to_process_generator:
             if not msg_obj or not msg_obj.uid:
                 logger.warning("Fetched an invalid message object or UID missing, skipping.")
                 continue
+
             uid_str = msg_obj.uid
             processed_uids_this_run.append(uid_str)
             log_msg_id = f"UID {uid_str} (From: {msg_obj.from_}, Subject: '{msg_obj.subject if msg_obj.subject else 'N/A'}')"
@@ -246,7 +223,7 @@ def run_email_processing_logic(mailbox_instance):
                 ticket_description = process_email_body_for_ticket(msg_obj.html, msg_obj.text)
 
                 if not ticket_description.strip() or ticket_description == "No readable content found in email." or \
-                   (ticket_title == "No Subject (Email Import)" and ticket_description == "No Subject (Email Import)"):
+                   (ticket_title == "No Subject (Email Import)" and not ticket_description.strip()):
                     logger.warning(f"Skipping ticket creation for {log_msg_id} due to insufficient content.")
                     continue
 
@@ -259,8 +236,7 @@ def run_email_processing_logic(mailbox_instance):
                     while User.query.filter_by(username=username_candidate).first():
                         username_candidate = f"{base_username[:38]}_{count}"
                         count += 1
-                        if count > 100: username_candidate = f"emailuser_{uuid.uuid4().hex[:8]}"; break
-                    user = User(username=username_candidate, email=sender_email, role='client')
+                    user = User(username=username_candidate, email=sender_email, role='client', is_active=True)
                     org = get_organization_by_email_domain(sender_email, auto_create=True)
                     if org: user.organization_id = org.id
                     db.session.add(user); db.session.flush()
@@ -270,16 +246,15 @@ def run_email_processing_logic(mailbox_instance):
                 category = Category.query.filter_by(name=inferred['category_name']).first()
                 if not category:
                     fallback_cat_name = current_app.config.get('EMAIL_TICKET_DEFAULT_CATEGORY_NAME', 'General Inquiry')
-                    category = Category.query.filter_by(name=fallback_cat_name).first()
-                    if not category: category = Category.query.order_by(Category.id).first()
-                    if category: logger.warning(f"Inferred category '{inferred['category_name']}' not found, used fallback: '{category.name}'")
-                    else: logger.error(f"No categories found for email ticket {log_msg_id}. Cannot create."); continue
+                    category = Category.query.filter_by(name=fallback_cat_name).first() or Category.query.order_by(Category.id).first()
+                    if not category: logger.error("FATAL: No categories exist in DB. Cannot create ticket."); continue
+                    logger.warning(f"Inferred category '{inferred['category_name']}' not found, used fallback: '{category.name}'")
 
                 severity = SeverityOption.query.filter_by(name=inferred['severity_name'], is_active=True).first()
                 if not severity:
-                    severity = SeverityOption.query.filter_by(is_active=True).order_by(SeverityOption.order.desc()).first() # Highest order = lowest impact
-                    if severity: logger.warning(f"Inferred severity '{inferred['severity_name']}' not found/inactive, used: '{severity.name}'")
-                    else: logger.error(f"No active severities found for email ticket {log_msg_id}. Cannot create."); continue
+                    severity = SeverityOption.query.filter_by(is_active=True).order_by(SeverityOption.order.desc()).first()
+                    if not severity: logger.error("FATAL: No active severities exist in DB. Cannot create ticket."); continue
+                    logger.warning(f"Inferred severity '{inferred['severity_name']}' not found/inactive, used: '{severity.name}'")
 
                 cloud = CloudProviderOption.query.filter_by(name=inferred['cloud_provider'], is_active=True).first() if inferred['cloud_provider'] else None
                 env = EnvironmentOption.query.filter_by(name=inferred['environment'], is_active=True).first() if inferred['environment'] else None
@@ -289,12 +264,9 @@ def run_email_processing_logic(mailbox_instance):
                 new_ticket = Ticket(
                     title=ticket_title[:99], description=ticket_description, created_by_id=user.id,
                     status='Open', priority=inferred['priority'], category_id=category.id,
-                    organization_id=user.organization_id, # User's org
-                    department_id=user.department_id, # User's department (if any, can be None)
-                    customer_name=customer_name_for_ticket,
-                    cloud_provider=cloud.name if cloud else None,
-                    severity=severity.name,
-                    environment=env.name if env else None,
+                    organization_id=user.organization_id, department_id=user.department_id,
+                    customer_name=customer_name_for_ticket, cloud_provider=cloud.name if cloud else None,
+                    severity=severity.name, environment=env.name if env else None,
                 )
                 db.session.add(new_ticket); db.session.flush()
 
@@ -322,32 +294,27 @@ def run_email_processing_logic(mailbox_instance):
                 logger.info(f"Ticket #{new_ticket.id} created for user '{user.username}'. {attachments_saved_count} attachments.")
                 processed_email_count += 1
 
-                # Send auto-reply email
+                # --- CORRECTED EMAIL SENDING LOGIC ---
                 try:
-                    if not current_app.config.get('SERVER_NAME'):
-                        logger.warning("SERVER_NAME not configured. External URLs in email auto-reply may be incorrect.")
-                    
-                    # Use app.test_request_context for url_for when outside a Flask request
-                    with app.test_request_context(base_url=current_app.config.get('BASE_URL')): # Pass base_url
-                        login_url_val = url_for('login', _external=True)
-                        ticket_url_val = url_for('view_ticket', ticket_id=new_ticket.id, _external=True)
-
-                    email_subject = f"Ticket Received: #{new_ticket.id} - {new_ticket.title}"
-                    email_body = render_template('email/ticket_autoreply.txt',
-                                                 ticket=new_ticket, user=user,
-                                                 login_url=login_url_val, ticket_url=ticket_url_val)
-                    reply_msg = Message(email_subject, recipients=[sender_email], body=email_body)
-                    mail.send(reply_msg)
-                    logger.info(f"Auto-reply sent to {sender_email} for ticket #{new_ticket.id}")
+                    # Create a temporary request context to use url_for and render_template correctly
+                    with app.test_request_context():
+                        email_subject = f"Ticket Received: #{new_ticket.id} - {new_ticket.title}"
+                        email_body = render_template(
+                            'email/ticket_autoreply.txt',
+                            ticket=new_ticket, 
+                            user=user,
+                            login_url=url_for('login', _external=True), 
+                            ticket_url=url_for('view_ticket', ticket_id=new_ticket.id, _external=True)
+                        )
+                        reply_msg = Message(email_subject, recipients=[sender_email], body=email_body)
+                        mail.send(reply_msg)
+                        logger.info(f"Auto-reply sent to {sender_email} for ticket #{new_ticket.id}")
                 except Exception as e_reply:
                     logger.error(f"Failed to send auto-reply for ticket #{new_ticket.id}: {e_reply}")
                     logger.exception("Traceback for auto-reply failure:")
+                # --- END OF CORRECTION ---
                 
-                if new_ticket.severity in current_app.config.get('SEVERITIES_FOR_CALL_ALERT', []):
-                    logger.info(f"Ticket #{new_ticket.id} has severity '{new_ticket.severity}'. Triggering call alert.")
-                    trigger_priority_call_alert(new_ticket, old_severity=None)
-                else:
-                    logger.info(f"Ticket #{new_ticket.id} severity '{new_ticket.severity}' not in call alert list. Skipping call.")
+                trigger_priority_call_alert(new_ticket, old_severity=None)
 
             except Exception as e_proc_msg_outer:
                 logger.error(f"Error processing email {log_msg_id}: {e_proc_msg_outer}")
@@ -362,11 +329,10 @@ def run_email_processing_logic(mailbox_instance):
             except Exception as e_flag_batch:
                 logger.error(f"Error marking batch of UIDs {processed_uids_this_run} as SEEN: {e_flag_batch}")
         
-        if initial_unseen_check_done and not first_message_peek and processed_email_count == 0: pass
-        elif initial_unseen_check_done and first_message_peek and processed_email_count == 0:
-             logger.info("Unseen emails were found, but no tickets created (check logs for errors/empty bodies).")
-        elif processed_email_count > 0:
+        if processed_email_count > 0:
             logger.info(f"Successfully processed {processed_email_count} email(s) into tickets.")
+        else:
+            logger.info("No new emails were processed into tickets in this run.")
 
 
 def imap_idle_listener():
@@ -387,9 +353,10 @@ def imap_idle_listener():
             logger.info(f"Attempting to connect to IMAP: {imap_server}, User: {imap_username}, Folder: {imap_folder}")
             with MailBox(imap_server).login(imap_username, imap_password, initial_folder=imap_folder) as mailbox:
                 logger.info(f"Successfully connected to IMAP. Current folder: '{mailbox.folder.get()}'")
-                run_email_processing_logic(mailbox) # Initial check
+                run_email_processing_logic(mailbox)
                 last_periodic_check = time.time()
                 logger.info(f"Entering IDLE mode (timeout: {idle_timeout_seconds}s)...")
+                
                 while True:
                     try:
                         effective_idle_timeout = min(idle_timeout_seconds, (periodic_check_interval // 2) if periodic_check_interval > 60 else 30)
@@ -440,31 +407,17 @@ if __name__ == '__main__':
             'SQLALCHEMY_DATABASE_URI', 'IMAP_SERVER', 'IMAP_USERNAME', 'IMAP_PASSWORD',
             'UPLOAD_FOLDER', 'MAIL_SERVER', 'MAIL_PORT', 'MAIL_DEFAULT_SENDER'
         ]
-        # SERVER_NAME and BASE_URL logic for url_for(_external=True)
         if not current_app.config.get('SERVER_NAME') and current_app.config.get('BASE_URL'):
             parsed_url = urlparse(current_app.config['BASE_URL'])
             current_app.config['SERVER_NAME'] = parsed_url.netloc or 'localhost:5000'
             logger.info(f"Dynamically configured SERVER_NAME='{current_app.config['SERVER_NAME']}' from BASE_URL.")
         elif not current_app.config.get('SERVER_NAME'):
-            required_configs.append('BASE_URL') # Indicate one is needed for external URLs
             logger.warning("SERVER_NAME not set and BASE_URL also not set/unparsable. External URLs in emails might be incorrect.")
 
         missing = [c for c in required_configs if not current_app.config.get(c)]
-        # Adjust missing check if SERVER_NAME is critical and not derivable
-        if 'SERVER_NAME' in missing and 'BASE_URL' in missing and current_app.config.get('BASE_URL') is None:
-             # If SERVER_NAME is expected but not found, and BASE_URL also not found to derive it
-             pass # The general missing_configs check will catch this if SERVER_NAME was added to required_configs
-        elif 'SERVER_NAME' in missing and not current_app.config.get('SERVER_NAME'):
-             # If BASE_URL was there but SERVER_NAME still couldn't be set
-             logger.critical("FATAL: SERVER_NAME missing and could not be derived from BASE_URL. External URLs will fail.")
-             missing.append("SERVER_NAME (undetermined)") # Make it explicit for exit message
-
-        if any(m for m in missing if m not in ['BASE_URL'] or (m == 'BASE_URL' and not current_app.config.get('SERVER_NAME'))):
-             # Exit if essential configs are missing (excluding BASE_URL if SERVER_NAME is set)
-            final_missing = [m for m in missing if not (m == 'BASE_URL' and current_app.config.get('SERVER_NAME'))]
-            if final_missing:
-                logger.critical(f"FATAL: Missing essential app.config values: {final_missing}. Exiting.")
-                sys.exit(1)
+        if missing:
+            logger.critical(f"FATAL: Missing essential app.config values: {missing}. Exiting.")
+            sys.exit(1)
         
         if not current_app.config.get('MAIL_USERNAME') or not current_app.config.get('MAIL_PASSWORD'):
             logger.warning("MAIL_USERNAME or MAIL_PASSWORD not configured. Auto-reply emails will fail.")
